@@ -34,7 +34,7 @@ script:
   - |
     if [ "$SKIP_TESTS" != "true" ]; then 
       mvn clean verify -P$MAVEN_PROFILE; 
-    else;
+    else
       echo "SKIPPING TESTS";
     fi
   - |
@@ -42,6 +42,6 @@ script:
       echo $GPG_SECRET_KEYS | base64 --decode | $GPG_EXECUTABLE --import;
       echo $GPG_OWNERTRUST | base64 --decode | $GPG_EXECUTABLE --import-ownertrust;
       mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease -DskipTests;
-    else;
+    else
       echo "SKIPPING DEPLOYMENT";
     fi
