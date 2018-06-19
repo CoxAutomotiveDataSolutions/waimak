@@ -27,7 +27,7 @@ matrix:
     - env: MAVEN_PROFILE="cloudera-2.2.0.cloudera1"
 
 install:
-  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -Dgpg.skip -B -V -P$MAVEN_PROFILE
+  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE
 
 script:
   - mvn help:active-profiles -P$MAVEN_PROFILE
@@ -36,5 +36,5 @@ script:
     if [ "$DEPLOY_PROFILE" == "true" ] && [ "$TRAVIS_PULL_REQUEST" != "false" ] && ( [ -n "$TRAVIS_TAG" ] || [ "$TRIGGER_DEPLOYMENT" == "true" ] ); then 
       echo $GPG_SECRET_KEYS | base64 --decode | $GPG_EXECUTABLE --import;
       echo $GPG_OWNERTRUST | base64 --decode | $GPG_EXECUTABLE --import-ownertrust;
-      mvn clean deploy -P$MAVEN_PROFILE -Prelease;
+      mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease;
     fi
