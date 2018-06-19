@@ -38,7 +38,7 @@ script:
       echo "SKIPPING TESTS";
     fi
   - |
-    if [ "$DEPLOY_PROFILE" == "true" ] && [ "$TRAVIS_PULL_REQUEST" != "false" ] && ( [ -n "$TRAVIS_TAG" ] || [ "$TRIGGER_DEPLOYMENT" == "true" ] ); then 
+    if [ "$DEPLOY_PROFILE" == "true" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ] && ( [ -n "$TRAVIS_TAG" ] || [ "$TRIGGER_DEPLOYMENT" == "true" ] ); then 
       echo $GPG_SECRET_KEYS | base64 --decode | $GPG_EXECUTABLE --import;
       echo $GPG_OWNERTRUST | base64 --decode | $GPG_EXECUTABLE --import-ownertrust;
       mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease -DskipTests;
