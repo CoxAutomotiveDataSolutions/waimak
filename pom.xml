@@ -195,7 +195,7 @@
         <scalatest.maven.plugin.version>1.0</scalatest.maven.plugin.version>
         <maven.jar.plugin.version>3.0.2</maven.jar.plugin.version>
         <maven.source.plugin.version>3.0.1</maven.source.plugin.version>
-        <jgitflow.maven.plugin.version>1.9.0</jgitflow.maven.plugin.version>
+        <gitflow.maven.plugin.version>1.9.0</gitflow.maven.plugin.version>
         <skipTests>false</skipTests>
         <skipUTs>${skipTests}</skipUTs>
         <skipITs>${skipTests}</skipITs>
@@ -297,8 +297,8 @@
             </plugin>
             <plugin>
                 <groupId>com.amashchenko.maven.plugin</groupId>
-                <artifactId>jgitflow-maven-plugin</artifactId>
-                <version>${jgitflow.maven.plugin.version}</version>
+                <artifactId>gitflow-maven-plugin</artifactId>
+                <version>${gitflow.maven.plugin.version}</version>
                 <configuration>
                     <enableSshAgent>true</enableSshAgent>
                     <pushFeatures>true</pushFeatures>
