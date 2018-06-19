@@ -6,6 +6,7 @@ branches:
   only:
   - master
   - develop
+  - /^\d+\.\d+(\.\d+)?(-\S*)?$/
 
 jdk:
   - oraclejdk8
@@ -21,12 +22,19 @@ matrix:
   include:
     - env: MAVEN_PROFILE="apache-2.0.0"
     - env: MAVEN_PROFILE="apache-2.1.0"
-    - env: MAVEN_PROFILE="apache-2.2.0"
+    - env: MAVEN_PROFILE="apache-2.2.0" DEPLOY_PROFILE="true"
     - env: MAVEN_PROFILE="apache-2.3.0"
     - env: MAVEN_PROFILE="cloudera-2.2.0.cloudera1"
 
 install:
-  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE
+  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -Dgpg.skip -B -V -P$MAVEN_PROFILE
 
-script: 
+script:
+  - mvn help:active-profiles -P$MAVEN_PROFILE
   - mvn clean verify -P$MAVEN_PROFILE
+  - |
+    if [ "$DEPLOY_PROFILE" == "true" ] && [ "$TRAVIS_PULL_REQUEST" != "false" ] && ( [ -n "$TRAVIS_TAG" ] || [ "$TRIGGER_DEPLOYMENT" == "true" ] ); then 
+      echo $GPG_SECRET_KEYS | base64 --decode | $GPG_EXECUTABLE --import;
+      echo $GPG_OWNERTRUST | base64 --decode | $GPG_EXECUTABLE --import-ownertrust;
+      mvn clean deploy -P$MAVEN_PROFILE -Prelease;
+    fi
