@@ -8,6 +8,10 @@ jdk:
 services:
   - docker
 
+cache:
+  directories:
+    - ${HOME}/.m2
+
 matrix:
   include:
     - env: MAVEN_PROFILE="apache-2.0.0"
@@ -16,4 +20,8 @@ matrix:
     - env: MAVEN_PROFILE="apache-2.3.0"
     - env: MAVEN_PROFILE="cloudera-2.2.0.cloudera1"
 
-script: "mvn clean verify -P $MAVEN_PROFILE"
+install:
+  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE
+
+script: 
+  - mvn clean verify -P$MAVEN_PROFILE
