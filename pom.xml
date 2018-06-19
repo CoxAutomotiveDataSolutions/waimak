@@ -22,7 +22,7 @@
     <groupId>com.coxautodata</groupId>
     <artifactId>waimak-parent_2.11</artifactId>
     <packaging>pom</packaging>
-    <version>1.3</version>
+    <version>1.3-SNAPSHOT</version>
 
     <name>Waimak</name>
     <description>An open-source tool that helps data teams row their own boats. Copyright 2018 Cox Automotive UK
