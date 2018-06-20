@@ -21,7 +21,7 @@ matrix:
   include:
     - env: MAVEN_PROFILE="apache-2.0.0"
     - env: MAVEN_PROFILE="apache-2.1.0"
-    - env: MAVEN_PROFILE="apache-2.2.0" DEPLOY_PROFILE="true"
+    - env: MAVEN_PROFILE="apache-2.2.0" DEPLOY_PROFILE="true" COVERAGE_PROFILE="true"
     - env: MAVEN_PROFILE="apache-2.3.0"
     - env: MAVEN_PROFILE="cloudera-2.2.0.cloudera1"
 
@@ -32,7 +32,7 @@ script:
   - mvn help:active-profiles -P$MAVEN_PROFILE
   - |
     if [ "$SKIP_TESTS" != "true" ]; then 
-      mvn clean verify -P$MAVEN_PROFILE; 
+      mvn clean verify -P$MAVEN_PROFILE $( if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then echo -Preport scoverage:integration-report coveralls:report; fi );
     else
       echo "SKIPPING TESTS";
     fi
