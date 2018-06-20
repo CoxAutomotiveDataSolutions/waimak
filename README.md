@@ -1,5 +1,9 @@
 # Waimak
 
+[![Build Status](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak.svg?branch=develop)](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak) 
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.coxautodata/waimak-core_2.11/badge.svg)](http://search.maven.org/#search%7Cga%7C1%7Cwaimak) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop)
+
+
 ![Waimak logo](images/waimak.png)
 
 Waimak is an open-source framework that makes it easier to build, test and deploy complex data flows in Apache Spark.
@@ -66,15 +70,15 @@ Waimak marks the Spark dependency as optional to not depend on any specific rele
 
 Waimak currently consists of the following modules:
 
-Artifact ID | Purpose
------------ | -------
-`waimak-core_2.11` | Core Waimak functionality and generic actions
-`waimak-azure-table_2.11` | Functionality to write outputs to Azure Tables
-`waimak-configuration_2.11` | Non-flow functionality to simplify configuration
-`waimak-rdbm-export_2.11` | Functionality to write outputs to MSSQL databases
-`waimak-impala_2.11` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB
-`waimak-rdbm-ingestion_2.11` | Functionality to ingest inputs from a range of RDBM sources
-`waimak-storage_2.11` | Functionality for providing a hot/cold region-based ingestion storage layer
+Artifact ID | Purpose | Maven Release
+----------- | ------- | -------------
+`waimak-core_2.11` | Core Waimak functionality and generic actions | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-core_2.11%22) 
+`waimak-azure-table_2.11` | Functionality to write outputs to Azure Tables | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-azure-table_2.11%22)
+`waimak-configuration_2.11` | Non-flow functionality to simplify configuration | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-configuration_2.11%22)
+`waimak-rdbm-export_2.11` | Functionality to write outputs to MSSQL databases | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-rdbm-export_2.11%22)
+`waimak-impala_2.11` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-impala_2.11%22)
+`waimak-rdbm-ingestion_2.11` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-rdbm-ingestion_2.11%22)
+`waimak-storage_2.11` | Functionality for providing a hot/cold region-based ingestion storage layer | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-storage_2.11%22)
 
 ## Supported Spark Versions
 
