@@ -26,13 +26,13 @@ matrix:
     - env: MAVEN_PROFILE="cloudera-2.2.0.cloudera1"
 
 install:
-  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE
+  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE -U
 
 script:
   - mvn help:active-profiles -P$MAVEN_PROFILE
   - |
     if [ "$SKIP_TESTS" != "true" ]; then 
-      mvn clean verify -P$MAVEN_PROFILE $( if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then echo -Preport scoverage:integration-report coveralls:report; fi );
+      mvn clean verify -P$MAVEN_PROFILE $( if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then echo -Preport scoverage:integration-report coveralls:report; fi ) -U;
     else
       echo "SKIPPING TESTS";
     fi
@@ -40,7 +40,7 @@ script:
     if [ "$DEPLOY_PROFILE" == "true" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ] && ( [ -n "$TRAVIS_TAG" ] || [ "$TRIGGER_DEPLOYMENT" == "true" ] ); then 
       echo $GPG_SECRET_KEYS | base64 --decode | $GPG_EXECUTABLE --import;
       echo $GPG_OWNERTRUST | base64 --decode | $GPG_EXECUTABLE --import-ownertrust;
-      mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease -DskipTests;
+      mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease -DskipTests -U;
     else
       echo "SKIPPING DEPLOYMENT";
     fi
