@@ -22,7 +22,7 @@ class TestDataFlowAction extends FunSpec with Matchers {
 
   describe("flow states") {
 
-    val inputs = DataFlowEntities[Option[String]](Map("i1" -> Some("v1"), "i2" -> Some("v2"), "i3" -> None, "i4" -> None))
+    val inputs = DataFlowEntities(Map("i1" -> Some("v1"), "i2" -> Some("v2"), "i3" -> None, "i4" -> None))
 
     describe("ready to run") {
 

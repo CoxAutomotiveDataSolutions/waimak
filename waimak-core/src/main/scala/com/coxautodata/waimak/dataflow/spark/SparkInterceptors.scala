@@ -14,13 +14,13 @@ object SparkInterceptors extends Logging {
 
   type CacheActionType = CachePostAction[Dataset[_], SparkFlowContext]
 
-  def addPostAction(sparkFlow: SparkDataFlow
+  def addPostAction[T](sparkFlow: SparkDataFlow
                     , outputLabel: String
-                    , postAction: PostAction[Dataset[_], SparkFlowContext]): SparkDataFlow = {
-    val toIntercept: DataFlowAction[Dataset[_], SparkFlowContext] = sparkFlow.getActionByOutputLabel(outputLabel)
+                    , postAction: PostAction[T, SparkFlowContext]): SparkDataFlow = {
+    val toIntercept: DataFlowAction[SparkFlowContext] = sparkFlow.getActionByOutputLabel(outputLabel)
     val interceptor = toIntercept match {
       // Interceptor already exists
-      case i@PostActionInterceptor(_, _) => i.addPostAction(postAction)
+      case i: PostActionInterceptor[T, SparkFlowContext] => i.addPostAction(postAction)
       // First interceptor
       case _ => PostActionInterceptor(toIntercept, Seq(postAction))
     }

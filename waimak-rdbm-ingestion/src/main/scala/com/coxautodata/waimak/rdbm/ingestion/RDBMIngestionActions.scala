@@ -4,13 +4,12 @@ import java.sql.Timestamp
 import java.time.ZonedDateTime
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
-import com.coxautodata.waimak.dataflow.ActionResult
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
+import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.storage.StorageActions._
 import com.coxautodata.waimak.storage.{AuditTable, AuditTableRegionInfo, Storage}
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.Dataset
 
 /**
   * Created by Vicky Avison on 08/05/18.
@@ -106,7 +105,7 @@ object RDBMIngestionActions {
                         , maxRowsPerPartition: Option[Int] = None
                         , forceFullLoad: Boolean = false): SparkDataFlow = {
 
-      val run: Map[String, Dataset[_]] => ActionResult[Dataset[_]] =
+      val run: DataFlowEntities => ActionResult =
         _ => Seq(Some(rdbmExtractor.getTableDataset(tableMetadata, lastUpdated, maxRowsPerPartition, forceFullLoad)))
 
       sparkDataFlow.addAction(new SimpleAction(List.empty, List(label), run))
@@ -135,7 +134,7 @@ object RDBMIngestionActions {
       handleTableErrors(existingTables, "Unable to perform read")
 
 
-      def run(table: AuditTable): Map[String, Dataset[_]] => ActionResult[Dataset[_]] = _ => {
+      def run(table: AuditTable): DataFlowEntities => ActionResult = _ => {
         val temporalTableMetadata = CaseClassConfigParser.fromMap[SQLServerTemporalTableMetadata](table.meta)
         if (!temporalTableMetadata.isTemporal) Seq(table.snapshot(snapshotTimestamp))
         else Seq(table.allBetween(None, Some(snapshotTimestamp))

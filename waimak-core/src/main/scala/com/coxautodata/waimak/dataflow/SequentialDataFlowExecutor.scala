@@ -1,7 +1,6 @@
 package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.log.Logging
-import org.apache.spark.sql.Dataset
 
 import scala.annotation.tailrec
 
@@ -10,10 +9,9 @@ import scala.annotation.tailrec
   *
   * Executes one action at a time wihtout trying to parallelize them.
   *
-  * @tparam T the type of the entity which we are transforming (e.g. Dataset
   * @tparam C the type of context which we pass to the actions
   */
-class SequentialDataFlowExecutor[T, C] extends DataFlowExecutor[T, C] with Logging {
+class SequentialDataFlowExecutor[C] extends DataFlowExecutor[C] with Logging {
 
   //TODO: Not sure that this executor will stay the same after proper parallelization. But the flow methods will definitely stay the same
   /**
@@ -25,19 +23,18 @@ class SequentialDataFlowExecutor[T, C] extends DataFlowExecutor[T, C] with Loggi
     * @param dataFlow - input data flow
     * @return - final state after a wave is executed
     */
-  def executeWave(dataFlow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = {
+  def executeWave(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C]) = {
     val wave = dataFlow.nextRunnable()
     logInfo(s"Scheduling wave of ${wave.size} actions:")
     wave.foreach { action => logInfo(action.logLabel) }
     val resFlow = wave.foldLeft(dataFlow) { (df, action) =>
-      val inputEntities: DataFlowEntities[T] = {
-        if (action.requiresAllInputs) df.inputs.filterLabels(action.inputLabels).map(_.get)
-        else df.inputs.filterLabels(action.inputLabels).filterValues(_.isDefined).map(_.get)
+      val inputEntities: DataFlowEntities = {
+        df.inputs.filterLabels(action.inputLabels)
       }
 
       logInfo(s"Submitting action ${action.logLabel}")
       //TODO: left for compatibility, need to change the data flow entities to know about optional
-      val actionOutputs: Seq[Option[T]] = action.performAction(inputEntities, dataFlow.flowContext)
+      val actionOutputs: Seq[Option[Any]] = action.performAction(inputEntities, dataFlow.flowContext)
       df.executed(action, actionOutputs)
     }
     (wave, resFlow)
@@ -50,10 +47,10 @@ class SequentialDataFlowExecutor[T, C] extends DataFlowExecutor[T, C] with Loggi
     * @return (Seq[EXECUTED ACTIONS], FINAL STATE). Final state does not contain the executed actions and the outputs
     *         of the executed actions are now in the inputs
     */
-  def execute(dataFlow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = {
+  def execute(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C]) = {
 
     @tailrec
-    def loop(allExecutedActions: Seq[DataFlowAction[T, C]], flow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = executeWave(flow) match {
+    def loop(allExecutedActions: Seq[DataFlowAction[C]], flow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C]) = executeWave(flow) match {
       case (nothingWasExecuted, finalFlow) if nothingWasExecuted.isEmpty => (allExecutedActions, finalFlow)
       case (executedInWave, intermediateFlow) => loop(allExecutedActions ++ executedInWave, intermediateFlow)
     }

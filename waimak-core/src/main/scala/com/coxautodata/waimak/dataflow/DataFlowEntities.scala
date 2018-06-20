@@ -5,28 +5,48 @@ package com.coxautodata.waimak.dataflow
   * unique across the data flow.
   *
   * @param entities a map of label -> entity
-  * @tparam T the entity type (e.g. org.apache.spark.sql.Dataset)
   */
 //TODO: Make values optional
-class DataFlowEntities[T](val entities: Map[String, T]) {
+class DataFlowEntities(private val entities: Map[String, Option[Any]]) {
 
-  def filterLabels(labels: List[String]): DataFlowEntities[T] = DataFlowEntities(entities.filterKeys(labels.contains))
+  def filterLabels(labels: List[String]): DataFlowEntities = DataFlowEntities(entities.filterKeys(labels.contains))
 
-  def get(label: String): T = entities(label)
+  def keySet: Set[String] = entities.keySet
 
-  def ++(other: DataFlowEntities[T]): DataFlowEntities[T] = DataFlowEntities(entities ++ other.entities)
+  def get[T](label: String): T = {
+    val entity = entities(label)
+    entity match {
+      case Some(value) if value.isInstanceOf[T] => value.asInstanceOf[T]
+      case None => throw new DataFlowException(s"Entity $label does not exist")
+      //TODO: Add type information to the log message
+      case _ => throw new DataFlowException(s"label $label not of requested type")
+    }
+  }
 
-  def +(entity: (String, T)): DataFlowEntities[T] = DataFlowEntities(entities + entity)
+  def getOption[T](label: String): Option[T] = {
+    val entity = entities.get(label)
+    entity match {
+      case Some(Some(value)) if value.isInstanceOf[T] => Some(value.asInstanceOf[T])
+      case Some(None) => None
+      case None => throw new DataFlowException(s"label $label does not exist")
+      //TODO: Add type information to the log message
+      case _ => throw new DataFlowException(s"label $label not of requested type")
+    }
+  }
+
+  def ++(other: DataFlowEntities): DataFlowEntities = DataFlowEntities(entities ++ other.entities)
+
+  def +(entity: (String, Option[Any])): DataFlowEntities = DataFlowEntities(entities + entity)
 
   def size: Int = entities.size
 
   def labels: Set[String] = entities.keySet
 
-  def canEqual(other: Any): Boolean = other.isInstanceOf[DataFlowEntities[T]]
+  def canEqual(other: Any): Boolean = other.isInstanceOf[DataFlowEntities]
 
-  def map[A](f: T => A) = DataFlowEntities(entities.mapValues(f))
+  def map[A](f: Any => A) = DataFlowEntities(entities.mapValues(_.map(f)))
 
-  def filterValues(cond: T => Boolean): DataFlowEntities[T] = DataFlowEntities(entities.filter {
+  def filterValues(cond: Any => Boolean): DataFlowEntities = DataFlowEntities(entities.filter {
     case (_, entity) => cond(entity)
   })
 
@@ -34,10 +54,12 @@ class DataFlowEntities[T](val entities: Map[String, T]) {
 
   def isEmpty: Boolean = entities.isEmpty
 
-  def getAll: Seq[T] = entities.values.toSeq
+  def getAll: Seq[Option[Any]] = entities.values.toSeq
+
+  def contains(label: String): Boolean = entities.contains(label)
 
   override def equals(other: Any): Boolean = other match {
-    case that: DataFlowEntities[T] =>
+    case that: DataFlowEntities =>
       (that canEqual this) &&
         hash == that.hash &&
         entities == that.entities
@@ -54,8 +76,8 @@ class DataFlowEntities[T](val entities: Map[String, T]) {
 
 object DataFlowEntities {
 
-  def apply[T](entities: Map[String, T]): DataFlowEntities[T] = new DataFlowEntities[T](entities)
+  def apply(entities: Map[String, Option[Any]]): DataFlowEntities = new DataFlowEntities(entities)
 
-  def empty[T] = new DataFlowEntities[T](Map.empty)
+  def empty = new DataFlowEntities(Map.empty)
 
 }

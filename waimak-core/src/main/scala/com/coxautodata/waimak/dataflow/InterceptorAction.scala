@@ -10,10 +10,9 @@ import java.util.UUID
   *
   * Created by Alexei Perelighin on 23/02/2018.
   *
-  * @tparam T the type of the entity which we are transforming (e.g. Dataset)
   * @tparam C the type of the context of the flow in which this action runs
   */
-class InterceptorAction[T, C](val intercepted: DataFlowAction[T, C]) extends DataFlowAction[T, C] {
+class InterceptorAction[C](val intercepted: DataFlowAction[C]) extends DataFlowAction[C] {
 
   /**
     * @return same value as the intercepted action.
@@ -42,7 +41,7 @@ class InterceptorAction[T, C](val intercepted: DataFlowAction[T, C]) extends Dat
     * @param flowContext context of the flow in which this action runs
     * @return the action outputs (these must be declared in the same order as their labels in [[outputLabels]])
     */
-  final override def performAction(inputs: DataFlowEntities[T], flowContext: C): ActionResult[T] = {
+  final override def performAction(inputs: DataFlowEntities, flowContext: C): ActionResult = {
     val res = instead(inputs, flowContext)
     res
   }
@@ -59,7 +58,7 @@ class InterceptorAction[T, C](val intercepted: DataFlowAction[T, C]) extends Dat
     * @param flowContext
     * @return
     */
-  def instead(inputs: DataFlowEntities[T], flowContext: C): ActionResult[T] = intercepted.performAction(inputs, flowContext)
+  def instead(inputs: DataFlowEntities, flowContext: C): ActionResult = intercepted.performAction(inputs, flowContext)
 
   /**
     * Calls the intercepted.flowState.
@@ -67,6 +66,6 @@ class InterceptorAction[T, C](val intercepted: DataFlowAction[T, C]) extends Dat
     * @param inputs - action will study the state of the inputs in order to generate self assessment
     * @return - an instance of the DataFlowActionState
     */
-  override def flowState(inputs: DataFlowEntities[Option[T]]): DataFlowActionState = intercepted.flowState(inputs)
+  override def flowState(inputs: DataFlowEntities): DataFlowActionState = intercepted.flowState(inputs)
 
 }

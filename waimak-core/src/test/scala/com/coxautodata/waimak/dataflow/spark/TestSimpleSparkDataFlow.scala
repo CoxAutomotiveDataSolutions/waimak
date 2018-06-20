@@ -18,7 +18,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
   val executor = Waimak.sparkExecutor()
 
   // Need to explicitly use sequential executor
-  val sequentialExecutor = new SequentialDataFlowExecutor[Dataset[_], SparkFlowContext]
+  val sequentialExecutor = new SequentialDataFlowExecutor[SparkFlowContext]
 
   import SparkActions._
   import TestSparkData._
@@ -28,6 +28,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     it("read one") {
       val spark = sparkSession
       import spark.implicits._
+      import spark.implicits._
 
       val flow = Waimak.sparkFlow(spark)
         .openCSV(basePath)("csv_1")
@@ -36,7 +37,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val (executedActions, finalState) = executor.execute(flow)
 
       executedActions.foreach(d => println(d.logLabel))
-      finalState.inputs.entities.foreach(kv => println(kv._1))
 
       //validate executed actions
       executedActions.size should be(2)
@@ -44,7 +44,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(1)
-      finalState.inputs.get("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
     }
 
     it("read two, without prefix") {
@@ -64,8 +64,8 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(2)
-      finalState.inputs.get("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
-      finalState.inputs.get("csv_2").map(_.as[TPerson].collect()).get should be(persons)
+      finalState.inputs.getOption[Dataset[_]]("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("csv_2").map(_.as[TPerson].collect()).get should be(persons)
     }
 
     it("read two, with prefix") {
@@ -84,8 +84,8 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(2)
-      finalState.inputs.get("pr_csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
-      finalState.inputs.get("pr_csv_2").map(_.as[TPerson].collect()).get should be(persons)
+      finalState.inputs.getOption[Dataset[_]]("pr_csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("pr_csv_2").map(_.as[TPerson].collect()).get should be(persons)
     }
 
     it("read path") {
@@ -103,7 +103,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(1)
-      finalState.inputs.get("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
     }
   }
 
@@ -125,8 +125,8 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         .openParquet(baseDest)("parquet_1", "parquet_2")
 
       val (executedActions, finalState) = executor.execute(flow2)
-      finalState.inputs.get("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
-      finalState.inputs.get("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
+      finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
 
     }
 
@@ -146,8 +146,8 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         .openParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1", "parquet_2")
 
       val (executedActions, finalState) = executor.execute(flow2)
-      finalState.inputs.get("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
-      finalState.inputs.get("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
+      finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
 
     }
 
@@ -179,7 +179,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         .openParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1")
 
       val (_, finalState) = executor.execute(flow2)
-      finalState.inputs.get("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
 
     }
 
@@ -203,7 +203,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(2)
-      finalState.inputs.get("person_summary").map(_.as[TSummary].collect()).get should be(Seq(
+      finalState.inputs.getOption[Dataset[_]]("person_summary").map(_.as[TSummary].collect()).get should be(Seq(
         TSummary(Some(1), Some(3), Some(7))
         , TSummary(Some(3), Some(1), Some(2))
         , TSummary(Some(5), Some(3), Some(3))
@@ -242,7 +242,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(5)
-      finalState.inputs.get("report").map(_.as[TReport].collect()).get should be(report)
+      finalState.inputs.getOption[Dataset[_]]("report").map(_.as[TReport].collect()).get should be(report)
     }
   }
 
@@ -273,7 +273,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(4)
-      finalState.inputs.get("report").map(_.withColumn("calc_1", lit(2)).as[TReport].collect()).get should be(report)
+      finalState.inputs.getOption[Dataset[_]]("report").map(_.withColumn("calc_1", lit(2)).as[TReport].collect()).get should be(report)
     }
 
   }
@@ -282,6 +282,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("chain one by one") {
       val spark = sparkSession
+      import spark.implicits._
       import spark.implicits._
       val flow = Waimak.sparkFlow(spark)
         .openCSV(basePath)("csv_1", "csv_2")
@@ -309,7 +310,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(4)
-      finalState.inputs.get("report").map(_.as[TReport].collect()).get should be(report)
+      finalState.inputs.getOption[Dataset[_]]("report").map(_.as[TReport].collect()).get should be(report)
     }
   }
 
@@ -317,6 +318,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("stage csv to parquet and commit") {
       val spark = sparkSession
+      import spark.implicits._
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
@@ -336,6 +338,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("stage csv to parquet on an action that returns two labels and commit") {
       val spark = sparkSession
+      import spark.implicits._
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
@@ -393,6 +396,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     it("writeCSV") {
       val spark = sparkSession
       import spark.implicits._
+      import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
       val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
@@ -411,6 +415,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("writeCSV multiple with overwrite") {
       val spark = sparkSession
+      import spark.implicits._
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
       val dummyPath = new File(s"$baseDest/dummy")
@@ -438,6 +443,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     it("writeParquet") {
       val spark = sparkSession
       import spark.implicits._
+      import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
       val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
@@ -456,6 +462,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("writeParquet with multiple labels") {
       val spark = sparkSession
+      import spark.implicits._
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
@@ -532,8 +539,8 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         val (_, finalState) = sequentialExecutor.execute(flow)
         finalState.inputs.size should be(6)
 
-        finalState.inputs.get("items_written").get.as[TPurchase].collect() should be(purchases)
-        finalState.inputs.get("person_written").get.as[TPerson].collect() should be(persons)
+        finalState.inputs.get[Dataset[_]]("items_written").as[TPurchase].collect() should be(purchases)
+        finalState.inputs.get[Dataset[_]]("person_written").as[TPerson].collect() should be(persons)
 
       }
 
@@ -619,6 +626,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     it("sql") {
       val spark = sparkSession
       import spark.implicits._
+      import spark.implicits._
       val flow = Waimak.sparkFlow(spark)
         .openCSV(basePath)("csv_1", "csv_2")
         .debugAsTable("csv_1", "csv_2")
@@ -683,15 +691,15 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
 class TestEmptySparkAction(val inputLabels: List[String], val outputLabels: List[String]) extends SparkDataFlowAction {
 
-  override def performAction(inputs: DataFlowEntities[Dataset[_]], flowContext: SparkFlowContext): List[Option[Dataset[_]]] = List.empty
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): List[Option[Dataset[_]]] = List.empty
 
 }
 
 class TestTwoInputsAndOutputsAction(override val inputLabels: List[String], override val outputLabels: List[String], run: (Dataset[_], Dataset[_]) => (Dataset[_], Dataset[_])) extends SparkDataFlowAction {
 
-  override def performAction(inputs: DataFlowEntities[Dataset[_]], flowContext: SparkFlowContext): ActionResult[Dataset[_]] = {
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): ActionResult = {
     if (inputLabels.length != 2 && outputLabels.length != 2) throw new IllegalArgumentException("Number of input label and output labels must be 2")
-    val res: (Dataset[_], Dataset[_]) = run(inputs.get(inputLabels(0)), inputs.get(inputLabels(1)))
+    val res: (Dataset[_], Dataset[_]) = run(inputs.get[Dataset[_]](inputLabels(0)), inputs.get[Dataset[_]](inputLabels(1)))
     Seq(Some(res._1), Some(res._2))
   }
 }

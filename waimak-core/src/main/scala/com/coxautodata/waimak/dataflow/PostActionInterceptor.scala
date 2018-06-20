@@ -2,19 +2,19 @@ package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.log.Logging
 
-case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[T, C]
+case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
                                        , postActions: Seq[PostAction[T, C]])
-  extends InterceptorAction[T, C](toIntercept) with Logging {
+  extends InterceptorAction[C](toIntercept) with Logging {
 
-  override def instead(inputs: DataFlowEntities[T], flowContext: C): ActionResult[T] = {
+  override def instead(inputs: DataFlowEntities, flowContext: C): ActionResult = {
     val res = intercepted.performAction(inputs, flowContext).toArray
-    postActions.groupBy(_.labelToIntercept).foreach{
+    postActions.groupBy(_.labelToIntercept).foreach {
       v =>
         val label = v._1
         val actionsForLabel = v._2
         val pos = intercepted.outputLabels.indexOf(label)
         if (pos < 0) throw new DataFlowException(s"Can not apply post action to label $label, it does not exist in action ${intercepted.logLabel}.")
-        res(pos) = actionsForLabel.foldLeft(res(pos))((z, a) => a.run(z, flowContext))
+        res(pos) = actionsForLabel.foldLeft(res(pos))((z, a) => a.run(z.map(_.asInstanceOf[T]), flowContext))
     }
     res.toList
   }
