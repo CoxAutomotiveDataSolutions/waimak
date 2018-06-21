@@ -508,7 +508,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         val res = intercept[AnalysisException] {
           sequentialExecutor.execute(flow)
         }
-        res.getSimpleMessage should be(s"Path does not exist: file:$baseDest/person_written;")
+        res.message should be(s"Path does not exist: file:$baseDest/person_written")
       }
 
       it("tag dependency between write and open") {
