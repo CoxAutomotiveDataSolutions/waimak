@@ -37,7 +37,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a), List(output), run, "transform 1x1"))
+        .addAction(new SimpleAction(List(a), List(output), run, "transform 1 -> 1"))
     }
 
     /**
@@ -53,7 +53,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b), List(output), run, "transform 2x1"))
+        .addAction(new SimpleAction(List(a, b), List(output), run, "transform 2 -> 1"))
     }
 
     /**
@@ -70,7 +70,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c), List(output), run, "transform 3x1"))
+        .addAction(new SimpleAction(List(a, b, c), List(output), run, "transform 3 -> 1"))
     }
 
     /**
@@ -88,7 +88,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d), List(output), run, "transform 4x1"))
+        .addAction(new SimpleAction(List(a, b, c, d), List(output), run, "transform 4 -> 1"))
     }
 
     /**
@@ -107,7 +107,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d, e), List(output), run, "transform 5x1"))
+        .addAction(new SimpleAction(List(a, b, c, d, e), List(output), run, "transform 5 -> 1"))
     }
 
     /**
@@ -127,7 +127,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d, e, g), List(output), run, "transform 6x1"))
+        .addAction(new SimpleAction(List(a, b, c, d, e, g), List(output), run, "transform 6 -> 1"))
     }
 
     /**
@@ -149,7 +149,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d, e, g, h), List(output), run, "transform 7x1"))
+        .addAction(new SimpleAction(List(a, b, c, d, e, g, h), List(output), run, "transform 7 -> 1"))
     }
 
     /**
@@ -172,7 +172,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i), List(output), run, "transform 8x1"))
+        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i), List(output), run, "transform 8 -> 1"))
     }
 
     /**
@@ -196,7 +196,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i), m(k))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k), List(output), run, "transform 9x1"))
+        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k), List(output), run, "transform 9 -> 1"))
     }
 
     /**
@@ -221,7 +221,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i), m(k), m(l))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l), List(output), run, "transform 10x1"))
+        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l), List(output), run, "transform 10 -> 1"))
     }
 
     /**
@@ -247,7 +247,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i), m(k), m(l), m(n))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l, n), List(output), run, "transform 11x1"))
+        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l, n), List(output), run, "transform 11 -> 1"))
     }
 
     /**
@@ -275,7 +275,7 @@ object SparkActions {
       def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i), m(k), m(l), m(n), m(o))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l, n, o), List(output), run, "transform 12x1"))
+        .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l, n, o), List(output), run, "transform 12 -> 1"))
     }
 
     /**

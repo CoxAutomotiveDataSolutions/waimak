@@ -235,7 +235,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         , "Action: read Inputs: [] Outputs: [csv_2]"
         , "Action: sql Inputs: [csv_1] Outputs: [person_summary]"
         , "Action: sql Inputs: [person_summary,csv_2] Outputs: [report_tmp]"
-        , "Action: transform 1x1 Inputs: [report_tmp] Outputs: [report]"
+        , "Action: transform 1 -> 1 Inputs: [report_tmp] Outputs: [report]"
         , "Action: printSchema Inputs: [report] Outputs: []"
         , "Action: show Inputs: [report] Outputs: []"
       ))
@@ -266,7 +266,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         "Action: read Inputs: [] Outputs: [csv_1]"
         , "Action: read Inputs: [] Outputs: [csv_2]"
         , "Action: sql Inputs: [csv_1] Outputs: [person_summary]"
-        , "Action: transform 2x1 Inputs: [csv_2,person_summary] Outputs: [report]"
+        , "Action: transform 2 -> 1 Inputs: [csv_2,person_summary] Outputs: [report]"
         , "Action: printSchema Inputs: [report] Outputs: []"
         , "Action: show Inputs: [report] Outputs: []"
       ))
@@ -301,8 +301,8 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       executedActions.map(a => a.description) should be(Seq(
         "Action: read Inputs: [] Outputs: [csv_1]"
         , "Action: read Inputs: [] Outputs: [csv_2]"
-        , "Action: transform 1x1 Inputs: [csv_1] Outputs: [person_summary]"
-        , "Action: transform 2x1 Inputs: [person_summary,csv_2] Outputs: [report]"
+        , "Action: transform 1 -> 1 Inputs: [csv_1] Outputs: [person_summary]"
+        , "Action: transform 2 -> 1 Inputs: [person_summary,csv_2] Outputs: [report]"
         , "Action: printSchema Inputs: [report] Outputs: []"
         , "Action: show Inputs: [report] Outputs: []"
       ))
