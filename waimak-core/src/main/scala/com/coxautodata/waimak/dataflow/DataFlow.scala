@@ -1,7 +1,6 @@
 package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.log.Logging
-import org.apache.spark.sql.Dataset
 
 import scala.util.{Failure, Success, Try}
 
@@ -221,6 +220,10 @@ trait DataFlow[T, C] extends Logging {
   private def findDuplicateOutputLabels: Set[String] = {
     val allLabels = actions.flatMap(_.outputLabels) ++ inputs.labels
     allLabels.diff(allLabels.distinct).toSet
+  }
+
+  private[dataflow] def performAction(action: DataFlowAction[T, C], inputEntities: DataFlowEntities[T]): Seq[Option[T]] = {
+    action.performAction(inputEntities, flowContext)
   }
 
   /**

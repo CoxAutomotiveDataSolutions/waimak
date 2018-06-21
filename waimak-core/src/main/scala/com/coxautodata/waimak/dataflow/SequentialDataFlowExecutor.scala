@@ -37,7 +37,7 @@ class SequentialDataFlowExecutor[T, C] extends DataFlowExecutor[T, C] with Loggi
 
       logInfo(s"Submitting action ${action.logLabel}")
       //TODO: left for compatibility, need to change the data flow entities to know about optional
-      val actionOutputs: Seq[Option[T]] = action.performAction(inputEntities, dataFlow.flowContext)
+      val actionOutputs: Seq[Option[T]] = df.performAction(action, inputEntities)
       df.executed(action, actionOutputs)
     }
     (wave, resFlow)

@@ -18,7 +18,7 @@ import org.apache.spark.sql._
   * @tparam C the type of the context of the flow in which this action runs
   */
 class SimpleAction[T, C](val inputLabels: List[String], val outputLabels: List[String]
-                         , exec: Map[String, T] => ActionResult[T]) extends DataFlowAction[T, C] {
+                         , exec: Map[String, T] => ActionResult[T], override val actionName: String = "SimpleAction") extends DataFlowAction[T, C] {
 
   /**
     * Perform the action. Puts inputs into a map and invokes the exec function.
@@ -44,7 +44,7 @@ class SimpleAction[T, C](val inputLabels: List[String], val outputLabels: List[S
   */
 class SparkSimpleAction(inputLabels: List[String], outputLabels: List[String]
                         , exec: Map[String, Dataset[_]] => ActionResult[Dataset[_]]
-                        , val sqlTables: Seq[String]) extends SimpleAction[Dataset[_]
+                        , val sqlTables: Seq[String], override val actionName: String = "SparkSimpleAction") extends SimpleAction[Dataset[_]
   , SparkFlowContext](inputLabels, outputLabels, exec) {
 
 }
