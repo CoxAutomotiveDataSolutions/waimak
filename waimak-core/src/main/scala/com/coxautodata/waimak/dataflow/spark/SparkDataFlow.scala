@@ -59,11 +59,6 @@ trait SparkDataFlow extends DataFlow[Dataset[_], SparkFlowContext] with Logging 
     else this
   }
 
-  override private[dataflow] def performAction(action: DataFlowAction[Dataset[_], SparkFlowContext], inputEntities: DataFlowEntities[Dataset[_]]) = {
-    flowContext.spark.sparkContext.setJobGroup(action.guid, action.description)
-    super.performAction(action, inputEntities)
-  }
-
   def addCommitLabel(label: String, definition: LabelCommitDefinition): SparkDataFlow
 
   val commitLabels: Map[String, LabelCommitDefinition]

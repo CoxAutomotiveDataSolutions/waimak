@@ -18,7 +18,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
   val executor = Waimak.sparkExecutor()
 
   // Need to explicitly use sequential executor
-  val sequentialExecutor = new SequentialDataFlowExecutor[Dataset[_], SparkFlowContext]
+  val sequentialExecutor = new SequentialDataFlowExecutor[Dataset[_], SparkFlowContext](SparkFlowReporter)
 
   import SparkActions._
   import TestSparkData._

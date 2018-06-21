@@ -222,10 +222,6 @@ trait DataFlow[T, C] extends Logging {
     allLabels.diff(allLabels.distinct).toSet
   }
 
-  private[dataflow] def performAction(action: DataFlowAction[T, C], inputEntities: DataFlowEntities[T]): Seq[Option[T]] = {
-    action.performAction(inputEntities, flowContext)
-  }
-
   /**
     * All new states of the dataflow must be created via this factory method.
     * This will allow specific dataflows to pass their specific context objects into new state.
