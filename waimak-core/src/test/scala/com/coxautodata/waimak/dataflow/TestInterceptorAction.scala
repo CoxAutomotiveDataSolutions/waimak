@@ -2,6 +2,8 @@ package com.coxautodata.waimak.dataflow
 
 import org.scalatest.{FunSpec, Matchers}
 
+import scala.util.Success
+
 /**
   * Created by Alexei Perelighin on 2018/02/27
   */
@@ -40,7 +42,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
       val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "o1")))
       val res = post.performAction(emptyInputs, new EmptyFlowContext)
 
-      res should be(Seq(Some("v1_6789"), Some("v2")))
+      res should be(Success(Seq(Some("v1_6789"), Some("v2"))))
     }
 
     it("post second output") {
@@ -48,7 +50,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
       val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "o2")))
       val res = post.performAction(emptyInputs, new EmptyFlowContext)
 
-      res should be(Seq(Some("v1"), Some("v2_6789")))
+      res should be(Success(Seq(Some("v1"), Some("v2_6789"))))
     }
 
     it("post None output") {
@@ -56,7 +58,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
       val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "o2")))
       val res = post.performAction(emptyInputs, new EmptyFlowContext)
 
-      res should be(Seq(Some("v1"), None))
+      res should be(Success(Seq(Some("v1"), None)))
     }
 
     it("post non existing name") {

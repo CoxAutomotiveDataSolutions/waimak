@@ -2,6 +2,8 @@ package com.coxautodata.waimak.dataflow
 
 import java.util.UUID
 
+import scala.util.Try
+
 /**
   * An action to be performed as part of a data flow. Actions declare what input labels they expect in order to start
   * execution (0 .. N) and can produce outputs associated with the output labels (0 .. N). Executors will use these labels
@@ -48,7 +50,7 @@ trait DataFlowAction[T, C] {
     * @param flowContext context of the flow in which this action runs
     * @return the action outputs (these must be declared in the same order as their labels in [[outputLabels]])
     */
-  def performAction(inputs: DataFlowEntities[T], flowContext: C): ActionResult[T]
+  def performAction(inputs: DataFlowEntities[T], flowContext: C): Try[ActionResult[T]]
 
   /**
     * Action has the responsibility of assessing itself and produce DataFlowActionState, that will be used by the

@@ -3,6 +3,7 @@ package com.coxautodata.waimak.dataflow
 import com.coxautodata.waimak.log.Logging
 
 import scala.annotation.tailrec
+import scala.util.{Failure, Success}
 
 /**
   * Created by Alexei Perelighin 2017/12/27
@@ -37,7 +38,10 @@ class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T
       logInfo(s"Submitting action ${action.logLabel}")
       //TODO: left for compatibility, need to change the data flow entities to know about optional
       flowReporter.reportActionStarted(action, dataFlow.flowContext)
-      val actionOutputs: Seq[Option[T]] = action.performAction(inputEntities, dataFlow.flowContext)
+      val actionOutputs: Seq[Option[T]] = action.performAction(inputEntities, dataFlow.flowContext) match {
+        case Success(v) => v
+        case Failure(e) => throw new DataFlowException(s"Exception performing action: ${action.logLabel}", e)
+      }
       flowReporter.reportActionFinished(action, dataFlow.flowContext)
       df.executed(action, actionOutputs)
     }
