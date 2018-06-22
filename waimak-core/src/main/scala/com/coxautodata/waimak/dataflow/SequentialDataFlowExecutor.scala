@@ -1,7 +1,6 @@
 package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.log.Logging
-import org.apache.spark.sql.Dataset
 
 import scala.annotation.tailrec
 
@@ -13,7 +12,7 @@ import scala.annotation.tailrec
   * @tparam T the type of the entity which we are transforming (e.g. Dataset
   * @tparam C the type of context which we pass to the actions
   */
-class SequentialDataFlowExecutor[T, C] extends DataFlowExecutor[T, C] with Logging {
+class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T, C]) extends DataFlowExecutor[T, C] with Logging {
 
   //TODO: Not sure that this executor will stay the same after proper parallelization. But the flow methods will definitely stay the same
   /**
@@ -37,7 +36,9 @@ class SequentialDataFlowExecutor[T, C] extends DataFlowExecutor[T, C] with Loggi
 
       logInfo(s"Submitting action ${action.logLabel}")
       //TODO: left for compatibility, need to change the data flow entities to know about optional
+      flowReporter.reportActionStarted(action, dataFlow.flowContext)
       val actionOutputs: Seq[Option[T]] = action.performAction(inputEntities, dataFlow.flowContext)
+      flowReporter.reportActionFinished(action, dataFlow.flowContext)
       df.executed(action, actionOutputs)
     }
     (wave, resFlow)

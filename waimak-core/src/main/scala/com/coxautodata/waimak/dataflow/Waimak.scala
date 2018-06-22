@@ -16,7 +16,7 @@
 
 package com.coxautodata.waimak.dataflow
 
-import com.coxautodata.waimak.dataflow.spark.{SimpleSparkDataFlow, SparkDataFlow, SparkFlowContext}
+import com.coxautodata.waimak.dataflow.spark.{SimpleSparkDataFlow, SparkDataFlow, SparkFlowContext, SparkFlowReporter}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{Dataset, SparkSession}
 
@@ -49,6 +49,6 @@ object Waimak {
     *
     * @return
     */
-  def sparkExecutor(): DataFlowExecutor[Dataset[_], SparkFlowContext] = new SequentialDataFlowExecutor[Dataset[_], SparkFlowContext]
+  def sparkExecutor(): DataFlowExecutor[Dataset[_], SparkFlowContext] = new SequentialDataFlowExecutor[Dataset[_], SparkFlowContext](SparkFlowReporter)
 
 }
