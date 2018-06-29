@@ -67,7 +67,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
         post.performAction(emptyInputs, new EmptyFlowContext)
       }
 
-      res.text should be(s"Can not apply post action to label doesnotexist, it does not exist in action ${action.guid} Inputs: [] Outputs: [o1,o2].")
+      res.text should be(s"Can not apply post action to label doesnotexist, it does not exist in action ${action.guid}: Action: TestPresetAction Inputs: [] Outputs: [o1,o2].")
     }
   }
 

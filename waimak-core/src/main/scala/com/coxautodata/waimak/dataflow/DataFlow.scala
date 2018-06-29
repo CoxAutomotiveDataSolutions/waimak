@@ -1,7 +1,6 @@
 package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.log.Logging
-import org.apache.spark.sql.Dataset
 
 import scala.util.{Failure, Success, Try}
 
