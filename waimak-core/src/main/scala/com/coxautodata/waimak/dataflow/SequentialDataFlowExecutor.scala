@@ -1,5 +1,7 @@
 package com.coxautodata.waimak.dataflow
 
+import java.util.UUID
+
 import com.coxautodata.waimak.log.Logging
 
 import scala.annotation.tailrec
@@ -53,6 +55,8 @@ class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T
     */
   def execute(dataFlow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = {
 
+    val guid: String = UUID.randomUUID().toString
+
     @tailrec
     def loop(allExecutedActions: Seq[DataFlowAction[T, C]], flow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = executeWave(flow) match {
       case (nothingWasExecuted, finalFlow) if nothingWasExecuted.isEmpty => (allExecutedActions, finalFlow)
@@ -61,7 +65,13 @@ class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T
 
     val preparedDataFlow = dataFlow.prepareForExecution()
 
-    loop(Seq.empty, preparedDataFlow)
+    flowReporter.reportExecutionStarted(preparedDataFlow, guid)
+
+    val (executedActions, finalFlowState) = loop(Seq.empty, preparedDataFlow)
+
+    flowReporter.reportExecutionFinished(finalFlowState, guid)
+
+    (executedActions, finalFlowState)
   }
 }
 

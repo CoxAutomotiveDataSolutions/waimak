@@ -194,4 +194,8 @@ class TestReporter extends FlowReporter[String, EmptyFlowContext] {
   override def reportActionStarted(action: DataFlowAction[String, EmptyFlowContext], flowContext: EmptyFlowContext): Unit = reports += s"Start: ${action.description}"
 
   override def reportActionFinished(action: DataFlowAction[String, EmptyFlowContext], flowContext: EmptyFlowContext): Unit = reports += s"Finish: ${action.description}"
+
+  override def reportExecutionStarted(flow: DataFlow[String, EmptyFlowContext], executionGUID: String): Unit = ???
+
+  override def reportExecutionFinished(flow: DataFlow[String, EmptyFlowContext], executionGUID: String): Unit = ???
 }
