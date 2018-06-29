@@ -18,7 +18,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
   val executor = Waimak.sparkExecutor()
 
   // Need to explicitly use sequential executor
-  val sequentialExecutor = new SequentialDataFlowExecutor[SparkFlowContext]
+  val sequentialExecutor = new SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
 
   import SparkActions._
   import TestSparkData._
@@ -27,7 +27,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("read one") {
       val spark = sparkSession
-      import spark.implicits._
       import spark.implicits._
 
       val flow = Waimak.sparkFlow(spark)
@@ -40,7 +39,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       //validate executed actions
       executedActions.size should be(2)
-      executedActions.map(a => a.logLabel.drop(a.guid.size + 1)) should be(Seq("Inputs: [] Outputs: [csv_1]", "Inputs: [csv_1] Outputs: []"))
+      executedActions.map(a => a.description) should be(Seq("Action: read Inputs: [] Outputs: [csv_1]", "Action: show Inputs: [csv_1] Outputs: []"))
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(1)
@@ -60,7 +59,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       //validate executed actions
       executedActions.size should be(4)
-      executedActions.map(a => a.logLabel.drop(a.guid.size + 1)) should be(Seq("Inputs: [] Outputs: [csv_1]", "Inputs: [] Outputs: [csv_2]", "Inputs: [csv_1] Outputs: []", "Inputs: [csv_2] Outputs: []"))
+      executedActions.map(a => a.description) should be(Seq("Action: read Inputs: [] Outputs: [csv_1]", "Action: read Inputs: [] Outputs: [csv_2]", "Action: show Inputs: [csv_1] Outputs: []", "Action: show Inputs: [csv_2] Outputs: []"))
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(2)
@@ -80,7 +79,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       //validate executed actions
       executedActions.size should be(4)
-      executedActions.map(a => a.logLabel.drop(a.guid.size + 1)) should be(Seq("Inputs: [] Outputs: [pr_csv_1]", "Inputs: [] Outputs: [pr_csv_2]", "Inputs: [pr_csv_1] Outputs: []", "Inputs: [pr_csv_2] Outputs: []"))
+      executedActions.map(a => a.description) should be(Seq("Action: read Inputs: [] Outputs: [pr_csv_1]", "Action: read Inputs: [] Outputs: [pr_csv_2]", "Action: show Inputs: [pr_csv_1] Outputs: []", "Action: show Inputs: [pr_csv_2] Outputs: []"))
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(2)
@@ -99,7 +98,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       //validate executed actions
       executedActions.size should be(2)
-      executedActions.map(a => a.logLabel.drop(a.guid.size + 1)) should be(Seq("Inputs: [] Outputs: [csv_1]", "Inputs: [csv_1] Outputs: []"))
+      executedActions.map(a => a.description) should be(Seq("Action: read Inputs: [] Outputs: [csv_1]", "Action: show Inputs: [csv_1] Outputs: []"))
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(1)
@@ -199,7 +198,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       //validate executed actions
       executedActions.size should be(3)
-      executedActions.map(a => a.logLabel.drop(a.guid.size + 1)) should be(Seq("Inputs: [] Outputs: [csv_1]", "Inputs: [csv_1] Outputs: [person_summary]", "Inputs: [person_summary] Outputs: []"))
+      executedActions.map(a => a.description) should be(Seq("Action: read Inputs: [] Outputs: [csv_1]", "Action: sql Inputs: [csv_1] Outputs: [person_summary]", "Action: show Inputs: [person_summary] Outputs: []"))
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(2)
@@ -230,14 +229,14 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       //      executedActions.foreach(a => println(a.logLabel))
       //validate executed actions
       executedActions.size should be(7)
-      executedActions.map(a => a.logLabel.drop(a.guid.size + 1)) should be(Seq(
-        "Inputs: [] Outputs: [csv_1]"
-        , "Inputs: [] Outputs: [csv_2]"
-        , "Inputs: [csv_1] Outputs: [person_summary]"
-        , "Inputs: [person_summary,csv_2] Outputs: [report_tmp]"
-        , "Inputs: [report_tmp] Outputs: [report]"
-        , "Inputs: [report] Outputs: []"
-        , "Inputs: [report] Outputs: []"
+      executedActions.map(a => a.description) should be(Seq(
+        "Action: read Inputs: [] Outputs: [csv_1]"
+        , "Action: read Inputs: [] Outputs: [csv_2]"
+        , "Action: sql Inputs: [csv_1] Outputs: [person_summary]"
+        , "Action: sql Inputs: [person_summary,csv_2] Outputs: [report_tmp]"
+        , "Action: transform 1 -> 1 Inputs: [report_tmp] Outputs: [report]"
+        , "Action: printSchema Inputs: [report] Outputs: []"
+        , "Action: show Inputs: [report] Outputs: []"
       ))
 
       finalState.actions.size should be(0) // no actions to execute
@@ -262,13 +261,13 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       //            executedActions.foreach(a => println(a.logLabel))
       //validate executed actions
       executedActions.size should be(6)
-      executedActions.map(a => a.logLabel.drop(a.guid.size + 1)) should be(Seq(
-        "Inputs: [] Outputs: [csv_1]"
-        , "Inputs: [] Outputs: [csv_2]"
-        , "Inputs: [csv_1] Outputs: [person_summary]"
-        , "Inputs: [csv_2,person_summary] Outputs: [report]"
-        , "Inputs: [report] Outputs: []"
-        , "Inputs: [report] Outputs: []"
+      executedActions.map(a => a.description) should be(Seq(
+        "Action: read Inputs: [] Outputs: [csv_1]"
+        , "Action: read Inputs: [] Outputs: [csv_2]"
+        , "Action: sql Inputs: [csv_1] Outputs: [person_summary]"
+        , "Action: transform 2 -> 1 Inputs: [csv_2,person_summary] Outputs: [report]"
+        , "Action: printSchema Inputs: [report] Outputs: []"
+        , "Action: show Inputs: [report] Outputs: []"
       ))
 
       finalState.actions.size should be(0) // no actions to execute
@@ -282,7 +281,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("chain one by one") {
       val spark = sparkSession
-      import spark.implicits._
       import spark.implicits._
       val flow = Waimak.sparkFlow(spark)
         .openCSV(basePath)("csv_1", "csv_2")
@@ -299,13 +297,13 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       //            executedActions.foreach(a => println(a.logLabel))
       //validate executed actions
       executedActions.size should be(6)
-      executedActions.map(a => a.logLabel.drop(a.guid.size + 1)) should be(Seq(
-        "Inputs: [] Outputs: [csv_1]"
-        , "Inputs: [] Outputs: [csv_2]"
-        , "Inputs: [csv_1] Outputs: [person_summary]"
-        , "Inputs: [person_summary,csv_2] Outputs: [report]"
-        , "Inputs: [report] Outputs: []"
-        , "Inputs: [report] Outputs: []"
+      executedActions.map(a => a.description) should be(Seq(
+        "Action: read Inputs: [] Outputs: [csv_1]"
+        , "Action: read Inputs: [] Outputs: [csv_2]"
+        , "Action: transform 1 -> 1 Inputs: [csv_1] Outputs: [person_summary]"
+        , "Action: transform 2 -> 1 Inputs: [person_summary,csv_2] Outputs: [report]"
+        , "Action: printSchema Inputs: [report] Outputs: []"
+        , "Action: show Inputs: [report] Outputs: []"
       ))
 
       finalState.actions.size should be(0) // no actions to execute
@@ -318,7 +316,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("stage csv to parquet and commit") {
       val spark = sparkSession
-      import spark.implicits._
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
@@ -338,7 +335,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("stage csv to parquet on an action that returns two labels and commit") {
       val spark = sparkSession
-      import spark.implicits._
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
@@ -396,7 +392,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     it("writeCSV") {
       val spark = sparkSession
       import spark.implicits._
-      import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
       val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
@@ -415,7 +410,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("writeCSV multiple with overwrite") {
       val spark = sparkSession
-      import spark.implicits._
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
       val dummyPath = new File(s"$baseDest/dummy")
@@ -443,7 +437,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     it("writeParquet") {
       val spark = sparkSession
       import spark.implicits._
-      import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
       val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
@@ -462,7 +455,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("writeParquet with multiple labels") {
       val spark = sparkSession
-      import spark.implicits._
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
@@ -625,7 +617,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("sql") {
       val spark = sparkSession
-      import spark.implicits._
       import spark.implicits._
       val flow = Waimak.sparkFlow(spark)
         .openCSV(basePath)("csv_1", "csv_2")

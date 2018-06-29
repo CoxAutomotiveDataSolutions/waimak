@@ -14,4 +14,9 @@ trait DataFlowExecutor[C] {
     */
   def execute(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C])
 
+  /**
+    * Used to report events on the flow.
+    */
+  def flowReporter: FlowReporter[C]
+
 }

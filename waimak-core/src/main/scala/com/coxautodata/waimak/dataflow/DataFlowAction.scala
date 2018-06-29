@@ -33,7 +33,14 @@ trait DataFlowAction[C] {
 
   val guid: String = UUID.randomUUID().toString
 
-  lazy val logLabel = s"${guid} Inputs: ${inputLabels.mkString("[", ",", "]")} Outputs: ${outputLabels.mkString("[", ",", "]")}"
+  /**
+    * For representing the action
+    */
+  def actionName: String = getClass.getSimpleName
+
+  def description = s"Action: $actionName Inputs: ${inputLabels.mkString("[", ",", "]")} Outputs: ${outputLabels.mkString("[", ",", "]")}"
+
+  def logLabel = s"$guid: $description"
 
 
   def performActionReturningEntities(inputs: DataFlowEntities, flowContext: C): DataFlowEntities = {

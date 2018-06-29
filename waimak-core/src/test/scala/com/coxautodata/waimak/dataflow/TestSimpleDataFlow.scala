@@ -666,7 +666,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         val res = intercept[DataFlowException] {
           flow.executed(action, Seq.empty)
         }
-        res.text should be(s"Action produced different number of results. Expected 1, but was 0. ${action.guid} Inputs: [] Outputs: [table_1]")
+        res.text should be(s"Action produced different number of results. Expected 1, but was 0. ${action.guid}: Action: TestEmptyAction Inputs: [] Outputs: [table_1]")
       }
 
       it("one output, action produced more outputs") {
@@ -676,7 +676,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         val res = intercept[DataFlowException] {
           flow.executed(action, Seq(Some("v_1"), Some("v2")))
         }
-        res.text should be(s"Action produced different number of results. Expected 1, but was 2. ${action.guid} Inputs: [] Outputs: [table_1]")
+        res.text should be(s"Action produced different number of results. Expected 1, but was 2. ${action.guid}: Action: TestEmptyAction Inputs: [] Outputs: [table_1]")
       }
 
       it("2 outputs, action only one is produced") {
@@ -686,7 +686,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         val res = intercept[DataFlowException] {
           flow.executed(action, Seq(Some("v1")))
         }
-        res.text should be(s"Action produced different number of results. Expected 2, but was 1. ${action.guid} Inputs: [] Outputs: [table_1,table_2]")
+        res.text should be(s"Action produced different number of results. Expected 2, but was 1. ${action.guid}: Action: TestEmptyAction Inputs: [] Outputs: [table_1,table_2]")
       }
 
     }

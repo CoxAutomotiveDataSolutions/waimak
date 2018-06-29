@@ -11,7 +11,7 @@ import scala.annotation.tailrec
   *
   * @tparam C the type of context which we pass to the actions
   */
-class SequentialDataFlowExecutor[C] extends DataFlowExecutor[C] with Logging {
+class SequentialDataFlowExecutor[C](override val flowReporter: FlowReporter[C]) extends DataFlowExecutor[C] with Logging {
 
   //TODO: Not sure that this executor will stay the same after proper parallelization. But the flow methods will definitely stay the same
   /**
@@ -34,7 +34,9 @@ class SequentialDataFlowExecutor[C] extends DataFlowExecutor[C] with Logging {
 
       logInfo(s"Submitting action ${action.logLabel}")
       //TODO: left for compatibility, need to change the data flow entities to know about optional
+      flowReporter.reportActionStarted(action, dataFlow.flowContext)
       val actionOutputs: Seq[Option[Any]] = action.performAction(inputEntities, dataFlow.flowContext)
+      flowReporter.reportActionFinished(action, dataFlow.flowContext)
       df.executed(action, actionOutputs)
     }
     (wave, resFlow)
