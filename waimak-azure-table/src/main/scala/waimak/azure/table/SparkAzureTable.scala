@@ -1,13 +1,14 @@
 package waimak.azure.table
 
 import java.util
+import java.util.concurrent.TimeUnit
 
-import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
+import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowException}
 import com.coxautodata.waimak.log.Logging
-import com.microsoft.azure.storage.{CloudStorageAccount, StorageException}
 import com.microsoft.azure.storage.table.{DynamicTableEntity, EntityProperty}
+import com.microsoft.azure.storage.{CloudStorageAccount, StorageException}
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types.StructType
 import waimak.azure.table.SparkAzureTable.{azureWriterOutputLabel, createIfNotExists, pushToTable}
@@ -79,7 +80,13 @@ object SparkAzureTable extends Logging {
 
       val writer = new AzureTableMultiWriter(tableName, connectionSTR, threadNum, timeoutMs, retryDelayMs)
       writer.run()
-      sit.foreach { insertBatch: Seq[DynamicTableEntity] => writer.queue.put(insertBatch) }
+      sit.foreach {
+        insertBatch: Seq[DynamicTableEntity] =>
+          while (!writer.queue.offer(insertBatch, 500, TimeUnit.MILLISECONDS)) {
+            if (writer.threadFailed.get()) throw new DataFlowException(s"Thread failure when writing to the Azure Table")
+          }
+
+      }
 
       val total = writer.finish
       Seq(total).iterator

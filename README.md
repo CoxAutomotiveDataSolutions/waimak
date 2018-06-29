@@ -90,6 +90,13 @@ Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/to
 
 Other versions of Spark 2.x are also likely to work and can be added to the list of tested versions if there is sufficient need.
 
+## Changelog
+
+### 1.3.1 - 2017-06-29
+
+#### Fixed
+- Azure Table writer hanging after API failures
+
 ## Contributing
 
 We welcome all users to contribute to the development of Waimak by raising pull-requests. We kindly ask that you include suitable unit tests with along with proposed changes.
