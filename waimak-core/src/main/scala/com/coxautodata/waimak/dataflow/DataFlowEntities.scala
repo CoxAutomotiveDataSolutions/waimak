@@ -6,7 +6,6 @@ package com.coxautodata.waimak.dataflow
   *
   * @param entities a map of label -> entity
   */
-//TODO: Make values optional
 class DataFlowEntities(private val entities: Map[String, Option[Any]]) {
 
   def filterLabels(labels: List[String]): DataFlowEntities = DataFlowEntities(entities.filterKeys(labels.contains))

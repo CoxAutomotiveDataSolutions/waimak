@@ -42,12 +42,6 @@ trait DataFlowAction[C] {
 
   def logLabel = s"$guid: $description"
 
-
-  def performActionReturningEntities(inputs: DataFlowEntities, flowContext: C): DataFlowEntities = {
-    val outputs = performAction(inputs, flowContext)
-    DataFlowEntities(outputLabels.zip(outputs).toMap)
-  }
-
   /**
     * Perform the action
     *
