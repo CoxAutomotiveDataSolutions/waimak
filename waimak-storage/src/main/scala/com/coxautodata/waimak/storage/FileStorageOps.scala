@@ -146,7 +146,7 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
     if (allPaths.forall(fs.exists)) {
       Try(sparkSession.read.option("mergeSchema", "true").parquet(allPathsString: _*)) match {
         case Success(df) => Some(df)
-        case Failure(e: AnalysisException) if e.getMessage() == "Unable to infer schema for Parquet. It must be specified manually.;" =>
+        case Failure(e: AnalysisException) if e.getMessage().contains("Unable to infer schema") =>
           logWarning(s"Cannot open parquet(s) at [${allPathsString.mkString(", ")}]", e)
           None
         case Failure(e) => {
