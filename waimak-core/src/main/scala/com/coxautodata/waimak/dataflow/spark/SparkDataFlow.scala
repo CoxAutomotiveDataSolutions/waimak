@@ -8,6 +8,8 @@ import com.coxautodata.waimak.metastore.HadoopDBConnector
 import org.apache.hadoop.fs.{FileAlreadyExistsException, Path, PathOperationException}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
+import scala.util.Try
+
 /**
   * Introduces spark session into the data flows
   */
@@ -73,7 +75,7 @@ private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefi
 
   override val requiresAllInputs = false
 
-  override def performAction(inputs: DataFlowEntities[Dataset[_]], flowContext: SparkFlowContext): ActionResult[Dataset[_]] = {
+  override def performAction(inputs: DataFlowEntities[Dataset[_]], flowContext: SparkFlowContext): Try[ActionResult[Dataset[_]]] = Try {
 
     // Create path objects
     val srcDestMap: Map[String, (Path, Path)] = commitLabels.map {
