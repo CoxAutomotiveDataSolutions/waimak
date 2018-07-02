@@ -2,6 +2,8 @@ package com.coxautodata.waimak.dataflow
 
 import java.util.UUID
 
+import scala.util.Try
+
 /**
   * This action can be added to the flow over an existing action, it will be scheduled instead of it and can override or
   * intercept the behaviour of an action.
@@ -42,7 +44,7 @@ class InterceptorAction[T, C](val intercepted: DataFlowAction[T, C]) extends Dat
     * @param flowContext context of the flow in which this action runs
     * @return the action outputs (these must be declared in the same order as their labels in [[outputLabels]])
     */
-  final override def performAction(inputs: DataFlowEntities[T], flowContext: C): ActionResult[T] = {
+  final override def performAction(inputs: DataFlowEntities[T], flowContext: C): Try[ActionResult[T]] = {
     val res = instead(inputs, flowContext)
     res
   }
@@ -59,7 +61,7 @@ class InterceptorAction[T, C](val intercepted: DataFlowAction[T, C]) extends Dat
     * @param flowContext
     * @return
     */
-  def instead(inputs: DataFlowEntities[T], flowContext: C): ActionResult[T] = intercepted.performAction(inputs, flowContext)
+  def instead(inputs: DataFlowEntities[T], flowContext: C): Try[ActionResult[T]] = intercepted.performAction(inputs, flowContext)
 
   /**
     * Calls the intercepted.flowState.
