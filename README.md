@@ -92,7 +92,7 @@ Other versions of Spark 2.x are also likely to work and can be added to the list
 
 ## Changelog
 
-### 1.3.1 - 2017-06-29
+### 1.3.1 - 2017-07-02
 
 #### Fixed
 - Azure Table writer hanging after API failures
