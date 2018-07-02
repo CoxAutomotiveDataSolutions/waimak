@@ -34,9 +34,7 @@ class SequentialDataFlowExecutor[C](override val flowReporter: FlowReporter[C]) 
 
       logInfo(s"Submitting action ${action.logLabel}")
       //TODO: left for compatibility, need to change the data flow entities to know about optional
-      flowReporter.reportActionStarted(action, dataFlow.flowContext)
-      val actionOutputs: ActionResult = action.performAction(inputEntities, dataFlow.flowContext)
-      flowReporter.reportActionFinished(action, dataFlow.flowContext)
+      val actionOutputs: ActionResult = executeAction(action, inputEntities, dataFlow.flowContext)
       df.executed(action, actionOutputs)
     }
     (wave, resFlow)

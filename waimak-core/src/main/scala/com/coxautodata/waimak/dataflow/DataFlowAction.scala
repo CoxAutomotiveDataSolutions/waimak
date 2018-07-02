@@ -49,7 +49,7 @@ trait DataFlowAction[C] {
     * @param flowContext context of the flow in which this action runs
     * @return the action outputs (these must be declared in the same order as their labels in [[outputLabels]])
     */
-  def performAction(inputs: DataFlowEntities, flowContext: C): ActionResult
+  def performAction(inputs: DataFlowEntities, flowContext: C): Try[ActionResult]
 
   /**
     * Action has the responsibility of assessing itself and produce DataFlowActionState, that will be used by the

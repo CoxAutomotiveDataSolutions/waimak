@@ -3,6 +3,8 @@ package com.coxautodata.waimak.dataflow.spark
 import com.coxautodata.waimak.dataflow._
 import org.apache.spark.sql._
 
+import scala.util.Try
+
 
 /**
   * Instances of this class build a bridge between OOP part of the Waimak engine and functional definition of the
@@ -25,7 +27,7 @@ class SimpleAction[C](val inputLabels: List[String], val outputLabels: List[Stri
     * @param inputs the DataFlowEntities corresponding to the inputLabels
     * @return the action outputs (these must be declared in the same order as their labels in outputLabels)
     */
-  override def performAction(inputs: DataFlowEntities, flowContext: C): ActionResult = {
+  override def performAction(inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = Try {
     val params: DataFlowEntities = inputs.filterLabels(inputLabels)
     exec(params)
   }

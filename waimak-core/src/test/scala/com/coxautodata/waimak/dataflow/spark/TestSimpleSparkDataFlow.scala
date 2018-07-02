@@ -8,6 +8,8 @@ import org.apache.hadoop.fs.FileAlreadyExistsException
 import org.apache.spark.sql.{AnalysisException, Dataset}
 import org.apache.spark.sql.functions._
 
+import scala.util.Try
+
 /**
   * Created by Alexei Perelighin on 22/12/17.
   */
@@ -362,9 +364,11 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         .alias("csv_2", "person")
         .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
 
-      intercept[FileAlreadyExistsException] {
+      val res = intercept[DataFlowException] {
         executor.execute(flow)
       }
+      res.text.split(": ", 3).zipWithIndex.collect { case (s, i) if i != 1 => s }.mkString(" ") should be("Exception performing action Action: CommitAction Inputs: [csv_2,person] Outputs: []")
+      res.cause shouldBe a[FileAlreadyExistsException]
     }
 
     it("stage csv to parquet and commit then use label afterwards") {
@@ -504,10 +508,11 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           .alias("csv_2", "person")
           .writeParquet(baseDest)("person", "items")
 
-        val res = intercept[AnalysisException] {
+        val res = intercept[DataFlowException] {
           sequentialExecutor.execute(flow)
         }
-        res.getSimpleMessage should be(s"Path does not exist: file:$baseDest/person_written;")
+        res.cause shouldBe a[AnalysisException]
+        res.cause.asInstanceOf[AnalysisException].getSimpleMessage should be(s"Path does not exist: file:$baseDest/person_written;")
       }
 
       it("tag dependency between write and open") {
@@ -699,13 +704,13 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
 class TestEmptySparkAction(val inputLabels: List[String], val outputLabels: List[String]) extends SparkDataFlowAction {
 
-  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): List[Option[Dataset[_]]] = List.empty
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try(List.empty)
 
 }
 
 class TestTwoInputsAndOutputsAction(override val inputLabels: List[String], override val outputLabels: List[String], run: (Dataset[_], Dataset[_]) => (Dataset[_], Dataset[_])) extends SparkDataFlowAction {
 
-  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): ActionResult = {
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
     if (inputLabels.length != 2 && outputLabels.length != 2) throw new IllegalArgumentException("Number of input label and output labels must be 2")
     val res: (Dataset[_], Dataset[_]) = run(inputs.get[Dataset[_]](inputLabels(0)), inputs.get[Dataset[_]](inputLabels(1)))
     Seq(Some(res._1), Some(res._2))
@@ -717,7 +722,7 @@ class TestOutputMultipleTypesAction(override val inputLabels: List[String]
                                     , override val outputLabels: List[String]
                                     , run: (Int, Dataset[_]) => (Int, Dataset[_])) extends SparkDataFlowAction {
 
-  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): ActionResult = {
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
     val res: (Int, Dataset[_]) = run(inputs.get[Int](inputLabels(0)), inputs.get[Dataset[_]](inputLabels(1)))
     Seq(Some(res._1), Some(res._2))
   }

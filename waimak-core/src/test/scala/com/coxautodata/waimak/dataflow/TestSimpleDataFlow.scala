@@ -3,6 +3,10 @@ package com.coxautodata.waimak.dataflow
 import org.apache.spark.sql.Dataset
 import org.scalatest.{FunSpec, Matchers}
 
+import scala.util.Try
+
+import scala.util.Try
+
 class TestSimpleDataFlow extends FunSpec with Matchers {
 
   describe("Add actions success") {
@@ -828,6 +832,6 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
 class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[String]) extends DataFlowAction[EmptyFlowContext] {
 
-  override def performAction(inputs: DataFlowEntities, flowContext: EmptyFlowContext): List[Option[Any]] = List.empty
+  override def performAction(inputs: DataFlowEntities, flowContext: EmptyFlowContext): Try[ActionResult] = Try(List.empty)
 
 }
