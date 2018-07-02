@@ -288,7 +288,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
       , TestTemporal(7, "Value7", 1)
     ))
 
-    val maxTS = testTemporal.agg(max($"system_timestamp_of_extraction")).as[Timestamp].collect().head
+    val maxTS = Timestamp.valueOf(testTemporal.agg(max($"system_timestamp_of_extraction")).as[String].collect().head)
 
     val snapshotReadFlow =
       flow.snapshotTemporalTablesFromStorage(s"$testingBaseDir/output", maxTS)("testtemporal")
