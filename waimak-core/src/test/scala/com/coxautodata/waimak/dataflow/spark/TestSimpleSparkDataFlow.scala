@@ -678,6 +678,23 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     }
   }
+
+
+  describe("mixing multiple types in flow") {
+
+    it("shold handle multiple types in the flow") {
+
+      val emptyFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = emptyFlow.addInput("integer_1", Some(1))
+        .addInput("dataset_1", Some(sparkSession.emptyDataFrame))
+        .addAction(new TestOutputMultipleTypesAction(List("integer_1", "dataset_1"), List("integer_2", "dataset_2"),
+          (i, ds) => (i + 1, ds)))
+
+      val res = executor.execute(flow)
+      res._2.inputs.get[Int]("integer_2") should be(2)
+      res._2.inputs.get[Dataset[_]]("dataset_2") should be(sparkSession.emptyDataFrame)
+    }
+  }
 }
 
 class TestEmptySparkAction(val inputLabels: List[String], val outputLabels: List[String]) extends SparkDataFlowAction {
@@ -691,6 +708,17 @@ class TestTwoInputsAndOutputsAction(override val inputLabels: List[String], over
   override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): ActionResult = {
     if (inputLabels.length != 2 && outputLabels.length != 2) throw new IllegalArgumentException("Number of input label and output labels must be 2")
     val res: (Dataset[_], Dataset[_]) = run(inputs.get[Dataset[_]](inputLabels(0)), inputs.get[Dataset[_]](inputLabels(1)))
+    Seq(Some(res._1), Some(res._2))
+  }
+}
+
+
+class TestOutputMultipleTypesAction(override val inputLabels: List[String]
+                                    , override val outputLabels: List[String]
+                                    , run: (Int, Dataset[_]) => (Int, Dataset[_])) extends SparkDataFlowAction {
+
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): ActionResult = {
+    val res: (Int, Dataset[_]) = run(inputs.get[Int](inputLabels(0)), inputs.get[Dataset[_]](inputLabels(1)))
     Seq(Some(res._1), Some(res._2))
   }
 }

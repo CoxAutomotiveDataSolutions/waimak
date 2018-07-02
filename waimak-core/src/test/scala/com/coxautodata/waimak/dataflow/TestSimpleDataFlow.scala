@@ -1,5 +1,6 @@
 package com.coxautodata.waimak.dataflow
 
+import org.apache.spark.sql.Dataset
 import org.scalatest.{FunSpec, Matchers}
 
 class TestSimpleDataFlow extends FunSpec with Matchers {
@@ -812,7 +813,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     it("map should transform a dataflow when using implicit classes") {
 
       val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
-      implicit class TestImplicit(dataFlow: SimpleDataFlow[ EmptyFlowContext]) {
+      implicit class TestImplicit(dataFlow: SimpleDataFlow[EmptyFlowContext]) {
         def runTest: SimpleDataFlow[EmptyFlowContext] = dataFlow.addAction(new TestEmptyAction(List.empty, List.empty) {
           override val guid: String = "abd22c36-4dd0-4fa5-9298-c494ede7f363"
         })
