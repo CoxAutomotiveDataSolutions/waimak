@@ -2,11 +2,6 @@ sudo: required
 
 language: java
 
-branches:
-  only:
-  - develop
-  - /^\d+\.\d+(\.\d+)?(-\S*)?$/
-
 jdk:
   - oraclejdk8
 

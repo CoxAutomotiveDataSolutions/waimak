@@ -38,6 +38,8 @@ class AzureTableMultiWriter(val table: String, val connection: String, val threa
 
   protected val thereWillBeMoreData: AtomicBoolean = new AtomicBoolean(true)
 
+  val threadFailed: AtomicBoolean = new AtomicBoolean(false)
+
   protected var futures: Seq[Future[Int]] = _
 
   /**
@@ -57,7 +59,7 @@ class AzureTableMultiWriter(val table: String, val connection: String, val threa
         val cloudTable = tblClient.getTableReference(table)
 
         var cnt = 0
-        while (queue.size() > 0 || thereWillBeMoreData.get()) {
+        while ((queue.size() > 0 || thereWillBeMoreData.get()) && !threadFailed.get()) {
           val page = queue.poll(1, TimeUnit.SECONDS)
           if (page != null) {
             cnt += page.size
@@ -90,7 +92,9 @@ class AzureTableMultiWriter(val table: String, val connection: String, val threa
         retry(f, timeoutMs, delaysMs.tail)
     } match {
       case Success(v) => v
-      case Failure(e) => throw e
+      case Failure(e) =>
+        threadFailed.set(true)
+        throw e
     }
   }
 
