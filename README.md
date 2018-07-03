@@ -1,7 +1,7 @@
 # Waimak
 
 [![Build Status](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak.svg?branch=develop)](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak) 
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.coxautodata/waimak-core_2.11/badge.svg)](http://search.maven.org/#search%7Cga%7C1%7Cwaimak) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop) [![Join the chat at https://gitter.im/waimak-framework/Lobby](https://badges.gitter.im/waimak-framework/Lobby.svg)](https://gitter.im/waimak-framework/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.coxautodata/waimak-core_2.11/badge.svg)](http://search.maven.org/#search%7Cga%7C1%7Cwaimak) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 
 ![Waimak logo](images/waimak.png)
