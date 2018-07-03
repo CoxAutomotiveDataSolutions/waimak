@@ -3,6 +3,7 @@ package com.coxautodata.waimak.dataflow.spark
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.Dataset
 
 /**
   * Created by Alexei Perelighin on 2018/02/28
@@ -85,7 +86,7 @@ class TestSparkInterceptors extends SparkAndTmpDirSpec {
       val (executedActions, finalState) = executor.execute(withIntercept)
 
       finalState.inputs.size should be(2)
-      finalState.inputs.get("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
 
       val readBack = sparkSession.read.parquet(new Path(tmpDir, "purchases").toString)
       readBack.show()
@@ -108,7 +109,7 @@ class TestSparkInterceptors extends SparkAndTmpDirSpec {
 
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(3)
-      finalState.inputs.get("person_summary_count").map(_.as[Long].collect()).get should be(Array(1))
+      finalState.inputs.getOption[Dataset[_]]("person_summary_count").map(_.as[Long].collect()).get should be(Array(1))
     }
   }
 }

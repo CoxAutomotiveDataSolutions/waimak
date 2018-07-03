@@ -13,7 +13,7 @@ import scala.util.Try
 /**
   * Introduces spark session into the data flows
   */
-trait SparkDataFlow extends DataFlow[Dataset[_], SparkFlowContext] with Logging {
+trait SparkDataFlow extends DataFlow[SparkFlowContext] with Logging {
 
   val spark: SparkSession
 
@@ -37,12 +37,14 @@ trait SparkDataFlow extends DataFlow[Dataset[_], SparkFlowContext] with Logging 
     */
   def sqlTables: Set[String]
 
-  override def executed(executed: DataFlowAction[Dataset[_], SparkFlowContext], outputs: Seq[Option[Dataset[_]]]): DataFlow[Dataset[_], SparkFlowContext] = {
+  override def executed(executed: DataFlowAction[SparkFlowContext], outputs: Seq[Option[Any]]): DataFlow[SparkFlowContext] = {
     val res = super.executed(executed, outputs)
     // multiple sql actions might request same table, the simplest way of avoiding the race conditions of multiple actions
     // trying to register same dataset as an SQL table. To solve it, dataset will be reentered by the producing execution,
     // before multiple actions will try to use it
-    executed.outputLabels.zip(outputs).filter(p => p._2.isDefined && sqlTables.contains(p._1)).foreach(p => p._2.get.createOrReplaceTempView(p._1))
+    executed.outputLabels.zip(outputs)
+      .filter(p => p._2.isDefined && sqlTables.contains(p._1))
+      .foreach(p => p._2.get.asInstanceOf[Dataset[_]].createOrReplaceTempView(p._1))
     res
   }
 
@@ -56,7 +58,7 @@ trait SparkDataFlow extends DataFlow[Dataset[_], SparkFlowContext] with Logging 
       case None => logInfo(s"Not cleaning up temporary folder as it is not defined")
     }
     // Add commit action
-    val allLabels = (superPreparedFlow.inputs.entities.keySet ++ superPreparedFlow.actions.flatMap(_.outputLabels)).toList
+    val allLabels = (superPreparedFlow.inputs.keySet ++ superPreparedFlow.actions.flatMap(_.outputLabels)).toList
     if (superPreparedFlow.commitLabels.nonEmpty) superPreparedFlow.addAction(CommitAction(superPreparedFlow.commitLabels, superPreparedFlow.tempFolder.get, allLabels))
     else this
   }
@@ -75,7 +77,7 @@ private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefi
 
   override val requiresAllInputs = false
 
-  override def performAction(inputs: DataFlowEntities[Dataset[_]], flowContext: SparkFlowContext): Try[ActionResult[Dataset[_]]] = Try {
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
 
     // Create path objects
     val srcDestMap: Map[String, (Path, Path)] = commitLabels.map {

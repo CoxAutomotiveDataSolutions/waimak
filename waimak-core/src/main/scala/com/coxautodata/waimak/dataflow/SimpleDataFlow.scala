@@ -1,12 +1,12 @@
 package com.coxautodata.waimak.dataflow
 
-class SimpleDataFlow[T, C](val inputs: DataFlowEntities[Option[T]]
-                           , val actions: Seq[DataFlowAction[T, C]]
+class SimpleDataFlow[C](val inputs: DataFlowEntities
+                           , val actions: Seq[DataFlowAction[C]]
                            , val tagState: DataFlowTagState
-                           , override val flowContext: C) extends DataFlow[T, C] {
+                           , override val flowContext: C) extends DataFlow[C] {
 
-  override protected def createInstance(in: DataFlowEntities[Option[T]], ac: Seq[DataFlowAction[T, C]], tags: DataFlowTagState): SimpleDataFlow[T, C] =
-    new SimpleDataFlow[T, C](in, ac, tags, flowContext)
+  override protected def createInstance(in: DataFlowEntities, ac: Seq[DataFlowAction[C]], tags: DataFlowTagState): SimpleDataFlow[C] =
+    new SimpleDataFlow[C](in, ac, tags, flowContext)
 
 }
 
@@ -14,13 +14,13 @@ class EmptyFlowContext
 
 object SimpleDataFlow {
 
-  def apply[T, C](inputs: DataFlowEntities[Option[T]]
-                  , actions: Seq[DataFlowAction[T, C]]
+  def apply[C](inputs: DataFlowEntities
+                  , actions: Seq[DataFlowAction[ C]]
                   , tags: DataFlowTagState
-                  , flowContext: C) = new SimpleDataFlow[T, C](inputs, actions, tags, flowContext)
+                  , flowContext: C) = new SimpleDataFlow[C](inputs, actions, tags, flowContext)
 
-  def empty[T, C](flowContext: C) = new SimpleDataFlow[T, C](DataFlowEntities.empty, Seq.empty, DataFlowTagState(Set.empty, Set.empty, Map.empty), flowContext)
+  def empty[C](flowContext: C) = new SimpleDataFlow[C](DataFlowEntities.empty, Seq.empty, DataFlowTagState(Set.empty, Set.empty, Map.empty), flowContext)
 
-  def empty[T]() = new SimpleDataFlow[T, EmptyFlowContext](DataFlowEntities.empty, Seq.empty, DataFlowTagState(Set.empty, Set.empty, Map.empty), new EmptyFlowContext)
+  def empty() = new SimpleDataFlow[EmptyFlowContext](DataFlowEntities.empty, Seq.empty, DataFlowTagState(Set.empty, Set.empty, Map.empty), new EmptyFlowContext)
 
 }

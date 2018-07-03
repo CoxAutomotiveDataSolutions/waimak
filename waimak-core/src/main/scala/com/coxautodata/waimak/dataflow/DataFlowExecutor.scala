@@ -5,7 +5,7 @@ import scala.util.{Failure, Success}
 /**
   * Created by Alexei Perelighin on 11/01/18.
   */
-trait DataFlowExecutor[T, C] {
+trait DataFlowExecutor[C] {
 
   /**
     * Executes as many actions as possible with the given DAG, stops when no more actions can be executed.
@@ -14,12 +14,12 @@ trait DataFlowExecutor[T, C] {
     * @return (Seq[EXECUTED ACTIONS], FINAL STATE). Final state does not contain the executed actions and the outputs
     *         of the executed actions are now in the inputs
     */
-  def execute(dataFlow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C])
+  def execute(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C])
 
   /**
     * Used to report events on the flow.
     */
-  def flowReporter: FlowReporter[T, C]
+  def flowReporter: FlowReporter[C]
 
   /**
     * Execute the action by calling it's performAction function and unpack the result.
@@ -29,7 +29,7 @@ trait DataFlowExecutor[T, C] {
     * @param flowContext   Context of the dataflow
     * @return
     */
-  def executeAction(action: DataFlowAction[T, C], inputEntities: DataFlowEntities[T], flowContext: C): Seq[Option[T]] = {
+  def executeAction(action: DataFlowAction[C], inputEntities: DataFlowEntities, flowContext: C): ActionResult = {
     flowReporter.reportActionStarted(action, flowContext)
     action.performAction(inputEntities, flowContext) match {
       case Success(v) =>

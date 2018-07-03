@@ -8,6 +8,7 @@ import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.AuditTableInfo
 import com.coxautodata.waimak.storage.StorageActions._
+import org.apache.spark.sql.Dataset
 import org.scalatest.BeforeAndAfterAll
 
 import scala.util.{Failure, Success}
@@ -161,7 +162,7 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAnd
 
       val readFlow = flow.loadFromStorage(s"$testingBaseDir/output")(targetTableName)
       val res = executor.execute(readFlow)
-      res._2.inputs.get(targetTableName).get.sort("table_a_pk")
+      res._2.inputs.get[Dataset[_]](targetTableName).sort("table_a_pk")
         .as[TableA].collect() should be(Seq(
         TableA(1, "Value1", insertTimestamp)
         , TableA(2, "Value2", insertTimestamp)
@@ -192,7 +193,7 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAnd
       )("table_a")
 
       val res1 = executor.execute(writeFlow)
-      res1._2.inputs.get("table_a").get.sort("table_a_pk")
+      res1._2.inputs.get[Dataset[_]]("table_a").sort("table_a_pk")
         .as[TableA].collect() should be(Seq(
         TableA(1, "Value1", insertTimestamp)
         , TableA(2, "Value2", insertTimestamp)
@@ -228,7 +229,7 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAnd
 
       val res2 = executor.execute(deltaWriteFlow)
 
-      res2._2.inputs.get("table_a").get.sort("table_a_pk")
+      res2._2.inputs.get[Dataset[_]]("table_a").sort("table_a_pk")
         .as[TableA].collect() should be(Seq(
         TableA(5, "New Value 5", updateTimestamp)
         , TableA(6, "New Value 6", updateTimestamp)
@@ -247,7 +248,7 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAnd
       val res3 = executor.execute(deltaWriteFlowWithContingency)
 
       //We go back in time 2 seconds for contingency so we get everything back
-      res3._2.inputs.get("table_a").get.sort("table_a_pk")
+      res3._2.inputs.get[Dataset[_]]("table_a").sort("table_a_pk")
         .as[TableA].collect() should be(Seq(
         TableA(1, "Value1", insertTimestamp)
         , TableA(2, "Value2", insertTimestamp)

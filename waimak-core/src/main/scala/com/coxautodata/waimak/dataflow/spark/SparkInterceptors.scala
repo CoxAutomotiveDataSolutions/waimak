@@ -16,8 +16,8 @@ object SparkInterceptors extends Logging {
 
   def addPostAction(sparkFlow: SparkDataFlow
                     , outputLabel: String
-                    , postAction: PostAction[Dataset[_], SparkFlowContext]): SparkDataFlow = {
-    val toIntercept: DataFlowAction[Dataset[_], SparkFlowContext] = sparkFlow.getActionByOutputLabel(outputLabel)
+                    , postAction: PostAction[Any, SparkFlowContext]): SparkDataFlow = {
+    val toIntercept: DataFlowAction[SparkFlowContext] = sparkFlow.getActionByOutputLabel(outputLabel)
     val interceptor = toIntercept match {
       // Interceptor already exists
       case i@PostActionInterceptor(_, _) => i.addPostAction(postAction)
@@ -30,10 +30,11 @@ object SparkInterceptors extends Logging {
   def addPostCacheAsParquet(sparkFlow: SparkDataFlow, outputLabel: String)
                            (dfFunc: Dataset[_] => Dataset[_])
                            (dfwFunc: DataFrameWriter[_] => DataFrameWriter[_]): SparkDataFlow = {
-    def post(data: Option[Dataset[_]], sfc: SparkFlowContext): Option[Dataset[_]] = {
+    def post(data: Option[Any], sfc: SparkFlowContext): Option[Dataset[_]] = {
       logInfo(s"About to cache the $outputLabel. Dataset is defined: ${data.isDefined}")
       val baseFolder = sparkFlow.tempFolder.getOrElse(throw new DataFlowException("Cannot cache, temporary folder was not specified"))
       data
+        .map(checkIfDataset(_, outputLabel, "cacheAsParquet"))
         .map(dfFunc)
         .map { ds =>
           val path = new Path(new Path(baseFolder.toString), outputLabel).toString
@@ -57,9 +58,17 @@ object SparkInterceptors extends Logging {
     }
   }
 
-  def addPostTransform(sparkFlow: SparkDataFlow, outputLabel: String)(transform: (Dataset[_]) => Dataset[_]): SparkDataFlow = {
-    def post(data: Option[Dataset[_]], sfc: SparkFlowContext): Option[Dataset[_]] = data.map(transform)
+  def addPostTransform(sparkFlow: SparkDataFlow, outputLabel: String)(transform: Dataset[_] => Dataset[_]): SparkDataFlow = {
+    def post(data: Option[Any], sfc: SparkFlowContext): Option[Dataset[_]] =
+      data
+        .map(checkIfDataset(_, outputLabel, "inPlaceTransform"))
+        .map(transform)
 
     addPostAction(sparkFlow, outputLabel, TransformPostAction(post, outputLabel))
+  }
+
+  def checkIfDataset(value: Any, label: String, attemptedOperation: String): Dataset[_] = {
+    if (!value.isInstanceOf[Dataset[_]]) throw new DataFlowException(s"Can only call $attemptedOperation on a Dataset. Label $label is a ${value.getClass.getName}")
+    else value.asInstanceOf[Dataset[_]]
   }
 }

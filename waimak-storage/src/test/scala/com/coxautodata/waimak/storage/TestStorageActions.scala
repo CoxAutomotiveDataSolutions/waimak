@@ -8,6 +8,7 @@ import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.storage.AuditTableFile.lowTimestamp
 import com.coxautodata.waimak.storage.StorageActions._
 import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.Dataset
 
 /**
   * Created by Vicky Avison on 11/05/18.
@@ -47,13 +48,13 @@ class TestStorageActions extends SparkAndTmpDirSpec {
         .loadFromStorage(testingBaseDirName)("t_record")
 
       val res1 = executor.execute(readEverythingFlow)
-      res1._2.inputs.get("t_record").get.sort("lastUpdated").as[TRecord].collect() should be(records)
+      res1._2.inputs.get[Dataset[_]]("t_record").sort("lastUpdated").as[TRecord].collect() should be(records)
 
       val snapshotFlow = Waimak.sparkFlow(spark)
         .snapshotFromStorage(testingBaseDirName, ts3)("t_record")
 
       val res2 = executor.execute(snapshotFlow)
-      res2._2.inputs.get("t_record").get.sort("id").as[TRecord].collect() should be(Seq(
+      res2._2.inputs.get[Dataset[_]]("t_record").sort("id").as[TRecord].collect() should be(Seq(
         TRecord(1, "c", ts3)
         , TRecord(2, "b", ts2)
       ))
@@ -85,7 +86,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
         .loadFromStorage(testingBaseDirName)("t_record")
 
       val res1 = executor.execute(readEverythingFlow)
-      res1._2.inputs.get("t_record").get.sort("lastUpdated").as[TRecord].collect() should be(records)
+      res1._2.inputs.get[Dataset[_]]("t_record").sort("lastUpdated").as[TRecord].collect() should be(records)
 
       // Should be a single cold region
       val regions = AuditTableFile.inferRegionsWithStats(spark, auditTable.storageOps, auditTable.baseFolder, Seq("t_record"))
