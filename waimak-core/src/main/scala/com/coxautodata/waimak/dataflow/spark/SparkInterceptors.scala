@@ -34,7 +34,7 @@ object SparkInterceptors extends Logging {
       logInfo(s"About to cache the $outputLabel. Dataset is defined: ${data.isDefined}")
       val baseFolder = sparkFlow.tempFolder.getOrElse(throw new DataFlowException("Cannot cache, temporary folder was not specified"))
       data
-        .map(checkIfDataset(_, outputLabel, "addPostCacheAsParquet"))
+        .map(checkIfDataset(_, outputLabel, "cacheAsParquet"))
         .map(dfFunc)
         .map { ds =>
           val path = new Path(new Path(baseFolder.toString), outputLabel).toString
@@ -61,14 +61,14 @@ object SparkInterceptors extends Logging {
   def addPostTransform(sparkFlow: SparkDataFlow, outputLabel: String)(transform: Dataset[_] => Dataset[_]): SparkDataFlow = {
     def post(data: Option[Any], sfc: SparkFlowContext): Option[Dataset[_]] =
       data
-        .map(checkIfDataset(_, outputLabel, "addPostTransform"))
+        .map(checkIfDataset(_, outputLabel, "inPlaceTransform"))
         .map(transform)
 
     addPostAction(sparkFlow, outputLabel, TransformPostAction(post, outputLabel))
   }
 
   def checkIfDataset(value: Any, label: String, attemptedOperation: String): Dataset[_] = {
-    if (!value.isInstanceOf[Dataset[_]]) throw new DataFlowException(s"Can only call $attemptedOperation on a Dataset. Label $label is a ${value.getClass}")
+    if (!value.isInstanceOf[Dataset[_]]) throw new DataFlowException(s"Can only call $attemptedOperation on a Dataset. Label $label is a ${value.getClass.getName}")
     else value.asInstanceOf[Dataset[_]]
   }
 }

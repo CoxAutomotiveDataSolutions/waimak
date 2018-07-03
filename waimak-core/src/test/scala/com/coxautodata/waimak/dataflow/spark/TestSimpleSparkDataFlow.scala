@@ -152,6 +152,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     }
 
+
     it("stage and commit parquet, and force a cache as parquet") {
       val spark = sparkSession
       import spark.implicits._
@@ -698,6 +699,15 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val res = executor.execute(flow)
       res._2.inputs.get[Int]("integer_2") should be(2)
       res._2.inputs.get[Dataset[_]]("dataset_2") should be(sparkSession.emptyDataFrame)
+
+      val ex1 = intercept[DataFlowException] {
+        executor.execute(flow.inPlaceTransform("integer_2")(identity))
+      }
+      ex1.text should be("Can only call inPlaceTransform on a Dataset. Label integer_2 is a java.lang.Integer")
+      val ex2 = intercept[DataFlowException] {
+        executor.execute(flow.cacheAsParquet("integer_2"))
+      }
+      ex2.text should be("Can only call cacheAsParquet on a Dataset. Label integer_2 is a java.lang.Integer")
     }
   }
 }
