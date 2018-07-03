@@ -1,5 +1,7 @@
 package com.coxautodata.waimak.dataflow
 
+import scala.reflect.{ClassTag, classTag}
+
 /**
   * Maintains data flow entities (the inputs and outputs of data flow actions). Every entity has a label which must be
   * unique across the data flow.
@@ -12,24 +14,27 @@ class DataFlowEntities(private val entities: Map[String, Option[Any]]) {
 
   def keySet: Set[String] = entities.keySet
 
-  def get[T](label: String): T = {
-    val entity = entities(label)
+  def get[T: ClassTag](label: String): T = {
+    val entity = entities.get(label)
     entity match {
-      case Some(value) if value.isInstanceOf[T] => value.asInstanceOf[T]
-      case None => throw new DataFlowException(s"Entity $label does not exist")
-      //TODO: Add type information to the log message
-      case _ => throw new DataFlowException(s"label $label not of requested type")
+      case Some(Some(value: T)) => value
+      case Some(Some(value)) => throw new DataFlowException(
+        s"Label $label not of requested type ${classTag[T].runtimeClass}. Actual type: ${value.getClass.getSimpleName}"
+      )
+      case Some(None) => throw new DataFlowException(s"Entity $label is undefined")
+      case _ => throw new DataFlowException(s"Label $label does not exist")
     }
   }
 
-  def getOption[T](label: String): Option[T] = {
+  def getOption[T: ClassTag](label: String): Option[T] = {
     val entity = entities.get(label)
     entity match {
-      case Some(Some(value)) if value.isInstanceOf[T] => Some(value.asInstanceOf[T])
+      case Some(Some(value: T)) => Some(value)
       case Some(None) => None
-      case None => throw new DataFlowException(s"label $label does not exist")
-      //TODO: Add type information to the log message
-      case _ => throw new DataFlowException(s"label $label not of requested type")
+      case Some(Some(value)) => throw new DataFlowException(
+        s"Label $label not of requested type ${classTag[T].runtimeClass}. Actual type: ${value.getClass.getSimpleName}"
+      )
+      case _ => throw new DataFlowException(s"Label $label does not exist")
     }
   }
 

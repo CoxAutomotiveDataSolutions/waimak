@@ -687,7 +687,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
   describe("mixing multiple types in flow") {
 
-    it("shold handle multiple types in the flow") {
+    it("should handle multiple types in the flow") {
 
       val emptyFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
       val flow = emptyFlow.addInput("integer_1", Some(1))
