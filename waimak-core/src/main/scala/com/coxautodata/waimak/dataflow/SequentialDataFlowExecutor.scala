@@ -12,7 +12,9 @@ import scala.annotation.tailrec
   * @tparam T the type of the entity which we are transforming (e.g. Dataset
   * @tparam C the type of context which we pass to the actions
   */
-class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T, C]) extends DataFlowExecutor[T, C] with Logging {
+class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T, C]
+                                       , override val priorityStrategy: Seq[DataFlowAction[T, C]] => Seq[DataFlowAction[T, C]])
+  extends DataFlowExecutor[T, C] with Logging {
 
   //TODO: Not sure that this executor will stay the same after proper parallelization. But the flow methods will definitely stay the same
   /**
@@ -36,7 +38,7 @@ class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T
 
       logInfo(s"Submitting action ${action.logLabel}")
       //TODO: left for compatibility, need to change the data flow entities to know about optional
-      val actionOutputs: Seq[Option[T]] = executeAction(action, inputEntities, dataFlow.flowContext)
+      val actionOutputs: ActionResult[T] = executeAction(action, inputEntities, dataFlow.flowContext)
       df.executed(action, actionOutputs)
     }
     (wave, resFlow)
@@ -49,7 +51,8 @@ class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T
     * @return (Seq[EXECUTED ACTIONS], FINAL STATE). Final state does not contain the executed actions and the outputs
     *         of the executed actions are now in the inputs
     */
-  def execute(dataFlow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = {
+/*
+  override def execute(dataFlow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = {
 
     @tailrec
     def loop(allExecutedActions: Seq[DataFlowAction[T, C]], flow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = executeWave(flow) match {
@@ -61,5 +64,12 @@ class SequentialDataFlowExecutor[T, C](override val flowReporter: FlowReporter[T
 
     loop(Seq.empty, preparedDataFlow)
   }
+*/
 }
 
+
+object SequentialDataFlowExecutor {
+
+  def apply[T, C](flowReporter: FlowReporter[T, C]) = new SequentialDataFlowExecutor(flowReporter, identity[Seq[DataFlowAction[T, C]]])
+
+}

@@ -20,7 +20,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
   val executor = Waimak.sparkExecutor()
 
   // Need to explicitly use sequential executor
-  val sequentialExecutor = new SequentialDataFlowExecutor[Dataset[_], SparkFlowContext](SparkFlowReporter)
+  val sequentialExecutor = SequentialDataFlowExecutor[Dataset[_], SparkFlowContext](SparkFlowReporter)
 
   import SparkActions._
   import TestSparkData._
@@ -136,6 +136,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val spark = sparkSession
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
+      println("DEBUG test 1 baseDest " + baseDest)
       val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "parquet_1")

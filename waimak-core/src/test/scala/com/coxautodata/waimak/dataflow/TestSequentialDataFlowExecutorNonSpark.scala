@@ -20,7 +20,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
 
   val emptyFlow = SimpleDataFlow.empty[String]
 
-  val executor = new SequentialDataFlowExecutor[String, EmptyFlowContext](NoReportingFlowReporter.apply)
+  val executor = SequentialDataFlowExecutor[String, EmptyFlowContext](NoReportingFlowReporter.apply)
 
   describe("executeWave") {
 
@@ -168,7 +168,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val flow = emptyFlow.addAction(action_1).addAction(action_2)
 
         val reporter = new TestReporter()
-        val reportedExecutor = new SequentialDataFlowExecutor[String, EmptyFlowContext](reporter)
+        val reportedExecutor = SequentialDataFlowExecutor[String, EmptyFlowContext](reporter)
 
         val res = reportedExecutor.executeWave(flow)
         res._1 should be(Seq(action_1, action_2))
