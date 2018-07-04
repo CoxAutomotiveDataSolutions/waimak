@@ -110,13 +110,13 @@ private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefi
     }
 
     // Table Commits
-    srcDestMap.filterKeys(k => commitLabels(k).connection.isDefined).foreach {
-      e =>
-        val label = e._1
-        val destPath = e._2._2
-        val commit = commitLabels(label)
-        commit.connection.get.updateTableParquetLocation(label, destPath.toUri.getPath, commit.partitions)
-    }
+    commitLabels.filter(_._2.connection.isDefined)
+      .groupBy(_._2.connection.get)
+      .mapValues(_.map {
+        case (label, commitDefinition) =>
+          commitDefinition.connection.get.updateTableParquetLocationDDLs(label, srcDestMap(label)._2.toUri.getPath, commitDefinition.partitions)
+      }).foreach {
+      case (connection, ddls) => connection.submitAtomicResultlessQueries(ddls.flatten.toSeq)}
 
     List.empty
   }
