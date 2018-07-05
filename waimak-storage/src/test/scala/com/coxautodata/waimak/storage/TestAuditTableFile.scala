@@ -9,6 +9,7 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.{Dataset, Row}
 import org.apache.spark.sql.functions._
 import com.coxautodata.waimak.storage.AuditTableFile._
+import org.apache.spark.sql.types.TimestampType
 
 import scala.util.{Failure, Success}
 
@@ -51,7 +52,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
     new AuditTableFile(AuditTableInfo(tableName, Seq("id"), Map.empty), Seq.empty, fosp, basePath, sequence())
   }
 
-  val lastUpdated = (d: Dataset[_]) => to_timestamp(d("lastTS"), "yyyy-MM-dd")
+  val lastUpdated = (d: Dataset[_]) => unix_timestamp(d("lastTS"), "yyyy-MM-dd").cast(TimestampType)
 
   val compactTS_1 = new Timestamp(formatter.parse("2018-01-03 00:00").getTime)
   val t1 = new Timestamp(formatter.parse("2018-01-01 10:00").getTime)

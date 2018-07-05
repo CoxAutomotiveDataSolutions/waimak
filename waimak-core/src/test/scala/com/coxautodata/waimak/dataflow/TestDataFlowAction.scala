@@ -14,15 +14,20 @@ class TestDataFlowAction extends FunSpec with Matchers {
       res.guid.length should be(36)
     }
 
+    it("check description") {
+      val res = new TestPresetAction(List("i1", "i2"), List("o1", "o2"),func2)
+      res.description should be(s"Action: TestPresetAction Inputs: [i1,i2] Outputs: [o1,o2]")
+    }
+
     it("check logLabel") {
       val res = new TestPresetAction(List("i1", "i2"), List("o1", "o2"),func2)
-      res.logLabel should be(s"${res.guid} Inputs: [i1,i2] Outputs: [o1,o2]")
+      res.logLabel should be(s"${res.guid}: Action: TestPresetAction Inputs: [i1,i2] Outputs: [o1,o2]")
     }
   }
 
   describe("flow states") {
 
-    val inputs = DataFlowEntities[Option[String]](Map("i1" -> Some("v1"), "i2" -> Some("v2"), "i3" -> None, "i4" -> None))
+    val inputs = DataFlowEntities(Map("i1" -> Some("v1"), "i2" -> Some("v2"), "i3" -> None, "i4" -> None))
 
     describe("ready to run") {
 

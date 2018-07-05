@@ -41,7 +41,6 @@ object PropertyEncoder {
           case LongType => (row: Row) => long(row, pos)
           case ShortType => (row: Row) => short(row, pos)
           case TimestampType => (row: Row) => timestamp(row, pos)
-          case _: VarcharType => (row: Row) => varchar(row, pos)
           case unknownType => throw new RuntimeException("Unknown type conversion for Azure Table" + unknownType.typeName)
         }
         (field.name, encoder)
@@ -73,7 +72,5 @@ object PropertyEncoder {
   def short(row: Row, pos: Int): EntityProperty = new EntityProperty(row.getAs[Short](pos))
 
   def timestamp(row: Row, pos: Int): EntityProperty = new EntityProperty(row.getTimestamp(pos))
-
-  def varchar(row: Row, pos: Int): EntityProperty = new EntityProperty(row.getAs[String](pos))
 
 }

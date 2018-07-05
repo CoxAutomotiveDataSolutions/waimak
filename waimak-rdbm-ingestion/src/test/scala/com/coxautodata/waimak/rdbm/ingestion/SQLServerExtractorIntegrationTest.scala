@@ -8,6 +8,7 @@ import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.AuditTableInfo
 import com.coxautodata.waimak.storage.StorageActions._
+import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.functions.max
 import org.scalatest.BeforeAndAfterAll
 
@@ -140,7 +141,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
       val writeFlow = flow.extractToStorageFromRDBM(sqlServerExtractor, "dbo", s"$testingBaseDir/output", tableConfig, insertDateTime)("testtemporal", "testnontemporal")
 
       val res1 = executor.execute(writeFlow)
-      res1._2.inputs.get("testtemporal").get.sort("source_type", "testtemporalid")
+      res1._2.inputs.get[Dataset[_]]("testtemporal").sort("source_type", "testtemporalid")
         .as[TestTemporal].collect() should be(Seq(
         TestTemporal(1, "New Value 1", 0)
         , TestTemporal(2, "Value2", 0)
@@ -152,7 +153,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
         , TestTemporal(1, "Value1", 1)
       ))
 
-      res1._2.inputs.get("testnontemporal").get.sort("testnontemporalid1", "testnontemporalid2")
+      res1._2.inputs.get[Dataset[_]]("testnontemporal").sort("testnontemporalid1", "testnontemporalid2")
         .as[TestNonTemporal].collect() should be(Seq(
         TestNonTemporal(1, 1, "V1")
         , TestNonTemporal(2, 1, "V2")
@@ -163,7 +164,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
       val readFlow = flow.loadFromStorage(s"$testingBaseDir/output")("testtemporal")
       val res2 = executor.execute(readFlow)
-      res2._2.inputs.get("testtemporal").get.sort("source_type", "testtemporalid")
+      res2._2.inputs.get[Dataset[_]]("testtemporal").sort("source_type", "testtemporalid")
         .as[TestTemporal].collect() should be(Seq(
         TestTemporal(1, "New Value 1", 0)
         , TestTemporal(2, "Value2", 0)
@@ -194,9 +195,9 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
       val res = executor.execute(writeFlow)
 
-      val testTemporal = res._2.inputs.get("testtemporal").get
+      val testTemporal = res._2.inputs.get[Dataset[_]]("testtemporal")
 
-      val testNonTemporal = res._2.inputs.get("testnontemporal").get
+      val testNonTemporal = res._2.inputs.get[Dataset[_]]("testnontemporal")
 
       testNonTemporal.sort("testnontemporalid1", "testnontemporalid2")
         .as[TestNonTemporal].collect() should be(Seq(
@@ -270,7 +271,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
     val res = executor.execute(deltaWriteFlow)
 
-    val testTemporal = res._2.inputs.get("testtemporal").get
+    val testTemporal = res._2.inputs.get[Dataset[_]]("testtemporal")
 
     testTemporal.sort("source_type", "testtemporalid")
       .as[TestTemporal].collect()
@@ -288,14 +289,14 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
       , TestTemporal(7, "Value7", 1)
     ))
 
-    val maxTS = testTemporal.agg(max($"system_timestamp_of_extraction")).as[Timestamp].collect().head
+    val maxTS = Timestamp.valueOf(testTemporal.agg(max($"system_timestamp_of_extraction")).as[String].collect().head)
 
     val snapshotReadFlow =
       flow.snapshotTemporalTablesFromStorage(s"$testingBaseDir/output", maxTS)("testtemporal")
 
     val snapshotRes = executor.execute(snapshotReadFlow)
 
-    val testTemporalSnapshot = snapshotRes._2.inputs.get("testtemporal").get
+    val testTemporalSnapshot = snapshotRes._2.inputs.get[Dataset[_]]("testtemporal")
 
     testTemporalSnapshot.sort("testtemporalid")
       .as[TestTemporal].collect() should be(Seq(

@@ -1,33 +1,38 @@
 package com.coxautodata.waimak.dataflow
 
+import org.apache.spark.sql.Dataset
 import org.scalatest.{FunSpec, Matchers}
+
+import scala.util.Try
+
+import scala.util.Try
 
 class TestSimpleDataFlow extends FunSpec with Matchers {
 
   describe("Add actions success") {
 
     it("empty") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       emptyFlow.inputs.size should be(0)
       emptyFlow.actions.size should be(0)
     }
 
     it("add 1 action, no action input") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow.addAction(new TestEmptyAction(List.empty, List("table_1")))
       res.inputs.size should be(0)
       res.actions.size should be(1)
     }
 
     it("add 1 action, empty input and output") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow.addAction(new TestEmptyAction(List.empty, List.empty))
       res.inputs.size should be(0)
       res.actions.size should be(1)
     }
 
     it("add 2 actions, no action input") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow
         .addAction(new TestEmptyAction(List.empty, List("table_1")))
         .addAction(new TestEmptyAction(List.empty, List("table_2")))
@@ -36,7 +41,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("add 2 actions, with chained action inputs") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow
         .addAction(new TestEmptyAction(List.empty, List("table_1")))
         .addAction(new TestEmptyAction(List("table_1"), List("table_2")))
@@ -45,7 +50,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("add 2 actions, with chained action inputs added in reverse") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow
         .addAction(new TestEmptyAction(List("table_1"), List("table_2")))
         .addAction(new TestEmptyAction(List.empty, List("table_1")))
@@ -55,7 +60,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("add 2 actions, with last empty output label") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow
         .addAction(new TestEmptyAction(List.empty, List("table_1")))
         .addAction(new TestEmptyAction(List("table_1"), List.empty)) // this happens when data is saved
@@ -64,7 +69,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("add 1 action, with existing empty input") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow
         .addInput("test_1", None)
         .addAction(new TestEmptyAction(List("test_1"), List.empty))
@@ -73,7 +78,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("add 1 action, with existing input") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addAction(new TestEmptyAction(List("test_1"), List.empty))
@@ -85,7 +90,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
   describe("Add actions fail") {
 
     it("add action, with output same name as existing input") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty
       val res = intercept[DataFlowException] {
         emptyFlow
           .addInput("test_1", Some("value_1"))
@@ -96,7 +101,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("add action, with output same name as an existing output") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty
       val res = intercept[DataFlowException] {
         emptyFlow
           .addInput("test_1", Some("value_1"))
@@ -111,13 +116,13 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
   describe("Selection of runnable") {
 
     it("empty queued") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = emptyFlow.nextRunnable()
       res should be(Seq.empty)
     }
 
     it("empty input, no actions") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", None)
       val res = flow.nextRunnable()
@@ -125,7 +130,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("one input, no actions") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
       val res = flow.nextRunnable()
@@ -133,7 +138,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("one empty input, one action") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", None)
         .addAction(new TestEmptyAction(List("test_1"), List("test_2")))
@@ -142,7 +147,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("2 inputs, one empty, action inputs from empty") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
@@ -152,7 +157,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("2 inputs, one empty, action inputs both") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
@@ -162,7 +167,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("2 inputs, one empty, action inputs from non empty") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
@@ -173,7 +178,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("one non empty input, one action") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addAction(new TestEmptyAction(List("test_1"), List("test_2")))
@@ -183,7 +188,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("multiple non-empty inputs, multiple actions, all ready") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -203,7 +208,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("multiple inputs, multiple actions, some are empty") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -223,7 +228,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     // nextRunnable tests for tag dependencies
     it("two non-empty inputs, two actions, all ready") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -237,7 +242,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("multiple non-empty inputs, multiple actions, all ready, action is tagged but no dependency") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -253,7 +258,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("multiple non-empty inputs, multiple actions, all ready, tagged with empty tags") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -271,7 +276,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("multiple non-empty inputs, multiple actions, all ready, dependency between actions") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -288,7 +293,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("multiple non-empty inputs, multiple actions, all ready, dependency between actions tagged twice with different tags") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -305,7 +310,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("one empty input, multiple actions, only dependent action is ready") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
@@ -322,7 +327,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("one action that is ready, dependent tag but no dependent actions present (simulates midflow)") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_2", Some("value_2"))
         .tagDependency("tag1") {
@@ -339,7 +344,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
   describe("prepareForExecution") {
 
     it("add action with non existing input") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = intercept[DataFlowException] {
         emptyFlow.addAction(new TestEmptyAction(List("table_1"), List.empty)).prepareForExecution()
       }
@@ -347,7 +352,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("add action, with non existing input 2") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = intercept[DataFlowException] {
         emptyFlow
           .addInput("test_1", Some("value_1"))
@@ -357,7 +362,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("cyclic dependency on input labels") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = intercept[DataFlowException] {
         emptyFlow
           .addAction(new TestEmptyAction(List("test_2"), List("test_1")) {
@@ -372,7 +377,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("duplicate existing label") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = intercept[DataFlowException] {
         emptyFlow
           .addInput("test_1", Some("value_1"))
@@ -382,7 +387,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("add input label with same name as existing output label") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val res = intercept[DataFlowException] {
         emptyFlow
           .addAction(new TestEmptyAction(List("test_1"), List("test_3")))
@@ -393,7 +398,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("one action with tag but no dependency") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_2", Some("value_2"))
         .tag("tag1") {
@@ -405,7 +410,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("one action that is missing a dependent tag") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_2", Some("value_2"))
         .tagDependency("tag1") {
@@ -422,7 +427,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("one action that has a tag dependency on itself") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_2", Some("value_2"))
         .tagDependency("tag1") {
@@ -442,7 +447,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("execution whilst in a tag block") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
 
       val res = intercept[DataFlowException] {
         emptyFlow
@@ -457,7 +462,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("execution whilst in a tagDependency block") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
 
       val res = intercept[DataFlowException] {
         emptyFlow
@@ -472,7 +477,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("three actions with tree dependency") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -494,7 +499,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("four actions with duplicate tag and dependency blocks") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .tag("tag1") {
@@ -517,7 +522,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("four actions, two initial, a third that depends on the first two, and a final one that depends on the third") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .tag("tag1") {
@@ -538,7 +543,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("four actions, two initial, a third that depends on the first two, and a final one that depends all the given tags") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .tag("tag1") {
@@ -559,7 +564,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("three actions with circular dependency") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
@@ -595,7 +600,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     it("four actions, two initial, a third that depends on the first two, and a final one that depends on the third " +
       "but produces an output needed by the first (cyclic dependency)") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .tag("tag1") {
@@ -629,7 +634,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     }
 
     it("three actions with circular dependency on label and tag") {
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .tagDependency("tag3") {
@@ -660,33 +665,33 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     describe("failures") {
 
       it("one output, action produced no output") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action = new TestEmptyAction(List.empty, List("table_1"))
         val flow = emptyFlow.addAction(action)
         val res = intercept[DataFlowException] {
           flow.executed(action, Seq.empty)
         }
-        res.text should be(s"Action produced different number of results. Expected 1, but was 0. ${action.guid} Inputs: [] Outputs: [table_1]")
+        res.text should be(s"Action produced different number of results. Expected 1, but was 0. ${action.guid}: Action: TestEmptyAction Inputs: [] Outputs: [table_1]")
       }
 
       it("one output, action produced more outputs") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action = new TestEmptyAction(List.empty, List("table_1"))
         val flow = emptyFlow.addAction(action)
         val res = intercept[DataFlowException] {
           flow.executed(action, Seq(Some("v_1"), Some("v2")))
         }
-        res.text should be(s"Action produced different number of results. Expected 1, but was 2. ${action.guid} Inputs: [] Outputs: [table_1]")
+        res.text should be(s"Action produced different number of results. Expected 1, but was 2. ${action.guid}: Action: TestEmptyAction Inputs: [] Outputs: [table_1]")
       }
 
       it("2 outputs, action only one is produced") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action = new TestEmptyAction(List.empty, List("table_1", "table_2"))
         val flow = emptyFlow.addAction(action)
         val res = intercept[DataFlowException] {
           flow.executed(action, Seq(Some("v1")))
         }
-        res.text should be(s"Action produced different number of results. Expected 2, but was 1. ${action.guid} Inputs: [] Outputs: [table_1,table_2]")
+        res.text should be(s"Action produced different number of results. Expected 2, but was 1. ${action.guid}: Action: TestEmptyAction Inputs: [] Outputs: [table_1,table_2]")
       }
 
     }
@@ -694,44 +699,44 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
     describe("success") {
 
       it("flow with one action, no output, pre existing inputs") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action = new TestEmptyAction(List("t_1"), List.empty)
         val flow = emptyFlow.addInput("t_1", Some("v1")).addAction(action)
         flow.actions.size should be(1)
         val resFlow = flow.executed(action, Seq.empty)
         resFlow.actions.size should be(0)
-        resFlow.inputs.entities should be(Map("t_1" -> Some("v1"))) // original inputs are still there
+        resFlow.inputs should be(DataFlowEntities(Map("t_1" -> Some("v1")))) // original inputs are still there
       }
 
       it("flow with one action, one output, no pre existing inputs, empty") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action = new TestEmptyAction(List.empty, List("table_1"))
         val flow = emptyFlow.addAction(action)
         val resFlow = flow.executed(action, Seq(None))
         resFlow.actions.size should be(0)
-        resFlow.inputs.entities should be(Map("table_1" -> None))
+        resFlow.inputs should be(DataFlowEntities(Map("table_1" -> None)))
       }
 
       it("flow with one action, one output, no pre existing inputs, not empty") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action = new TestEmptyAction(List.empty, List("table_1"))
         val flow = emptyFlow.addAction(action)
         val resFlow = flow.executed(action, Seq(Some("v1")))
         resFlow.actions.size should be(0)
-        resFlow.inputs.entities should be(Map("table_1" -> Some("v1")))
+        resFlow.inputs should be(DataFlowEntities(Map("table_1" -> Some("v1"))))
       }
 
       it("flow with one action, 3 outputs, no pre existing inputs") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action = new TestEmptyAction(List.empty, List("t_1", "t_2", "t_3"))
         val flow = emptyFlow.addAction(action)
         val resFlow = flow.executed(action, Seq(Some("v1"), None, Some("v3")))
         resFlow.actions.size should be(0)
-        resFlow.inputs.entities should be(Map("t_1" -> Some("v1"), "t_2" -> None, "t_3" -> Some("v3")))
+        resFlow.inputs should be(DataFlowEntities(Map("t_1" -> Some("v1"), "t_2" -> None, "t_3" -> Some("v3"))))
       }
 
       it("flow with one action, 3 outputs, with pre existing inputs") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action = new TestEmptyAction(List.empty, List("t_1", "t_2", "t_3"))
         val flow = emptyFlow
           .addInput("t_0", Some("v0"))
@@ -739,11 +744,11 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           .addAction(action)
         val resFlow = flow.executed(action, Seq(Some("v1"), None, Some("v3")))
         resFlow.actions.size should be(0)
-        resFlow.inputs.entities should be(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"), "t_2" -> None, "t_3" -> Some("v3")))
+        resFlow.inputs should be(DataFlowEntities(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"), "t_2" -> None, "t_3" -> Some("v3"))))
       }
 
       it("flow with 3 actions, 3 outputs, with pre existing inputs") {
-        val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
         val action_1 = new TestEmptyAction(List.empty, List("t_1"))
         val action_2 = new TestEmptyAction(List.empty, List("t_2"))
         val action_3 = new TestEmptyAction(List.empty, List("t_3"))
@@ -759,19 +764,19 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
         val resFlow_1 = flow.executed(action_1, Seq(Some("v1")))
         resFlow_1.actions.size should be(3)
-        resFlow_1.inputs.entities should be(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1")))
+        resFlow_1.inputs should be(DataFlowEntities(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"))))
 
         val resFlow_2 = resFlow_1.executed(action_2, Seq(Some("v2")))
         resFlow_2.actions.size should be(2)
-        resFlow_2.inputs.entities should be(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"), "t_2" -> Some("v2")))
+        resFlow_2.inputs should be(DataFlowEntities(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"), "t_2" -> Some("v2"))))
 
         val resFlow_3 = resFlow_2.executed(action_3, Seq(Some("v3")))
         resFlow_3.actions.size should be(1)
-        resFlow_3.inputs.entities should be(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"), "t_2" -> Some("v2"), "t_3" -> Some("v3")))
+        resFlow_3.inputs should be(DataFlowEntities(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"), "t_2" -> Some("v2"), "t_3" -> Some("v3"))))
 
         val resFlow = resFlow_3.executed(action, Seq.empty)
         resFlow.actions.size should be(0)
-        resFlow.inputs.entities should be(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"), "t_2" -> Some("v2"), "t_3" -> Some("v3")))
+        resFlow.inputs should be(DataFlowEntities(Map("t_0" -> Some("v0"), "t_00" -> Some("v00"), "t_1" -> Some("v1"), "t_2" -> Some("v2"), "t_3" -> Some("v3"))))
       }
 
     }
@@ -782,7 +787,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     it("map should transform a dataflow") {
 
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       emptyFlow.actions.map(_.guid) should be(Seq())
 
       val mappedFlow = emptyFlow.map { f =>
@@ -795,7 +800,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     it("mapOption should transform a dataflow") {
 
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       emptyFlow.actions.map(_.guid) should be(Seq())
 
       val noneMappedFlow = emptyFlow.mapOption(_ => None)
@@ -811,9 +816,9 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     it("map should transform a dataflow when using implicit classes") {
 
-      val emptyFlow: SimpleDataFlow[String, EmptyFlowContext] = SimpleDataFlow.empty[String]
-      implicit class TestImplicit(dataFlow: SimpleDataFlow[String, EmptyFlowContext]) {
-        def runTest: SimpleDataFlow[String, EmptyFlowContext] = dataFlow.addAction(new TestEmptyAction(List.empty, List.empty) {
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+      implicit class TestImplicit(dataFlow: SimpleDataFlow[EmptyFlowContext]) {
+        def runTest: SimpleDataFlow[EmptyFlowContext] = dataFlow.addAction(new TestEmptyAction(List.empty, List.empty) {
           override val guid: String = "abd22c36-4dd0-4fa5-9298-c494ede7f363"
         })
       }
@@ -825,8 +830,8 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
   }
 }
 
-class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[String]) extends DataFlowAction[String, EmptyFlowContext] {
+class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[String]) extends DataFlowAction[EmptyFlowContext] {
 
-  override def performAction(inputs: DataFlowEntities[String], flowContext: EmptyFlowContext): List[Option[String]] = List.empty
+  override def performAction(inputs: DataFlowEntities, flowContext: EmptyFlowContext): Try[ActionResult] = Try(List.empty)
 
 }
