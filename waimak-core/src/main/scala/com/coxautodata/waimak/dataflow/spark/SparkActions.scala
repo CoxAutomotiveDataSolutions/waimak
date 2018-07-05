@@ -22,7 +22,7 @@ object SparkActions {
     * @param sparkDataFlow
     */
   implicit class SparkDataFlowExtension(sparkDataFlow: SparkDataFlow) extends Logging {
-    
+
 
     /**
       * Transforms 1 input DataSet to 1 output DataSet using function f, which is a scala function.
@@ -603,7 +603,8 @@ object SparkActions {
       * You can optionally give a snapshot folder name so resulting committed table looks like:
       * /destBasePath/label/snapshotFolder/
       *
-      * @param connection     Hadoop database connection object
+      * @param connection     Hadoop database connection object. Reuse same object instance for each call of this function
+      *                       to allow reuse of the underlying connection
       * @param destBasePath   Base path
       * @param labels         Labels of the dataframe to stage, resulting in the tablename
       * @param snapshotFolder Optional snapshot name

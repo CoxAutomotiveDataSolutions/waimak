@@ -76,10 +76,10 @@ case class ImpalaJDBCConnector(sparkSession: SparkSession, jdbcString: String, f
   * @param sparkSession SparkSession object
   */
 case class ImpalaDummyConnector(sparkSession: SparkSession, forceRecreateTables: Boolean = false) extends ImpalaDBConnector {
-  var ranDDLs: List[String] = List.empty
+  var ranDDLs: List[List[String]] = List.empty
 
   override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {
-    ranDDLs = ranDDLs ++ ddls
+    ranDDLs = ranDDLs :+ ddls.toList
     Seq(None)
   }
 }
