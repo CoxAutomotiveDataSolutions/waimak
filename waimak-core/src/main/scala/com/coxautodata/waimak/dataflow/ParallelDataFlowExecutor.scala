@@ -12,21 +12,20 @@ import scala.util.{Failure, Success}
 /**
   * Created by Alexei Perelighin on 2018/05/28
   *
-  * @tparam T
   * @tparam C
   */
-class ParallelDataFlowExecutor[T, C]( numberOfParallelJobs: Int
-                                      , override val flowReporter: FlowReporter[T, C]
-                                      , override val priorityStrategy: Seq[DataFlowAction[T, C]] => Seq[DataFlowAction[T, C]])
-  extends DataFlowExecutor[T, C] with Logging {
+class ParallelDataFlowExecutor[C]( numberOfParallelJobs: Int
+                                      , override val flowReporter: FlowReporter[C]
+                                      , override val priorityStrategy: Seq[DataFlowAction[C]] => Seq[DataFlowAction[C]])
+  extends DataFlowExecutor[C] with Logging {
 
-  type actionType = DataFlowAction[T, C]
+  type actionType = DataFlowAction[C]
 
-  type futureResult = (actionType, Try[ActionResult[T]])
+  type futureResult = (actionType, Try[ActionResult])
 
   implicit val ec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(numberOfParallelJobs))
 
-  override def execute(dataFlow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = {
+  override def execute(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C]) = {
     /**
       * When actions finish, they post their ID into the queue, which is processed
       */
@@ -34,9 +33,9 @@ class ParallelDataFlowExecutor[T, C]( numberOfParallelJobs: Int
 
     //At the moment will schedule one task at a time, so the priority and next runnable will run far too often
     @tailrec
-    def loop(currentFlow: DataFlow[T, C], running: Set[String], successfulActions: Seq[actionType]
-             , futures: Seq[Future[futureResult]]): Try[(Seq[actionType], DataFlow[T, C])] = {
-      val toSchedule: Option[DataFlowAction[T, C]] = priorityStrategy(currentFlow.nextRunnable().filter(a => !running.contains(a.guid))).headOption
+    def loop(currentFlow: DataFlow[C], running: Set[String], successfulActions: Seq[actionType]
+             , futures: Seq[Future[futureResult]]): Try[(Seq[actionType], DataFlow[C])] = {
+      val toSchedule: Option[DataFlowAction[C]] = priorityStrategy(currentFlow.nextRunnable().filter(a => !running.contains(a.guid))).headOption
       (running.size >= numberOfParallelJobs, toSchedule) match {
         case (_, None) if running.isEmpty => {
           logInfo("Finished Action" + successfulActions)
@@ -81,7 +80,7 @@ class ParallelDataFlowExecutor[T, C]( numberOfParallelJobs: Int
 
     val preparedDataFlow = dataFlow.prepareForExecution()
 
-    val executionResults: Try[(Seq[actionType], DataFlow[T, C])] = loop(preparedDataFlow, Set.empty, Seq.empty, Seq.empty)
+    val executionResults: Try[(Seq[actionType], DataFlow[C])] = loop(preparedDataFlow, Set.empty, Seq.empty, Seq.empty)
     //    executionResults.foreach(p => println(p))
     //TODO: In the future the Executor trait needs to return Try. Also there are a lot of options to
     //implement restartability/recovery, which need to think through
@@ -92,10 +91,9 @@ class ParallelDataFlowExecutor[T, C]( numberOfParallelJobs: Int
     executionResults.get
   }
 
-  def scheduleAction(currentFlow: DataFlow[T, C], action: actionType): Future[futureResult] = {
-    val inputEntities: DataFlowEntities[T] = {
-      if (action.requiresAllInputs) currentFlow.inputs.filterLabels(action.inputLabels).map(_.get)
-      else currentFlow.inputs.filterLabels(action.inputLabels).filterValues(_.isDefined).map(_.get)
+  def scheduleAction(currentFlow: DataFlow[C], action: actionType): Future[futureResult] = {
+    val inputEntities: DataFlowEntities = {
+      currentFlow.inputs.filterLabels(action.inputLabels)
     }
     val ft = Future[futureResult] {
       (action, action.performAction(inputEntities, currentFlow.flowContext))
@@ -106,6 +104,6 @@ class ParallelDataFlowExecutor[T, C]( numberOfParallelJobs: Int
 
 object ParallelDataFlowExecutor {
 
-  def noPreference[T, C](actions: Seq[DataFlowAction[T, C]]): Seq[DataFlowAction[T, C]] = actions
+  def noPreference[C](actions: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = actions
 
 }

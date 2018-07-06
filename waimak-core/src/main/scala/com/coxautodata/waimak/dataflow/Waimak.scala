@@ -49,6 +49,6 @@ object Waimak {
     *
     * @return
     */
-  def sparkExecutor(): DataFlowExecutor[Dataset[_], SparkFlowContext] = SequentialDataFlowExecutor[Dataset[_], SparkFlowContext](SparkFlowReporter)
+  def sparkExecutor(): DataFlowExecutor[SparkFlowContext] = SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
 
 }

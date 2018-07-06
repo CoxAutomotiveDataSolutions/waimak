@@ -33,7 +33,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
 
     val func2None = () => List(Some("v1"), None)
 
-    val emptyInputs = DataFlowEntities.empty[String]
+    val emptyInputs = DataFlowEntities.empty
 
     val appendFunc = (in: Option[String], fl: EmptyFlowContext) => in.map(_ + "_6789")
 

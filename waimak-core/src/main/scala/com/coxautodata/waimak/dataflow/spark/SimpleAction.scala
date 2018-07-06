@@ -16,11 +16,10 @@ import scala.util.Try
   * @param outputLabels
   * @param exec        - function to execute with inputs matched to input labels and outputs to output labels. By the time it
   *                    is called, all inputs were validated and action is in runnable flow state.
-  * @tparam T the type of the entity which we are transforming (e.g. Dataset)
   * @tparam C the type of the context of the flow in which this action runs
   */
-class SimpleAction[T, C](val inputLabels: List[String], val outputLabels: List[String]
-                         , exec: Map[String, T] => ActionResult[T], override val actionName: String = "SimpleAction") extends DataFlowAction[T, C] {
+class SimpleAction[C](val inputLabels: List[String], val outputLabels: List[String]
+                      , exec: DataFlowEntities => ActionResult, override val actionName: String = "SimpleAction") extends DataFlowAction[C] {
 
   /**
     * Perform the action. Puts inputs into a map and invokes the exec function.
@@ -28,9 +27,9 @@ class SimpleAction[T, C](val inputLabels: List[String], val outputLabels: List[S
     * @param inputs the DataFlowEntities corresponding to the inputLabels
     * @return the action outputs (these must be declared in the same order as their labels in outputLabels)
     */
-  override def performAction(inputs: DataFlowEntities[T], flowContext: C): Try[ActionResult[T]] = {
-    val params: Map[String, T] = inputs.filterLabels(inputLabels).entities
-    Try(exec(params))
+  override def performAction(inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = Try {
+    val params: DataFlowEntities = inputs.filterLabels(inputLabels)
+    exec(params)
   }
 
 }
@@ -45,9 +44,8 @@ class SimpleAction[T, C](val inputLabels: List[String], val outputLabels: List[S
   * @param sqlTables
   */
 class SparkSimpleAction(inputLabels: List[String], outputLabels: List[String]
-                        , exec: Map[String, Dataset[_]] => ActionResult[Dataset[_]]
-                        , val sqlTables: Seq[String], override val actionName: String = "SparkSimpleAction") extends SimpleAction[Dataset[_]
-  , SparkFlowContext](inputLabels, outputLabels, exec) {
+                        , exec: DataFlowEntities => ActionResult
+                        , val sqlTables: Seq[String], override val actionName: String = "SparkSimpleAction") extends SimpleAction[SparkFlowContext](inputLabels, outputLabels, exec) {
 
 }
 

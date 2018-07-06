@@ -110,9 +110,10 @@ trait HadoopDBConnector extends DBConnector {
     * @param tableName        name of the table
     * @param path             path of the table location
     * @param partitionColumns optional list of partition columns
+    * @return the sql statements which need executing to perform the table recreation
     */
-  def recreateTableFromParquet(tableName: String, path: String, partitionColumns: Seq[String] = Seq.empty): Unit = {
-    submitAtomicResultlessQueries(dropTableParquetDDL(tableName) +: createTableFromParquetDDL(tableName, path, partitionColumns = partitionColumns))
+  def recreateTableFromParquetDDLs(tableName: String, path: String, partitionColumns: Seq[String] = Seq.empty): Seq[String] = {
+    dropTableParquetDDL(tableName) +: createTableFromParquetDDL(tableName, path, partitionColumns = partitionColumns)
   }
 
   /**
@@ -125,11 +126,12 @@ trait HadoopDBConnector extends DBConnector {
     * @param tableName        name of the table
     * @param path             path of the table location
     * @param partitionColumns optional list of partition columns
+    * @return the sql statements which need executing to perform the table update
     */
-  def updateTableParquetLocation(tableName: String, path: String, partitionColumns: Seq[String] = Seq.empty): Unit = {
+  def updateTableParquetLocationDDLs(tableName: String, path: String, partitionColumns: Seq[String] = Seq.empty): Seq[String] = {
     {
-      if (partitionColumns.nonEmpty || forceRecreateTables) recreateTableFromParquet(tableName, path, partitionColumns)
-      else submitAtomicResultlessQueries(createTableFromParquetDDL(tableName, path) :+ updateTableLocationDDL(tableName, path))
+      if (partitionColumns.nonEmpty || forceRecreateTables) recreateTableFromParquetDDLs(tableName, path, partitionColumns)
+      else createTableFromParquetDDL(tableName, path) :+ updateTableLocationDDL(tableName, path)
     }
   }
 }

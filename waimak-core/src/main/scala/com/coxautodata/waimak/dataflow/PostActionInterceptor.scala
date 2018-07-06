@@ -4,11 +4,11 @@ import com.coxautodata.waimak.log.Logging
 
 import scala.util.Try
 
-case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[T, C]
+case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
                                        , postActions: Seq[PostAction[T, C]])
-  extends InterceptorAction[T, C](toIntercept) with Logging {
+  extends InterceptorAction[C](toIntercept) with Logging {
 
-  override def instead(inputs: DataFlowEntities[T], flowContext: C): Try[ActionResult[T]] = {
+  override def instead(inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = {
     val tryRes = intercepted.performAction(inputs, flowContext).map(_.toArray)
     tryRes.foreach { res =>
       postActions.groupBy(_.labelToIntercept).foreach {
@@ -17,7 +17,7 @@ case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[T, C]
           val actionsForLabel = v._2
           val pos = intercepted.outputLabels.indexOf(label)
           if (pos < 0) throw new DataFlowException(s"Can not apply post action to label $label, it does not exist in action ${intercepted.logLabel}.")
-          res(pos) = actionsForLabel.foldLeft(res(pos))((z, a) => a.run(z, flowContext))
+          res(pos) = actionsForLabel.foldLeft(res(pos))((z, a) => a.run(z.map(_.asInstanceOf[T]), flowContext))
       }
     }
     tryRes.map(_.toList)

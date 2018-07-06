@@ -1,7 +1,7 @@
 package com.coxautodata.waimak.rdbm.export
 
-import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowException}
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
+import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, DataFlowException}
 import com.coxautodata.waimak.log.Logging
 import org.apache.spark.sql.{Dataset, SaveMode}
 
@@ -17,7 +17,7 @@ object MSSQLExportActions {
     */
   implicit class SparkMSSQL(sparkDataFlow: SparkDataFlow) extends Logging {
 
-    type returnType = ActionResult[Dataset[_]]
+    type returnType = ActionResult
 
     /**
       * Push staged label into rdbm table, which must already exist.
@@ -30,11 +30,11 @@ object MSSQLExportActions {
       */
     protected def pushToMSSQL(flow: SparkDataFlow, jdbc: String, label: String, table: String): SparkDataFlow = {
 
-      def run(m: Map[String, Dataset[_]]): returnType = {
+      def run(m: DataFlowEntities): returnType = {
         logInfo(s"Preparing to push data from [${label}] into table [${table}]")
         val connectionProperties = new java.util.Properties()
         connectionProperties.setProperty("driver", "com.microsoft.sqlserver.jdbc.SQLServerDriver")
-        m(label).write.mode(SaveMode.Append).jdbc(jdbc, table, connectionProperties)
+        m.get[Dataset[_]](label).write.mode(SaveMode.Append).jdbc(jdbc, table, connectionProperties)
         logInfo(s"Finished pushing data from [${label}] into table [${table}]")
         Seq.empty
       }

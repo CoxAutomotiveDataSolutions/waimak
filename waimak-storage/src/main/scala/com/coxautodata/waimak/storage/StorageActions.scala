@@ -3,8 +3,8 @@ package com.coxautodata.waimak.storage
 import java.sql.Timestamp
 import java.time.{LocalDateTime, ZoneOffset, ZonedDateTime}
 
-import com.coxautodata.waimak.dataflow.ActionResult
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
+import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
 import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
@@ -83,12 +83,12 @@ object StorageActions extends Logging {
       */
     def writeToStorage(labelName: String, table: AuditTable, lastUpdatedCol: String, appendDateTime: ZonedDateTime,
                        doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false): SparkDataFlow = {
-      val run: Map[String, Dataset[_]] => ActionResult[Dataset[_]] = m => {
+      val run: DataFlowEntities => ActionResult = m => {
         import sparkDataFlow.flowContext.spark.implicits._
 
         val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
 
-        table.append(m(labelName), $"$lastUpdatedCol", appendTimestamp) match {
+        table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
           case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
             logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
             t.compact(appendTimestamp) match {

@@ -5,6 +5,6 @@ package com.coxautodata.waimak
   */
 package object dataflow {
 
-  type ActionResult[T] = Seq[Option[T]]
+  type ActionResult = Seq[Option[Any]]
 
 }

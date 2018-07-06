@@ -6,7 +6,7 @@ import scala.util.{Failure, Success, Try}
 /**
   * Created by Alexei Perelighin on 11/01/18.
   */
-trait DataFlowExecutor[T, C] {
+trait DataFlowExecutor[C] {
 
   /**
     * Executes as many actions as possible with the given DAG, stops when no more actions can be executed.
@@ -15,10 +15,10 @@ trait DataFlowExecutor[T, C] {
     * @return (Seq[EXECUTED ACTIONS], FINAL STATE). Final state does not contain the executed actions and the outputs
     *         of the executed actions are now in the inputs
     */
-  def execute(dataFlow: DataFlow[T, C]): (Seq[DataFlowAction[T, C]], DataFlow[T, C]) = {
+  def execute(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C]) = {
     val preparedDataFlow = dataFlow.prepareForExecution()
 
-    val executionResults: Try[(Seq[DataFlowAction[T, C]], DataFlow[T, C])] = loopExecution(None, preparedDataFlow, Set.empty, Seq.empty)
+    val executionResults: Try[(Seq[DataFlowAction[C]], DataFlow[C])] = loopExecution(None, preparedDataFlow, Set.empty, Seq.empty)
 
     executionResults.get
   }
@@ -26,9 +26,9 @@ trait DataFlowExecutor[T, C] {
   /**
     * Used to report events on the flow.
     */
-  def flowReporter: FlowReporter[T, C]
+  def flowReporter: FlowReporter[C]
 
-  def priorityStrategy: Seq[DataFlowAction[T, C]] => Seq[DataFlowAction[T, C]]
+  def priorityStrategy: Seq[DataFlowAction[C]] => Seq[DataFlowAction[C]]
 
   /**
     * Execute the action by calling it's performAction function and unpack the result.
@@ -38,7 +38,7 @@ trait DataFlowExecutor[T, C] {
     * @param flowContext   Context of the dataflow
     * @return
     */
-  def executeAction(action: DataFlowAction[T, C], inputEntities: DataFlowEntities[T], flowContext: C): Seq[Option[T]] = {
+  def executeAction(action: DataFlowAction[C], inputEntities: DataFlowEntities, flowContext: C): ActionResult = {
     flowReporter.reportActionStarted(action, flowContext)
     action.performAction(inputEntities, flowContext) match {
       case Success(v) =>
@@ -49,11 +49,11 @@ trait DataFlowExecutor[T, C] {
   }
 
   @tailrec
-  private def loopExecution(resultsToProcess: Option[ Try[Seq[(DataFlowAction[T, C], Try[ActionResult[T]])]] ]
-                   , currentFlow: DataFlow[T, C]
+  private def loopExecution(resultsToProcess: Option[ Try[Seq[(DataFlowAction[C], Try[ActionResult])]] ]
+                   , currentFlow: DataFlow[C]
                     , running: Set[String]
-                    , successfulActions: Seq[DataFlowAction[T, C]]
-                   ): Try[(Seq[DataFlowAction[T, C]], DataFlow[T, C])] = {
+                    , successfulActions: Seq[DataFlowAction[C]]
+                   ): Try[(Seq[DataFlowAction[C]], DataFlow[C])] = {
     //action scheduling and processing of the results are done in different loopExecution calls, this has simplified
     //implementation of the state machine.
     resultsToProcess match {
@@ -83,7 +83,7 @@ trait DataFlowExecutor[T, C] {
       }
       case None => {
         if (canSchedule(running)) {
-          val toSchedule: Option[DataFlowAction[T, C]] = priorityStrategy(currentFlow.nextRunnable().filter(a => !running.contains(a.guid))).headOption
+          val toSchedule: Option[DataFlowAction[C]] = priorityStrategy(currentFlow.nextRunnable().filter(a => !running.contains(a.guid))).headOption
           toSchedule match {
             case None if (running.isEmpty) => {
 //              logInfo("Finished Flow" + successfulActions)
@@ -94,9 +94,8 @@ trait DataFlowExecutor[T, C] {
             case Some(action) => {
               //submit action for execution
               flowReporter.reportActionStarted(action, currentFlow.flowContext)
-              val inputEntities: DataFlowEntities[T] = {
-                if (action.requiresAllInputs) currentFlow.inputs.filterLabels(action.inputLabels).map(_.get)
-                else currentFlow.inputs.filterLabels(action.inputLabels).filterValues(_.isDefined).map(_.get)
+              val inputEntities: DataFlowEntities = {
+                currentFlow.inputs.filterLabels(action.inputLabels)
               }
               submitAction(action, inputEntities, currentFlow.flowContext)
               loopExecution(None, currentFlow, running + action.guid, successfulActions)
@@ -109,7 +108,7 @@ trait DataFlowExecutor[T, C] {
     }
   }
 
-  private var toRun: Option[(DataFlowAction[T, C], DataFlowEntities[T], C)] = None
+  private var toRun: Option[(DataFlowAction[C], DataFlowEntities, C)] = None
 
   /**
     * Decides if more actions can be scheduled.
@@ -127,7 +126,7 @@ trait DataFlowExecutor[T, C] {
     * In case of sequential exec it calls DataFlowAction.performAction
     * @return
     */
-  def waitToFinish(): Try[Seq[(DataFlowAction[T, C], Try[ActionResult[T]])]] = {
+  def waitToFinish(): Try[Seq[(DataFlowAction[C], Try[ActionResult])]] = {
     println("DEBUG waitToFinish " + toRun.fold("None")(e => e._1.logLabel))
     toRun match {
       case Some((action, entities, context)) => Success(Seq((action, action.performAction(entities, context))))
@@ -139,7 +138,7 @@ trait DataFlowExecutor[T, C] {
     * Submits
     * @param action
     */
-  def submitAction(action: DataFlowAction[T, C], entities: DataFlowEntities[T], flowContext: C): Unit = {
+  def submitAction(action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): Unit = {
     println("DEBUG submitAction " + action.logLabel)
     toRun = Some((action, entities, flowContext))
   }

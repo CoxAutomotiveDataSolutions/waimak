@@ -9,18 +9,18 @@ import scala.collection.mutable
   */
 class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
 
-  val func3: DataFlowEntities[String] => ActionResult[String] = ent => {
+  val func3: DataFlowEntities => ActionResult= ent => {
     ent.getAll
     List(Some("v1"), Some("v2"))
   }
 
-  val func2: () => ActionResult[String] = () => List(Some("v1"), Some("v2"))
+  val func2: () => ActionResult= () => List(Some("v1"), Some("v2"))
 
   val func1 = (w: Seq[Option[String]]) => () => w
 
-  val emptyFlow = SimpleDataFlow.empty[String]
+  val emptyFlow = SimpleDataFlow.empty()
 
-  val executor = SequentialDataFlowExecutor[String, EmptyFlowContext](NoReportingFlowReporter.apply)
+  val executor = SequentialDataFlowExecutor[EmptyFlowContext](NoReportingFlowReporter.apply)
 
   describe("executeWave") {
 
@@ -168,7 +168,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val flow = emptyFlow.addAction(action_1).addAction(action_2)
 
         val reporter = new TestReporter()
-        val reportedExecutor = SequentialDataFlowExecutor[String, EmptyFlowContext](reporter)
+        val reportedExecutor = SequentialDataFlowExecutor[EmptyFlowContext](reporter)
 
         val res = reportedExecutor.executeWave(flow)
         res._1 should be(Seq(action_1, action_2))
@@ -187,11 +187,11 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
   }
 }
 
-class TestReporter extends FlowReporter[String, EmptyFlowContext] {
+class TestReporter extends FlowReporter[EmptyFlowContext] {
 
   val reports: mutable.MutableList[String] = mutable.MutableList.empty[String]
 
-  override def reportActionStarted(action: DataFlowAction[String, EmptyFlowContext], flowContext: EmptyFlowContext): Unit = reports += s"Start: ${action.description}"
+  override def reportActionStarted(action: DataFlowAction[EmptyFlowContext], flowContext: EmptyFlowContext): Unit = reports += s"Start: ${action.description}"
 
-  override def reportActionFinished(action: DataFlowAction[String, EmptyFlowContext], flowContext: EmptyFlowContext): Unit = reports += s"Finish: ${action.description}"
+  override def reportActionFinished(action: DataFlowAction[EmptyFlowContext], flowContext: EmptyFlowContext): Unit = reports += s"Finish: ${action.description}"
 }
