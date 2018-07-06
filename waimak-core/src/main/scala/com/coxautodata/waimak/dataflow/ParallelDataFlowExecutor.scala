@@ -100,6 +100,8 @@ class ParallelDataFlowExecutor[C]( numberOfParallelJobs: Int
     }
     ft
   }
+
+  override def initActionScheduler(): ActionScheduler[C] = ???
 }
 
 object ParallelDataFlowExecutor {

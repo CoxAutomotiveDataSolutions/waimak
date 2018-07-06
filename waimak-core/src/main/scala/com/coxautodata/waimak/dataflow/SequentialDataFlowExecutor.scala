@@ -63,6 +63,7 @@ class SequentialDataFlowExecutor[C](override val flowReporter: FlowReporter[C]
     loop(Seq.empty, preparedDataFlow)
   }
   */
+  override def initActionScheduler(): ActionScheduler[C] = new SequentialScheduler[C](None)
 }
 
 
