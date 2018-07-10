@@ -1,7 +1,7 @@
 package com.coxautodata.waimak.dataflow.spark
 
 import com.coxautodata.waimak.dataflow.{DataFlow, DataFlowAction, FlowReporter}
-import org.apache.spark.WaimakExecutionEvent
+import org.apache.spark.{WaimakExecutionEvent, WaimakGraph}
 import org.apache.spark.sql.Dataset
 import org.apache.spark.ui.WaimakExecutionsUITab
 
@@ -22,7 +22,7 @@ object SparkFlowReporter extends FlowReporter[Dataset[_], SparkFlowContext] {
     val actions: Seq[String] = flow.actions.map(_.description)
 
     // Add flow as Event
-    WaimakExecutionEvent.addEvent(flow.flowContext.spark.sparkContext, WaimakExecutionEvent(executionGUID, actions))
+    WaimakExecutionEvent.addEvent(flow.flowContext.spark.sparkContext, WaimakExecutionEvent(executionGUID, actions, WaimakGraph(flow)))
   }
 
   override def reportExecutionFinished(flow: DataFlow[Dataset[_], SparkFlowContext], executionGUID: String): Unit = Unit

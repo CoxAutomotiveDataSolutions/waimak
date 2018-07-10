@@ -2,6 +2,9 @@ package org.apache.spark.ui
 
 import javax.servlet.http.HttpServletRequest
 import org.apache.spark.WaimakExecutionEvent
+import org.apache.spark.sql.execution.ui._
+
+import org.apache.spark.WaimakGraph
 
 import scala.xml.Node
 
@@ -24,8 +27,12 @@ class WaimakExecutionUIPage(parent: WaimakExecutionsUITab) extends WebUIPage("fl
       Seq(line)
     }
 
-    val table = UIUtils.listingTable(Seq("Action Description"), renderRow, flowContent.actionDescriptions, fixedWidth = true)
 
+
+    val graph = WaimakGraphRenderer.createGraph(flowContent.flowGraph.nodes, flowContent.flowGraph.edges)
+    //val graph1 = WaimakGraphRenderer.createGraph(flowContent.flowGraph.nodes, flowContent.flowGraph.edges)
+
+    val table = UIUtils.listingTable(Seq("Action Description"), renderRow, flowContent.actionDescriptions, fixedWidth = true)
 
     val content =
       <div>content for id
@@ -34,7 +41,10 @@ class WaimakExecutionUIPage(parent: WaimakExecutionsUITab) extends WebUIPage("fl
         {flowContent}
       </div>
 
-    UIUtils.headerSparkPage(s"Details for flow execution: $parameterId", table, parent) //, showVisualization = true)
+    UIUtils.headerSparkPage(s"Details for flow execution: $parameterId", table ++ graph, parent) //, showVisualization = true)
+    //UIUtils.headerSparkPage(s"Details for flow execution: $parameterId", table ++ graph ++ graph1 ++ graph, parent) //, showVisualization = true)
+    //UIUtils.headerSparkPage(s"Details for flow execution: $parameterId", graph1, parent) //, showVisualization = true)
 
   }
+
 }
