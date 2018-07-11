@@ -48,14 +48,28 @@ object WaimakGraph {
     val theNodes2: Seq[WaimakNode]  = groupedActions.map{case ((k1, k2), l) =>
       println("r=", r)
       r += 1
-      //WaimakNode(r, s"Tags $k1 \n DependentOnTags: $k2", "", l.map{case (a, i) => WaimakNode(i,
-      WaimakNode(r, s"Tags $r \n DependentOnTags: $k2", "", l.map{case (a, i) => WaimakNode(i,
+      val str =
+        if (k1.nonEmpty && k2.nonEmpty) s"Tags: $k1 \n DependentOnTags: $k2"
+        else if (k1.nonEmpty) s"Tags:\n $k1"
+        //else if (k2.nonEmpty) s"DependentOnTags:\n $k2"
+        else if (k2.nonEmpty) s"TagDependency:\n $k2"
+        else " "
+      //WaimakNode(r, str, "", l.map{case (a, i) => WaimakNode(i,
+      WaimakNode(r, str, "", l.map{case (a, i) => WaimakNode(i,
+      //WaimakNode(r, s"Tags $r \n DependentOnTags: $k2", "", l.map{case (a, i) => WaimakNode(i,
         s"""
            |Inputs:       ${a.inputLabels}
            |Action:       ${a.actionName}
-           |Tags:         ${flow.tagState.taggedActions(a.guid).tags}
-           |TagDependency:${flow.tagState.taggedActions(a.guid).dependentOnTags}
            |Outputs:     ${a.outputLabels}""".stripMargin , "")})}.toSeq
+
+/*
+    s"""
+       |Inputs:       ${a.inputLabels}
+       |Action:       ${a.actionName}
+       |Tags:         ${flow.tagState.taggedActions(a.guid).tags}
+       |TagDependency:${flow.tagState.taggedActions(a.guid).dependentOnTags}
+       |Outputs:     ${a.outputLabels}""".stripMargin , "")})}.toSeq
+*/
 
 /*
     val sortedActions2 = sortedActions.map{case (a, i) => (a, i+4)}
@@ -74,26 +88,25 @@ object WaimakGraph {
         (aa, i) <- sortedActions //++ sortedActions2
         (ab, j) <- sortedActions //++ sortedActions2
         //if aa.guid != ab.guid &&
-        if aa.outputLabels.toSet.intersect(ab.inputLabels.toSet).nonEmpty// && false
+        if (aa.outputLabels.toSet.intersect(ab.inputLabels.toSet).nonEmpty
+        || flow.tagState.taggedActions(aa.guid).tags.intersect(flow.tagState.taggedActions(ab.guid).dependentOnTags).nonEmpty)
       } yield {
         //println("tag= ", aa)
         WaimakEdge(i, j)
       }
 
-    val zipped = groupedActions.zipWithIndex
-    println("zipped=", zipped)
-
-
-
-    val outerEdges : Seq[WaimakEdge] =
-      for {
-        (((k11, k12), l), i) <- zipped.toSeq//groupedActions
-        //(b, i) <- zipped.toSeq //groupedActions
-        (((k21, k22), l), j) <- zipped//groupedActions
-        //if i != j &&
-        if k11.intersect(k22).nonEmpty
-      } yield {WaimakEdge(j+flow.actions.length, i+flow.actions.length)}//.toSeq
-
+    /*
+        val zipped = groupedActions.zipWithIndex
+        println("zipped=", zipped)
+        val outerEdges : Seq[WaimakEdge] = //skipping this as arrows between big boxes are not recognised
+          for {
+            (((k11, k12), l), i) <- zipped.toSeq//groupedActions
+            //(b, i) <- zipped.toSeq //groupedActions
+            (((k21, k22), l), j) <- zipped//groupedActions
+            //if i != j &&
+            if k11.intersect(k22).nonEmpty
+          } yield {WaimakEdge(j+flow.actions.length, i+flow.actions.length)}//.toSeq
+    */
 
 
           //val outerNode: Seq[WaimakNode] = (10 until 11).map(x => WaimakNode(x, "outerNode", "", nodes))
@@ -153,14 +166,14 @@ object WaimakGraph {
 
               val outerNode: Seq[WaimakNode] = (0 until 1).map(v => WaimakNode(v +flow.actions.length, s"OuterNode #$v", "", allNodes(v)))
               */
-          //val outerNode: Seq[WaimakNode] = (0 until 1).map(v => WaimakNode(v+8, s"OuterNode #$v", "", allNodes(v)))
-          //val outerNode: Seq[WaimakNode] = (4 until 5).map(v => WaimakNode(v, "TheOuterNode", "", nodes))
+    //val outerNode: Seq[WaimakNode] = (0 until 1).map(v => WaimakNode(v+8, s"OuterNode #$v", "", allNodes(v)))
+    //val outerNode: Seq[WaimakNode] = (4 until 5).map(v => WaimakNode(v, "TheOuterNode", "", nodes))
 
-          //WaimakGraph(nodes1, edges1)
-          //WaimakGraph(nodes, edges)
-          //WaimakGraph(outerNode, theEdges)
-          //WaimakGraph(outerNode, edges)
-            WaimakGraph(theNodes2, edges ++ outerEdges)
-        }
-      //}
+    //WaimakGraph(nodes1, edges1)
+    //WaimakGraph(nodes, edges)
+    //WaimakGraph(outerNode, theEdges)
+    //WaimakGraph(outerNode, edges)
+    WaimakGraph(theNodes2, edges)// ++ outerEdges)
+  }
+  //}
 }
