@@ -57,6 +57,6 @@ object WaimakGraph {
         || flow.tagState.taggedActions(aa.guid).tags.intersect(flow.tagState.taggedActions(ab.guid).dependentOnTags).nonEmpty)
       } yield WaimakEdge(i, j)
 
-    WaimakGraph(theNodes1, theEdges)
+    WaimakGraph(theNodes, theEdges)
   }
 }
