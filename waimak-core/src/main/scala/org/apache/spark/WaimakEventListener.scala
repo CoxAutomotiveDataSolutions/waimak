@@ -12,5 +12,4 @@ class WaimakEventListener extends SparkListener {
     case e@WaimakExecutionEvent(id, _, _) => executions(id) = e
     case _ => Unit
   }
-
 }

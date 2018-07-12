@@ -13,32 +13,22 @@ case class WaimakEdge(fromID: Int, toID: Int)
 
 object WaimakGraphRenderer {
 
-  //def createGraph(nodes: Seq[WaimakNode], edges: Seq[WaimakEdge]) : Seq[Node] = {
   def createGraph(nodes: Seq[WaimakNode], edges: Seq[WaimakEdge]) : Seq[Node] = {
-  //def createGraph(nodes: Seq[WaimakNode], edges: Seq[WaimakEdge], tags: Seq[String]) : Seq[Node] = {
-    //planVisualization(Map.empty, SparkPlanGraph(nodes.map(n => new SparkPlanGraphNode(n.id, n.actionID, n.actionDesc, Map.empty, Seq.empty)),
-    //planVisualization(Map.empty, SparkPlanGraph(nodes.map(n => new SparkPlanGraphCluster(n.id, n.actionID, n.actionDesc, Map.empty, Seq.empty))
-    //planVisualization(Map.empty, new SparkPlanGraphCluster(nodes.map(n => new SparkPlanGraphNode(n.id, n.actionID, n.actionDesc, Map.empty, Seq.empty))
-/*    val buf: mutable.ArrayBuffer[SparkPlanGraphNode]= new ArrayBuffer[SparkPlanGraphNode]()
-    for {
-      node <- nodes
-    } yield node.innerNodes.map(m => new SparkPlanGraphNode(m.id, m.actionID, m.actionDesc, Map.empty, Seq.empty)).copyToBuffer(buf)*/
-
 
     val allNodes = nodes.map(n => {
       val buf: mutable.ArrayBuffer[SparkPlanGraphNode]= new ArrayBuffer[SparkPlanGraphNode]()
-      n.innerNodes.map(m => new SparkPlanGraphNode(m.id, m.actionID, m.actionDesc, Map.empty, Seq.empty)).copyToBuffer(buf)
-      new SparkPlanGraphCluster(n.id, n.actionID, n.actionDesc, buf, Seq.empty)
+      if (n.innerNodes.isEmpty)
+        new SparkPlanGraphNode(n.id, n.actionID, n.actionDesc, Map.empty, Seq.empty)
+      else {
+        n.innerNodes.map(m => new SparkPlanGraphNode(m.id, m.actionID, m.actionDesc, Map.empty, Seq.empty)).copyToBuffer(buf)
+        new SparkPlanGraphCluster(n.id, n.actionID, n.actionDesc, buf, Seq.empty)
+      }
     })
 
     planVisualization(Map.empty,
       new SparkPlanGraph(
-      //nodes.map(n => new SparkPlanGraphCluster(n.id, n.actionID, n.actionDesc, buf, Seq.empty)),
-        //nodes.flatMap(_.innerNodes.map(n => new SparkPlanGraphNode(n.id, n.actionID, n.actionDesc, Map.empty, Seq.empty))),
-      //nodes.map(n => new SparkPlanGraphCluster(n.id, n.actionID, n.actionDesc, buf, Seq.empty)), //++ all inner nodes*/
         allNodes,
         edges.map(e => SparkPlanGraphEdge(e.fromID, e.toID))))
-
   }
 
 
