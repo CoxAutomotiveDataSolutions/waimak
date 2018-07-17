@@ -1,9 +1,9 @@
 package com.coxautodata.waimak.dataflow.spark
 
+import com.coxautodata.waimak.dataflow.spark.ui.WaimakGraph
 import com.coxautodata.waimak.dataflow.{DataFlow, DataFlowAction, FlowReporter}
-import org.apache.spark.{WaimakExecutionEvent, WaimakGraph}
 import org.apache.spark.sql.Dataset
-import org.apache.spark.ui.WaimakExecutionsUITab
+import org.apache.spark.ui.{WaimakExecutionEvent, WaimakExecutionsUITab}
 
 object SparkFlowReporter extends FlowReporter[Dataset[_], SparkFlowContext] {
   override def reportActionStarted(action: DataFlowAction[Dataset[_], SparkFlowContext], flowContext: SparkFlowContext): Unit = {

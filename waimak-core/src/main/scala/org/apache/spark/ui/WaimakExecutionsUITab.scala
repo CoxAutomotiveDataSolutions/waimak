@@ -1,6 +1,7 @@
 package org.apache.spark.ui
 
-import org.apache.spark.{SparkContext, WaimakExecutionEvent, WaimakEventListener}
+import com.coxautodata.waimak.dataflow.spark.ui.WaimakEventListener
+import org.apache.spark.SparkContext
 
 class WaimakExecutionsUITab(parent: SparkUI, val listener: WaimakEventListener) extends SparkUITab(parent, "waimak") {
 

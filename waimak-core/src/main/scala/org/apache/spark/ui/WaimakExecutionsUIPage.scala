@@ -1,7 +1,6 @@
 package org.apache.spark.ui
 
 import javax.servlet.http.HttpServletRequest
-import org.apache.spark.WaimakExecutionEvent
 
 import scala.xml.Node
 

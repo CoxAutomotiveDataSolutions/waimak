@@ -1,6 +1,7 @@
-package org.apache.spark
+package com.coxautodata.waimak.dataflow.spark.ui
 
 import org.apache.spark.scheduler.{SparkListener, SparkListenerEvent}
+import org.apache.spark.ui.WaimakExecutionEvent
 
 import scala.collection.mutable
 

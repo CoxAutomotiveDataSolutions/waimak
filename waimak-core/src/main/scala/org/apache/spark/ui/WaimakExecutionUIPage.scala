@@ -1,7 +1,6 @@
 package org.apache.spark.ui
 
 import javax.servlet.http.HttpServletRequest
-import org.apache.spark.WaimakExecutionEvent
 import org.apache.spark.sql.execution.ui._
 
 //import org.apache.spark.WaimakGraph
@@ -27,7 +26,7 @@ class WaimakExecutionUIPage(parent: WaimakExecutionsUITab) extends WebUIPage("fl
       Seq(line)
     }
 
-    val graph = WaimakGraphRenderer.createGraph(flowContent.flowGraph.nodes, flowContent.flowGraph.edges)
+    val graph = WaimakGraphRenderer.createGraph(flowContent.flowGraph)
 
     val table = UIUtils.listingTable(Seq("Action Description"), renderRow, flowContent.actionDescriptions, fixedWidth = true)
 

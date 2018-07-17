@@ -1,5 +1,7 @@
-package org.apache.spark
+package org.apache.spark.ui
 
+import com.coxautodata.waimak.dataflow.spark.ui.{WaimakEventListener, WaimakGraph}
+import org.apache.spark.SparkContext
 import org.apache.spark.scheduler.SparkListenerEvent
 
 case class WaimakExecutionEvent(executionId: String, actionDescriptions: Seq[String], flowGraph: WaimakGraph) extends SparkListenerEvent
