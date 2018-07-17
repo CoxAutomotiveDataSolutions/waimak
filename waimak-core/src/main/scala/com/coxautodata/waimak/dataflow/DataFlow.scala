@@ -20,6 +20,8 @@ trait DataFlow[C] extends Logging {
 
   val flowContext: C
 
+  val schedulingMeta: SchedulingMeta[C]
+
   /**
     * Inputs that were explicitly set or produced by previous actions, these are inputs for all following actions.
     * Inputs are preserved in the data flow state, even if they are no longer required by the remaining actions.
@@ -57,7 +59,7 @@ trait DataFlow[C] extends Logging {
     val newActions = actions :+ action
     // Add current action into tagstate with current active tags/dep tags
     val newTagState = tagState.copy(taggedActions = tagState.taggedActions + (action.guid -> DataFlowActionTags(tagState.activeTags, tagState.activeDependentOnTags)))
-    createInstance(inputs, newActions, newTagState).asInstanceOf[this.type]
+    createInstance(inputs, newActions, newTagState, schedulingMeta.addAction(action)).asInstanceOf[this.type]
   }
 
   /**
@@ -89,7 +91,7 @@ trait DataFlow[C] extends Logging {
   def addInput(label: String, value: Option[Any]): this.type = {
     if (inputs.labels.contains(label)) throw new DataFlowException(s"Input label [$label] already exists")
     val newInputs = inputs + (label -> value)
-    createInstance(newInputs, actions, tagState).asInstanceOf[this.type]
+    createInstance(newInputs, actions, tagState, schedulingMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -112,7 +114,8 @@ trait DataFlow[C] extends Logging {
           else kv
       })
     }
-    createInstance(inputs, newActions, newTagState).asInstanceOf[this.type]
+    //interceptors are not added to the execution pools
+    createInstance(inputs, newActions, newTagState, schedulingMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -128,9 +131,9 @@ trait DataFlow[C] extends Logging {
     val (alreadyActiveTags, newTags) = tags.toSet.partition(tagState.activeTags.contains)
     logInfo(s"The following tags are already active, therefore the outer (wider) tagging scope will take precedence: ${alreadyActiveTags.mkString(", ")}")
     val newTagState = tagState.copy(activeTags = tagState.activeTags union newTags)
-    val intermediateFlow = taggedFlow(createInstance(inputs, actions, newTagState).asInstanceOf[this.type])
+    val intermediateFlow = taggedFlow(createInstance(inputs, actions, newTagState, schedulingMeta).asInstanceOf[this.type])
     val finalTagState = intermediateFlow.tagState.copy(activeTags = intermediateFlow.tagState.activeTags diff newTags)
-    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState).asInstanceOf[this.type]
+    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState, intermediateFlow.schedulingMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -145,9 +148,22 @@ trait DataFlow[C] extends Logging {
     val (alreadyActiveDeps, newDeps) = depTags.toSet.partition(tagState.activeDependentOnTags.contains)
     logInfo(s"The following tag dependencies are already active, therefore the outer (wider) tag dependency scope will take precedence: ${alreadyActiveDeps.mkString(", ")}")
     val newTagState = tagState.copy(activeDependentOnTags = tagState.activeDependentOnTags union newDeps)
-    val intermediateFlow = tagDependentFlow(createInstance(inputs, actions, newTagState).asInstanceOf[this.type])
+    val intermediateFlow = tagDependentFlow(createInstance(inputs, actions, newTagState, schedulingMeta).asInstanceOf[this.type])
     val finalTagState = intermediateFlow.tagState.copy(activeDependentOnTags = intermediateFlow.tagState.activeDependentOnTags diff newDeps)
-    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState).asInstanceOf[this.type]
+    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState, intermediateFlow.schedulingMeta).asInstanceOf[this.type]
+  }
+
+  /**
+    * @param executionPoolName
+    * @param nestedFlow
+    * @tparam S
+    * @return
+    */
+  def executionPool[S <: DataFlow[C]](executionPoolName: String)(nestedFlow: this.type => S): this.type = {
+    val previousExecutionPoolName = schedulingMeta.currentExecutionPoolName
+    val nestedMeta = schedulingMeta.setExecutionPoolName(executionPoolName)
+    val intermediateFlow = nestedFlow(createInstance(inputs, actions, tagState, nestedMeta).asInstanceOf[this.type])
+    createInstance(intermediateFlow.inputs, intermediateFlow.actions, intermediateFlow.tagState, intermediateFlow.schedulingMeta.setExecutionPoolName(previousExecutionPoolName)).asInstanceOf[this.type]
   }
 
   /**
@@ -182,7 +198,7 @@ trait DataFlow[C] extends Logging {
     if (outputs.size != executed.outputLabels.size) throw new DataFlowException(s"Action produced different number of results. Expected ${executed.outputLabels.size}, but was ${outputs.size}. ${executed.logLabel}")
     val newActions = actions.filter(_.guid != executed.guid)
     val newInputs = executed.outputLabels.zip(outputs).foldLeft(inputs)((resInput, value) => resInput + value)
-    createInstance(newInputs, newActions, tagState)
+    createInstance(newInputs, newActions, tagState, schedulingMeta)
   }
 
   /**
@@ -193,15 +209,18 @@ trait DataFlow[C] extends Logging {
     *
     * will not include actions that are skipped.
     *
+    * @param executionPoolAvailable  set of execution pool for which to schedule actions
     * @return
     */
-  def nextRunnable(): Seq[DataFlowAction[C]] = {
-    val withInputs = actions.filter { ac =>
-      ac.flowState(inputs) match {
-        case ReadyToRun(_) if actionHasNoTagDependencies(ac) => true
-        case _ => false
+  def nextRunnable(executionPoolAvailable: String): Seq[DataFlowAction[C]] = {
+    val withInputs = actions
+      .filter(ac => executionPoolAvailable == schedulingMeta.executionPoolName(ac))
+      .filter { ac =>
+        ac.flowState(inputs) match {
+          case ReadyToRun(_) if actionHasNoTagDependencies(ac) => true
+          case _ => false
+        }
       }
-    }
     withInputs
   }
 
@@ -229,7 +248,7 @@ trait DataFlow[C] extends Logging {
     * @param ac - actions for the next state
     * @return - new instance of the implementing class
     */
-  protected def createInstance(in: DataFlowEntities, ac: Seq[DataFlowAction[C]], tags: DataFlowTagState): DataFlow[C]
+  protected def createInstance(in: DataFlowEntities, ac: Seq[DataFlowAction[C]], tags: DataFlowTagState, schMeta: SchedulingMeta[C]): DataFlow[C]
 
   /**
     * A function called just before the flow is executed.
@@ -360,3 +379,20 @@ case class DataFlowActionTags(tags: Set[String], dependentOnTags: Set[String])
   * @param taggedActions         Mapping of actions to their applied tag state
   */
 case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[String], taggedActions: Map[String, DataFlowActionTags])
+
+case class SchedulingMeta[C](val currentExecutionPoolName: String, actionExecutionPools: Map[String, String]) {
+
+  //TODO: May be add tags into here to have a common place to accumulate extra scheduling info about actions and
+  // simplify createInstance function
+
+  def this() = this(DEFAULT_POOL_NAME, Map.empty)
+
+  def addAction(action: DataFlowAction[C]): SchedulingMeta[C] = {
+    SchedulingMeta(currentExecutionPoolName, actionExecutionPools + (action.schedulingGuid -> currentExecutionPoolName))
+  }
+
+  def executionPoolName(action: DataFlowAction[C]): String = actionExecutionPools.getOrElse(action.schedulingGuid, DEFAULT_POOL_NAME)
+
+  def setExecutionPoolName(executionPoolName: String): SchedulingMeta[C] = SchedulingMeta(executionPoolName, actionExecutionPools)
+
+}

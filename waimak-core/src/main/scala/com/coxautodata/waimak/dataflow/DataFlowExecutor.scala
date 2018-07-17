@@ -57,9 +57,11 @@ trait DataFlowExecutor[C] extends Logging {
                             , actionScheduler: ActionScheduler[C]
                             , successfulActions: Seq[DataFlowAction[C]]
                            ): Try[(Seq[DataFlowAction[C]], DataFlow[C])] = {
-    val toSchedule = if (actionScheduler.canSchedule()) {
-      priorityStrategy(actionScheduler.dropRunning(currentFlow.nextRunnable())).headOption
-    } else None
+    val toSchedule: Option[(String, DataFlowAction[C])] = actionScheduler
+      .availableExecutionPool()
+      .flatMap(executionPoolName => priorityStrategy(actionScheduler.dropRunning(executionPoolName, currentFlow.nextRunnable(executionPoolName)))
+        .headOption.map((executionPoolName, _))
+      )
     toSchedule match {
       case None if (!actionScheduler.hasRunningActions()) => {
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
@@ -76,13 +78,13 @@ trait DataFlowExecutor[C] extends Logging {
           case Failure(e) => Failure(e)
         }
       }
-      case Some(action) => {
+      case Some((executionPoolName, action)) => {
         //submit action for execution
         flowReporter.reportActionStarted(action, currentFlow.flowContext)
         val inputEntities: DataFlowEntities = {
           currentFlow.inputs.filterLabels(action.inputLabels)
         }
-        loopExecution(currentFlow, actionScheduler.submitAction(action, inputEntities, currentFlow.flowContext), successfulActions)
+        loopExecution(currentFlow, actionScheduler.submitAction(executionPoolName, action, inputEntities, currentFlow.flowContext), successfulActions)
       }
     }
   }

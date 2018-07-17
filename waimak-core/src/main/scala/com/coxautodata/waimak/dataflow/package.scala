@@ -7,4 +7,6 @@ package object dataflow {
 
   type ActionResult = Seq[Option[Any]]
 
+  val DEFAULT_POOL_NAME = "DEFAULT_POOL"
+
 }

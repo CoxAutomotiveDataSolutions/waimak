@@ -9,27 +9,27 @@ import scala.util.{Failure, Success, Try}
   */
 trait ActionScheduler[C] {
 
-  def canSchedule(): Boolean
+  def availableExecutionPool(): Option[String]
 
-  def dropRunning(from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]]
+  def dropRunning(poolName: String, from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]]
 
   def hasRunningActions(): Boolean
 
   def waitToFinish(): Try[ (ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])]) ]
 
-  def submitAction(action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C]
+  def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C]
 
 }
 
 class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntities, C)])
   extends ActionScheduler[C] with Logging {
 
-  override def canSchedule(): Boolean = {
+  override def availableExecutionPool(): Option[String] = {
     logDebug("canSchedule " + toRun)
-    !toRun.isDefined
+    if (toRun.isDefined) None else Some(DEFAULT_POOL_NAME)
   }
 
-  override def dropRunning(from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = toRun.fold(from)(r => from.filterNot(_.guid == r._1.guid))
+  override def dropRunning(poolName: String, from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = toRun.fold(from)(r => from.filterNot(_.guid == r._1.guid))
 
   override def hasRunningActions(): Boolean = toRun.isDefined
 
@@ -44,7 +44,7 @@ class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntit
     }
   }
 
-  override def submitAction(action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C] = {
+  override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C] = {
     logInfo("submitAction " + action.logLabel)
     new SequentialScheduler[C](Some((action, entities, flowContext)) )
   }

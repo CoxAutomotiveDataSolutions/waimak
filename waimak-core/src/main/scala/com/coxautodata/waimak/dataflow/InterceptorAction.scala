@@ -37,6 +37,8 @@ class InterceptorAction[C](val intercepted: DataFlowAction[C]) extends DataFlowA
     */
   override val outputLabels: List[String] = intercepted.outputLabels
 
+  override def schedulingGuid: String = intercepted.schedulingGuid
+
   /**
     * Perform the action
     *

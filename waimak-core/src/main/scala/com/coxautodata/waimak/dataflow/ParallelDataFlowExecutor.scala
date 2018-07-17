@@ -35,7 +35,7 @@ class ParallelDataFlowExecutor[C]( numberOfParallelJobs: Int
     @tailrec
     def loop(currentFlow: DataFlow[C], running: Set[String], successfulActions: Seq[actionType]
              , futures: Seq[Future[futureResult]]): Try[(Seq[actionType], DataFlow[C])] = {
-      val toSchedule: Option[DataFlowAction[C]] = priorityStrategy(currentFlow.nextRunnable().filter(a => !running.contains(a.guid))).headOption
+      val toSchedule: Option[DataFlowAction[C]] = priorityStrategy(currentFlow.nextRunnable(DEFAULT_POOL_NAME).filter(a => !running.contains(a.guid))).headOption
       (running.size >= numberOfParallelJobs, toSchedule) match {
         case (_, None) if running.isEmpty => {
           logInfo("Finished Action" + successfulActions)

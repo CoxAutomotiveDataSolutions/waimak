@@ -26,7 +26,7 @@ class SequentialDataFlowExecutor[C](override val flowReporter: FlowReporter[C]
     * @return - final state after a wave is executed
     */
   def executeWave(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C]) = {
-    val wave = dataFlow.nextRunnable()
+    val wave = dataFlow.nextRunnable(DEFAULT_POOL_NAME)
     logInfo(s"Scheduling wave of ${wave.size} actions:")
     wave.foreach { action => logInfo(action.logLabel) }
     val resFlow = wave.foldLeft(dataFlow) { (df, action) =>

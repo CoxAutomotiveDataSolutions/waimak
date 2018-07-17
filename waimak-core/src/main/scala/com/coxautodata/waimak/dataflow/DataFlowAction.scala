@@ -33,14 +33,15 @@ trait DataFlowAction[C] {
 
   val guid: String = UUID.randomUUID().toString
 
+  def schedulingGuid: String = guid
   /**
     * For representing the action
     */
   def actionName: String = getClass.getSimpleName
 
-  def description = s"Action: $actionName Inputs: ${inputLabels.mkString("[", ",", "]")} Outputs: ${outputLabels.mkString("[", ",", "]")}"
+  def description: String = s"Action: $actionName Inputs: ${inputLabels.mkString("[", ",", "]")} Outputs: ${outputLabels.mkString("[", ",", "]")}"
 
-  def logLabel = s"$guid: $description"
+  def logLabel: String = s"$guid: $description"
 
   /**
     * Perform the action
