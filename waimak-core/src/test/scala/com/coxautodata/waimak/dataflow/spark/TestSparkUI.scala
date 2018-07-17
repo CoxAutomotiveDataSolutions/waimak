@@ -58,7 +58,7 @@ class TestSparkUI extends SparkAndTmpDirSpec {
       Thread.sleep(30000L) // 30secs
     }*/
 
-    it("tag dependency between write and open") {
+/*    it("tag dependency between write and open") {
       // This will fix the missing file error by providing a dependency using tags
       val spark = sparkSession
       import spark.implicits._
@@ -78,7 +78,7 @@ class TestSparkUI extends SparkAndTmpDirSpec {
 
       val (executedActions, finalState) = executor.execute(flow)
       Thread.sleep(30000L) // 30secs
-    }
+    }*/
 
 /*    it("stage and commit parquet, and force a cache as parquet") {
       val spark = sparkSession
@@ -115,7 +115,7 @@ class TestSparkUI extends SparkAndTmpDirSpec {
       Thread.sleep(30000L) // 30secs
     }
 */
-/*
+
     it("stage csv to parquet and commit then use label afterwards") {
       val spark = sparkSession
       val baseDest = testingBaseDir + "/dest"
@@ -135,6 +135,5 @@ class TestSparkUI extends SparkAndTmpDirSpec {
       Thread.sleep(30000L) // 30secs
     }
 
- */
   }
 }

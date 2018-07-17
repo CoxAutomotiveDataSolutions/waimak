@@ -16,10 +16,10 @@ object WaimakGraphRenderer {
   def createGraph(nodes: Seq[WaimakNode], edges: Seq[WaimakEdge]) : Seq[Node] = {
 
     val allNodes = nodes.map(n => {
-      val buf: mutable.ArrayBuffer[SparkPlanGraphNode]= new ArrayBuffer[SparkPlanGraphNode]()
       if (n.innerNodes.isEmpty)
         new SparkPlanGraphNode(n.id, n.actionID, n.actionDesc, Map.empty, Seq.empty)
       else {
+        val buf: mutable.ArrayBuffer[SparkPlanGraphNode]= new ArrayBuffer[SparkPlanGraphNode]()
         n.innerNodes.map(m => new SparkPlanGraphNode(m.id, m.actionID, m.actionDesc, Map.empty, Seq.empty)).copyToBuffer(buf)
         new SparkPlanGraphCluster(n.id, n.actionID, n.actionDesc, buf, Seq.empty)
       }
