@@ -11,7 +11,7 @@ class WaimakExecutionsUIPage(parent: WaimakExecutionsUITab) extends WebUIPage(""
 
     def renderRow(row: (String, WaimakExecutionEvent)): Seq[Node] = {
       val executionId = row._1
-      val url = UIUtils.prependBaseUri(parent.basePath, s"flow?id=$executionId")
+      val url = s"${UIUtils.prependBaseUri(parent.basePath)}/${parent.prefix}/flow?id=$executionId"
       val link = <tr>
         <td>
           <a href={url}>
