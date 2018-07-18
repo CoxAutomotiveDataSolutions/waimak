@@ -99,20 +99,20 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
       val person_recreateParquet = new File(testingBaseDirName, "dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00").list().filter(_.endsWith(".parquet")).head
 
       connector.ranDDLs should be {
-        List(
+        List(List(
           "drop table if exists items",
           s"create external table if not exists items like parquet 'file:$testingBaseDirName/dest/items/amount=1/$itemsParquet' partitioned by (amount string) stored as parquet location '$testingBaseDirName/dest/items'",
           "alter table items recover partitions",
           s"create external table if not exists person like parquet 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00/$personParquet' stored as parquet location '$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
           s"alter table person set location '$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
-        )
+        ))
       }
 
       connectorRecreate.ranDDLs should be {
-        List(
+        List(List(
           "drop table if exists person_recreate",
           s"create external table if not exists person_recreate like parquet 'file:$testingBaseDirName/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00/$person_recreateParquet' stored as parquet location '$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
-        )
+        ))
       }
     }
   }

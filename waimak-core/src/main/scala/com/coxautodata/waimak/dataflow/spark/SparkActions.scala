@@ -1,6 +1,6 @@
 package com.coxautodata.waimak.dataflow.spark
 
-import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowException}
+import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, DataFlowException}
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.metastore.HadoopDBConnector
 import org.apache.hadoop.fs.Path
@@ -23,7 +23,6 @@ object SparkActions {
     */
   implicit class SparkDataFlowExtension(sparkDataFlow: SparkDataFlow) extends Logging {
 
-    type returnType = ActionResult[Dataset[_]]
 
     /**
       * Transforms 1 input DataSet to 1 output DataSet using function f, which is a scala function.
@@ -34,7 +33,7 @@ object SparkActions {
       * @return
       */
     def transform(a: String)(output: String)(f: Dataset[_] => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a), List(output), run, "transform 1 -> 1"))
@@ -50,7 +49,7 @@ object SparkActions {
       * @return
       */
     def transform(a: String, b: String)(output: String)(f: (Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b), List(output), run, "transform 2 -> 1"))
@@ -67,7 +66,7 @@ object SparkActions {
       * @return
       */
     def transform(a: String, b: String, c: String)(output: String)(f: (Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c), List(output), run, "transform 3 -> 1"))
@@ -85,7 +84,7 @@ object SparkActions {
       * @return
       */
     def transform(a: String, b: String, c: String, d: String)(output: String)(f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d), List(output), run, "transform 4 -> 1"))
@@ -104,7 +103,7 @@ object SparkActions {
       * @return
       */
     def transform(a: String, b: String, c: String, d: String, e: String)(output: String)(f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d), m.get[Dataset[_]](e))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d, e), List(output), run, "transform 5 -> 1"))
@@ -124,7 +123,7 @@ object SparkActions {
       * @return
       */
     def transform(a: String, b: String, c: String, d: String, e: String, g: String)(output: String)(f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d), m.get[Dataset[_]](e), m.get[Dataset[_]](g))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d, e, g), List(output), run, "transform 6 -> 1"))
@@ -146,7 +145,7 @@ object SparkActions {
       */
     def transform(a: String, b: String, c: String, d: String, e: String, g: String, h: String)(output: String)
                  (f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d), m.get[Dataset[_]](e), m.get[Dataset[_]](g), m.get[Dataset[_]](h))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d, e, g, h), List(output), run, "transform 7 -> 1"))
@@ -169,7 +168,7 @@ object SparkActions {
       */
     def transform(a: String, b: String, c: String, d: String, e: String, g: String, h: String, i: String)(output: String)
                  (f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d), m.get[Dataset[_]](e), m.get[Dataset[_]](g), m.get[Dataset[_]](h), m.get[Dataset[_]](i))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i), List(output), run, "transform 8 -> 1"))
@@ -193,7 +192,7 @@ object SparkActions {
       */
     def transform(a: String, b: String, c: String, d: String, e: String, g: String, h: String, i: String, k: String)(output: String)
                  (f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i), m(k))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d), m.get[Dataset[_]](e), m.get[Dataset[_]](g), m.get[Dataset[_]](h), m.get[Dataset[_]](i), m.get[Dataset[_]](k))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k), List(output), run, "transform 9 -> 1"))
@@ -218,7 +217,7 @@ object SparkActions {
       */
     def transform(a: String, b: String, c: String, d: String, e: String, g: String, h: String, i: String, k: String, l: String)(output: String)
                  (f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i), m(k), m(l))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d), m.get[Dataset[_]](e), m.get[Dataset[_]](g), m.get[Dataset[_]](h), m.get[Dataset[_]](i), m.get[Dataset[_]](k), m.get[Dataset[_]](l))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l), List(output), run, "transform 10 -> 1"))
@@ -244,7 +243,7 @@ object SparkActions {
       */
     def transform(a: String, b: String, c: String, d: String, e: String, g: String, h: String, i: String, k: String, l: String, n: String)(output: String)
                  (f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i), m(k), m(l), m(n))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d), m.get[Dataset[_]](e), m.get[Dataset[_]](g), m.get[Dataset[_]](h), m.get[Dataset[_]](i), m.get[Dataset[_]](k), m.get[Dataset[_]](l), m.get[Dataset[_]](n))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l, n), List(output), run, "transform 11 -> 1"))
@@ -272,7 +271,7 @@ object SparkActions {
     def transform(a: String, b: String, c: String, d: String, e: String, g: String, h: String, i: String, k: String, l: String, n: String, o: String)
                  (output: String)
                  (f: (Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_], Dataset[_]) => Dataset[_]): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(f(m(a), m(b), m(c), m(d), m(e), m(g), m(h), m(i), m(k), m(l), m(n), m(o))))
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](a), m.get[Dataset[_]](b), m.get[Dataset[_]](c), m.get[Dataset[_]](d), m.get[Dataset[_]](e), m.get[Dataset[_]](g), m.get[Dataset[_]](h), m.get[Dataset[_]](i), m.get[Dataset[_]](k), m.get[Dataset[_]](l), m.get[Dataset[_]](n), m.get[Dataset[_]](o))))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(a, b, c, d, e, g, h, i, k, l, n, o), List(output), run, "transform 12 -> 1"))
@@ -287,7 +286,7 @@ object SparkActions {
       * @return
       */
     def alias(from: String, to: String): SparkDataFlow = {
-      def run(m: Map[String, Dataset[_]]): returnType = Seq(Option(m(from)))
+      def run(m: DataFlowEntities): ActionResult = Seq(m.getOption[Dataset[_]](from))
 
       sparkDataFlow
         .addAction(new SimpleAction(List(from), List(to), run, "alias"))
@@ -317,7 +316,7 @@ object SparkActions {
       * @return
       */
     def show(label: String): SparkDataFlow = sparkDataFlow
-      .addAction(new SimpleAction(List(label), List.empty, _.get(label).fold(Seq.empty) { d =>
+      .addAction(new SimpleAction(List(label), List.empty, _.getOption[Dataset[_]](label).fold(Seq.empty) { d =>
         println("Dump: " + label) //did not work properly with logInfo, as show does not use logger to print to console.
         d.show(false)
         Seq.empty
@@ -330,7 +329,7 @@ object SparkActions {
       * @return
       */
     def printSchema(label: String): SparkDataFlow = sparkDataFlow
-      .addAction(new SimpleAction(List(label), List.empty, _.get(label).fold(Seq.empty) { d =>
+      .addAction(new SimpleAction(List(label), List.empty, _.getOption[Dataset[_]](label).fold(Seq.empty) { d =>
         println("Schema: " + label) //did not work properly with logInfo, as printSchema does not use logger to print to console.
         d.printSchema()
         Seq.empty
@@ -349,8 +348,8 @@ object SparkActions {
 
       val outputLabels = tables.map(n => s"${outputPrefix.map(p => s"${p}_").getOrElse("")}${n}").toList
 
-      def read(): returnType = {
-        val res: returnType = tables.map(table => s"select * from ${dbName}.${table}")
+      def read(): ActionResult = {
+        val res: ActionResult = tables.map(table => s"select * from ${dbName}.${table}")
           .map(sql => Some(sparkDataFlow.spark.sql(sql))).toList
         res
       }
@@ -493,7 +492,7 @@ object SparkActions {
     def sql(input: String, inputs: String*)(outputLabel: String, sqlQuery: String, dropColumns: String*): SparkDataFlow = {
       logInfo("SQL query: " + sqlQuery)
 
-      def run(dfs: Map[String, Dataset[_]]): returnType = {
+      def run(dfs: DataFlowEntities): ActionResult = {
         val sqlRes = sparkDataFlow.spark.sql(sqlQuery)
         val res = dropColumns.foldLeft(sqlRes) { (dr, colName) => dr.drop(colName) }
         Seq(Option(res))
@@ -604,7 +603,8 @@ object SparkActions {
       * You can optionally give a snapshot folder name so resulting committed table looks like:
       * /destBasePath/label/snapshotFolder/
       *
-      * @param connection     Hadoop database connection object
+      * @param connection     Hadoop database connection object. Reuse same object instance for each call of this function
+      *                       to allow reuse of the underlying connection
       * @param destBasePath   Base path
       * @param labels         Labels of the dataframe to stage, resulting in the tablename
       * @param snapshotFolder Optional snapshot name
@@ -692,8 +692,8 @@ object SparkActionHelpers {
     * @return
     */
   def writeBase(dataFlow: SparkDataFlow, label: String)(pre: Dataset[_] => Dataset[_])(dfr: DataFrameWriter[_] => Unit): SparkDataFlow = {
-    def run(m: Map[String, Dataset[_]]): ActionResult[Dataset[_]] = {
-      dfr(pre(m(label)).write)
+    def run(m: DataFlowEntities): ActionResult = {
+      dfr(pre(m.get[Dataset[_]](label)).write)
       Seq.empty
     }
 
@@ -737,7 +737,7 @@ object SparkActionHelpers {
     * @return
     */
   def openBase(dataFlow: SparkDataFlow, label: String)(open: SparkFlowContext => Dataset[_]): SparkDataFlow = {
-    def read(): ActionResult[Dataset[_]] = {
+    def read(): ActionResult = {
       Seq(Some(open(dataFlow.flowContext)))
     }
 

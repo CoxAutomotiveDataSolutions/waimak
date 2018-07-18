@@ -1,13 +1,14 @@
 package waimak.azure.table
 
 import java.util
+import java.util.concurrent.TimeUnit
 
-import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
-import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowException}
+import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
+import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, DataFlowException}
 import com.coxautodata.waimak.log.Logging
-import com.microsoft.azure.storage.{CloudStorageAccount, StorageException}
 import com.microsoft.azure.storage.table.{DynamicTableEntity, EntityProperty}
+import com.microsoft.azure.storage.{CloudStorageAccount, StorageException}
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types.StructType
 import waimak.azure.table.SparkAzureTable.{azureWriterOutputLabel, createIfNotExists, pushToTable}
@@ -79,7 +80,13 @@ object SparkAzureTable extends Logging {
 
       val writer = new AzureTableMultiWriter(tableName, connectionSTR, threadNum, timeoutMs, retryDelayMs)
       writer.run()
-      sit.foreach { insertBatch: Seq[DynamicTableEntity] => writer.queue.put(insertBatch) }
+      sit.foreach {
+        insertBatch: Seq[DynamicTableEntity] =>
+          while (!writer.queue.offer(insertBatch, 500, TimeUnit.MILLISECONDS)) {
+            if (writer.threadFailed.get()) throw new DataFlowException(s"Thread failure when writing to the Azure Table")
+          }
+
+      }
 
       val total = writer.finish
       Seq(total).iterator
@@ -93,7 +100,7 @@ object SparkAzureTableActions {
 
   implicit class SparkAzureTables(sparkDataFlow: SparkDataFlow) extends Logging {
 
-    type returnType = ActionResult[Dataset[_]]
+    type returnType = ActionResult
 
     val mandatoryFields = Set(AzureTableUtils.datasetPartitionColumn, AzureTableUtils.datasetIDColumn)
 
@@ -121,8 +128,8 @@ object SparkAzureTableActions {
 
       val table = tableName.getOrElse(label)
 
-      def run(dfs: Map[String, Dataset[_]]): returnType = {
-        val df = dfs(label)
+      def run(dfs: DataFlowEntities): returnType = {
+        val df = dfs.get[Dataset[_]](label)
         import df.sparkSession.implicits._
         logInfo(s"Preparing to push data into table [$table]")
         validateColumns(label, df)

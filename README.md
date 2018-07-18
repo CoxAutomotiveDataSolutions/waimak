@@ -1,7 +1,7 @@
 # Waimak
 
 [![Build Status](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak.svg?branch=develop)](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak) 
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.coxautodata/waimak-core_2.11/badge.svg)](http://search.maven.org/#search%7Cga%7C1%7Cwaimak) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop)
+[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.11.svg)](http://search.maven.org/#search%7Cga%7C1%7Cwaimak) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 
 ![Waimak logo](images/waimak.png)
@@ -93,6 +93,23 @@ Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.htm
 Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html)
 
 Other versions of Spark 2.x are also likely to work and can be added to the list of tested versions if there is sufficient need.
+
+## Changelog
+
+### 1.4 - 2018-07-05
+
+### Added
+- Better exception logging on failing actions during execution
+- `Any` types allowed to be used by and returned from actions
+- Impala queries to the same connection object now reuse connections to improve query submission performance
+
+### Fixed
+- Spark 2.0, 2.1 and 2.3 compatability
+
+### 1.3.1 - 2018-07-02
+
+#### Fixed
+- Azure Table writer hanging after API failures
 
 ## Contributing
 

@@ -14,10 +14,9 @@ import scala.util.{Failure, Success, Try}
   *
   * Also inputs are useful for unit testing, as they give access to all intermediate outputs of actions.
   *
-  * @tparam T the type of the entity which we are transforming (e.g. Dataset
   * @tparam C the type of context which we pass to the actions
   */
-trait DataFlow[T, C] extends Logging {
+trait DataFlow[C] extends Logging {
 
   val flowContext: C
 
@@ -28,7 +27,7 @@ trait DataFlow[T, C] extends Logging {
     *
     * @return
     */
-  def inputs: DataFlowEntities[Option[T]]
+  def inputs: DataFlowEntities
 
   /**
     * Actions to execute, these will be scheduled when inputs become available. Executed actions must be removed from
@@ -36,7 +35,7 @@ trait DataFlow[T, C] extends Logging {
     *
     * @return
     */
-  def actions: Seq[DataFlowAction[T, C]]
+  def actions: Seq[DataFlowAction[C]]
 
   def tagState: DataFlowTagState
 
@@ -49,7 +48,7 @@ trait DataFlow[T, C] extends Logging {
     *                            1) at least one of the input labels is not present in the inputs
     *                            2) at least one of the input labels is not present in the outputs of existing actions
     */
-  def addAction(action: DataFlowAction[T, C]): this.type = {
+  def addAction(action: DataFlowAction[C]): this.type = {
 
     action.outputLabels.foreach(l => labelIsInputOrProduced(l) match {
       case true => throw new DataFlowException(s"Output label [${l}] is already in the inputs or is produced by another action.")
@@ -87,7 +86,7 @@ trait DataFlow[T, C] extends Logging {
     * @param value - values of the input
     * @return - new state with the input
     */
-  def addInput(label: String, value: Option[T]): this.type = {
+  def addInput(label: String, value: Option[Any]): this.type = {
     if (inputs.labels.contains(label)) throw new DataFlowException(s"Input label [$label] already exists")
     val newInputs = inputs + (label -> value)
     createInstance(newInputs, actions, tagState).asInstanceOf[this.type]
@@ -102,8 +101,8 @@ trait DataFlow[T, C] extends Logging {
     * @param interceptor
     * @return
     */
-  def addInterceptor(interceptor: InterceptorAction[T, C], guidToIntercept: String): this.type = {
-    val newActions = actions.foldLeft(Seq.empty[DataFlowAction[T, C]]) { (res, action) =>
+  def addInterceptor(interceptor: InterceptorAction[C], guidToIntercept: String): this.type = {
+    val newActions = actions.foldLeft(Seq.empty[DataFlowAction[C]]) { (res, action) =>
       if (action.guid == guidToIntercept) res :+ interceptor else res :+ action
     }
     val newTagState = {
@@ -125,7 +124,7 @@ trait DataFlow[T, C] extends Logging {
     * @param taggedFlow An intermediate flow that actions can be added to that will be be marked with the tag
     * @return
     */
-  def tag[S <: DataFlow[T, C]](tags: String*)(taggedFlow: this.type => S): this.type = {
+  def tag[S <: DataFlow[C]](tags: String*)(taggedFlow: this.type => S): this.type = {
     val (alreadyActiveTags, newTags) = tags.toSet.partition(tagState.activeTags.contains)
     logInfo(s"The following tags are already active, therefore the outer (wider) tagging scope will take precedence: ${alreadyActiveTags.mkString(", ")}")
     val newTagState = tagState.copy(activeTags = tagState.activeTags union newTags)
@@ -142,7 +141,7 @@ trait DataFlow[T, C] extends Logging {
     * @param tagDependentFlow An intermediate flow that actions can be added to that will depended on tagged actions to have completed before running
     * @return
     */
-  def tagDependency[S <: DataFlow[T, C]](depTags: String*)(tagDependentFlow: this.type => S): this.type = {
+  def tagDependency[S <: DataFlow[C]](depTags: String*)(tagDependentFlow: this.type => S): this.type = {
     val (alreadyActiveDeps, newDeps) = depTags.toSet.partition(tagState.activeDependentOnTags.contains)
     logInfo(s"The following tag dependencies are already active, therefore the outer (wider) tag dependency scope will take precedence: ${alreadyActiveDeps.mkString(", ")}")
     val newTagState = tagState.copy(activeDependentOnTags = tagState.activeDependentOnTags union newDeps)
@@ -157,7 +156,7 @@ trait DataFlow[T, C] extends Logging {
     * @param outputLabel
     * @return
     */
-  def getActionByOutputLabel(outputLabel: String): DataFlowAction[T, C] = {
+  def getActionByOutputLabel(outputLabel: String): DataFlowAction[C] = {
     actions.find(_.outputLabels.contains(outputLabel)).getOrElse(throw new DataFlowException(s"There is no output label [${outputLabel}] in the flow."))
   }
 
@@ -167,7 +166,7 @@ trait DataFlow[T, C] extends Logging {
     * @param actionGuid
     * @return
     */
-  def getActionByGuid(actionGuid: String): DataFlowAction[T, C] = {
+  def getActionByGuid(actionGuid: String): DataFlowAction[C] = {
     actions.find(actionGuid == _.guid).getOrElse(throw new DataFlowException(s"There is no action with guid [${actionGuid}] in the flow."))
   }
 
@@ -179,7 +178,7 @@ trait DataFlow[T, C] extends Logging {
     * @return - next stage data flow without the executed action, but with its outpus as inputs
     * @throws DataFlowException if number of provided outputs is not equal to the number of output labels of the action
     */
-  def executed(executed: DataFlowAction[T, C], outputs: Seq[Option[T]]): DataFlow[T, C] = {
+  def executed(executed: DataFlowAction[C], outputs: Seq[Option[Any]]): DataFlow[C] = {
     if (outputs.size != executed.outputLabels.size) throw new DataFlowException(s"Action produced different number of results. Expected ${executed.outputLabels.size}, but was ${outputs.size}. ${executed.logLabel}")
     val newActions = actions.filter(_.guid != executed.guid)
     val newInputs = executed.outputLabels.zip(outputs).foldLeft(inputs)((resInput, value) => resInput + value)
@@ -196,7 +195,7 @@ trait DataFlow[T, C] extends Logging {
     *
     * @return
     */
-  def nextRunnable(): Seq[DataFlowAction[T, C]] = {
+  def nextRunnable(): Seq[DataFlowAction[C]] = {
     val withInputs = actions.filter { ac =>
       ac.flowState(inputs) match {
         case ReadyToRun(_) if actionHasNoTagDependencies(ac) => true
@@ -206,7 +205,7 @@ trait DataFlow[T, C] extends Logging {
     withInputs
   }
 
-  private def actionHasNoTagDependencies(action: DataFlowAction[T, C]): Boolean = {
+  private def actionHasNoTagDependencies(action: DataFlowAction[C]): Boolean = {
     // All tags that this action depends on
     val actionTagDeps = tagState.taggedActions.get(action.guid).map(_.dependentOnTags).getOrElse(Set.empty)
     // Filter actions to produce a list that contains only actions that are tagged with the above tags
@@ -215,7 +214,7 @@ trait DataFlow[T, C] extends Logging {
     dependentActions.isEmpty
   }
 
-  private[dataflow] def labelIsInputOrProduced(label: String): Boolean = inputs.entities.contains(label) || actions.exists(a => a.outputLabels.contains(label))
+  private[dataflow] def labelIsInputOrProduced(label: String): Boolean = inputs.contains(label) || actions.exists(a => a.outputLabels.contains(label))
 
   private def findDuplicateOutputLabels: Set[String] = {
     val allLabels = actions.flatMap(_.outputLabels) ++ inputs.labels
@@ -230,7 +229,7 @@ trait DataFlow[T, C] extends Logging {
     * @param ac - actions for the next state
     * @return - new instance of the implementing class
     */
-  protected def createInstance(in: DataFlowEntities[Option[T]], ac: Seq[DataFlowAction[T, C]], tags: DataFlowTagState): DataFlow[T, C]
+  protected def createInstance(in: DataFlowEntities, ac: Seq[DataFlowAction[C]], tags: DataFlowTagState): DataFlow[C]
 
   /**
     * A function called just before the flow is executed.
@@ -306,7 +305,7 @@ trait DataFlow[T, C] extends Logging {
     // Get all actions with dependencies
     val actionsWithDependencies = tagState.taggedActions.collect { case kv if kv._2.dependentOnTags.nonEmpty => kv }
 
-    case class LoopObject(action: DataFlowAction[T, C], seenActions: Set[String], seenOutputs: Set[String])
+    case class LoopObject(action: DataFlowAction[C], seenActions: Set[String], seenOutputs: Set[String])
 
     // Resolve dependent actions independently
     def loop(actionsToResolve: List[LoopObject]): Unit = actionsToResolve match {
