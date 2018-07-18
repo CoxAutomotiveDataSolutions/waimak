@@ -68,13 +68,13 @@ case class WaimakGraph (nodes: Seq[WaimakNode], edges: Seq[WaimakEdge]) {
 }
 
 object WaimakGraph {
-  def apply[T, C](flow: DataFlow[T, C]): WaimakGraph = {
+  def apply[C](flow: DataFlow[C]): WaimakGraph = {
 
     // Let's first sort and enumerate the actions. The ones that do not have input dependencies should be at the top.
     val sortedActions = flow.actions.sortWith((a1, a2) => a1.inputLabels.length < a2.inputLabels.length).zipWithIndex
 
     // Group the actions by tags and tag's dependency so that they are displayed in the same big box.
-    val groupedActions: Map[(Set[String], Set[String]), Seq[(DataFlowAction[T, C], Int)]] = sortedActions.groupBy{case (a,i) =>
+    val groupedActions: Map[(Set[String], Set[String]), Seq[(DataFlowAction[C], Int)]] = sortedActions.groupBy{case (a,i) =>
       (flow.tagState.taggedActions(a.guid).tags, flow.tagState.taggedActions(a.guid).dependentOnTags)}
 
     // Create the nodes to pass to WaimakGraph

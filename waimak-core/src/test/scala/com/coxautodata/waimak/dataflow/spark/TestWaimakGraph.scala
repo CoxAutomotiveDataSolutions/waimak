@@ -110,6 +110,7 @@ class TestWaimakGraph extends SparkAndTmpDirSpec {
         WaimakEdge(6, 1),
         WaimakEdge(7, 0),
         WaimakEdge(7, 1))))
+      
     }
   }
 

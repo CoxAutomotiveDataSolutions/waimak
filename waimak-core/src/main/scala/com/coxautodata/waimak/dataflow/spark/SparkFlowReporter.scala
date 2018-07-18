@@ -14,7 +14,7 @@ object SparkFlowReporter extends FlowReporter[SparkFlowContext] {
     flowContext.spark.sparkContext.clearJobGroup()
   }
 
-  override def reportExecutionStarted(flow: DataFlow[Dataset[_], SparkFlowContext], executionGUID: String): Unit = {
+  override def reportExecutionStarted(flow: DataFlow[SparkFlowContext], executionGUID: String): Unit = {
     // Create UI tab if it doesn't exist
     WaimakExecutionsUITab(flow.flowContext.spark.sparkContext)
 
@@ -25,5 +25,5 @@ object SparkFlowReporter extends FlowReporter[SparkFlowContext] {
     WaimakExecutionEvent.addEvent(flow.flowContext.spark.sparkContext, WaimakExecutionEvent(executionGUID, actions, WaimakGraph(flow)))
   }
 
-  override def reportExecutionFinished(flow: DataFlow[Dataset[_], SparkFlowContext], executionGUID: String): Unit = Unit
+  override def reportExecutionFinished(flow: DataFlow[SparkFlowContext], executionGUID: String): Unit = Unit
 }

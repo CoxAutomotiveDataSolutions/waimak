@@ -28,8 +28,6 @@ class WaimakExecutionUIPage(parent: WaimakExecutionsUITab) extends WebUIPage("fl
 
     val graph = WaimakGraphRenderer.createGraph(flowContent.flowGraph)
 
-    val table = UIUtils.listingTable(Seq("Action Description"), renderRow, flowContent.actionDescriptions, fixedWidth = true)
-
     val content =
       <div>content for id
         {parameterId}
@@ -37,6 +35,6 @@ class WaimakExecutionUIPage(parent: WaimakExecutionsUITab) extends WebUIPage("fl
         {flowContent}
       </div>
 
-    UIUtils.headerSparkPage(s"Details for flow execution: $parameterId", table ++ graph, parent) //, showVisualization = true)
+    UIUtils.headerSparkPage(s"Details for flow execution: $parameterId", graph, parent) //, showVisualization = true)
   }
 }
