@@ -7,8 +7,6 @@ case class WaimakEdge(fromID: Int, toID: Int) {
   def makeDotEdge: String = s"""  $fromID->$toID;\n"""
 }
 
-//case class WaimakNode(id: Long, actionID: String, actionDesc: String, innerNodes: Seq[WaimakNode] = Seq.empty) {
-
 case class WaimakNode(id: Long, actionName: String, inputLabels: List[String], outputLabels: List[String],
                       tagSet: Set[String] = Set(), tagDepsSet: Set[String] = Set(), innerNodes: Seq[WaimakNode] = Seq()) {
 
