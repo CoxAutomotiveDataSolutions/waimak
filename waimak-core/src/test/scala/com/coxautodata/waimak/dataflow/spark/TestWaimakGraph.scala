@@ -111,6 +111,7 @@ class TestWaimakGraph extends SparkAndTmpDirSpec {
         WaimakEdge(7, 0),
         WaimakEdge(7, 1))))
 
+      Waimak.sparkExecutor().execute(flow)
     }
   }
 
