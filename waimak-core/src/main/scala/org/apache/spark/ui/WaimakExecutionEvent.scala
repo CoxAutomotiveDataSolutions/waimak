@@ -14,7 +14,8 @@ object WaimakExecutionEvent {
 
   def registerListener(sc: SparkContext): WaimakEventListener = {
     val listener = new WaimakEventListener
-    sc.listenerBus.addListener(listener)
+    //sc.listenerBus.addListener(listener)
+    sc.addSparkListener(listener)
     listener
   }
 

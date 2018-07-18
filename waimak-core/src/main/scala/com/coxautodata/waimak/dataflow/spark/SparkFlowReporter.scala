@@ -2,7 +2,6 @@ package com.coxautodata.waimak.dataflow.spark
 
 import com.coxautodata.waimak.dataflow.spark.ui.WaimakGraph
 import com.coxautodata.waimak.dataflow.{DataFlow, DataFlowAction, FlowReporter}
-import org.apache.spark.sql.Dataset
 import org.apache.spark.ui.{WaimakExecutionEvent, WaimakExecutionsUITab}
 
 object SparkFlowReporter extends FlowReporter[SparkFlowContext] {

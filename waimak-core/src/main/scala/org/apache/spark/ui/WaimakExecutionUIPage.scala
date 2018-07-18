@@ -1,16 +1,24 @@
 package org.apache.spark.ui
 
 import javax.servlet.http.HttpServletRequest
-import org.apache.spark.sql.execution.ui._
+import org.apache.commons.lang3.StringEscapeUtils
 
-//import org.apache.spark.WaimakGraph
 
 import scala.xml.Node
 
 class WaimakExecutionUIPage(parent: WaimakExecutionsUITab) extends WebUIPage("flow") {
   override def render(request: HttpServletRequest): Seq[Node] = {
 
-    val parameterId = UIUtils.stripXSS(request.getParameter("id"))
+    val parameter: String = request.getParameter("id")
+
+    val parameterId: String = {if (parameter == null) {
+      null
+    } else {
+      // Remove new lines and single quotes, followed by escaping HTML version 4.0
+      StringEscapeUtils.escapeHtml4(
+        raw"(?i)(\r\n|\n|\r|%0D%0A|%0A|%0D|'|%27)".r.replaceAllIn(parameter, ""))
+    }}
+
     require(parameterId != null && parameterId.nonEmpty, "Missing id parameter")
     require(parent.listener.executions.get(parameterId).isDefined, "id not a valid execution")
 
