@@ -14,7 +14,7 @@ object WaimakGraphRenderer {
   private def planVisualization(graph: WaimakGraph): Seq[Node] = {
     val metadata = graph.allNodes.flatMap { node =>
       val nodeId = s"plan-meta-data-${node.id}"
-      <div id={nodeId}>""</div>
+      <div id={nodeId}></div>
     }
 
     <div>
