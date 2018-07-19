@@ -17,11 +17,8 @@ object SparkFlowReporter extends FlowReporter[SparkFlowContext] {
     // Create UI tab if it doesn't exist
     WaimakExecutionsUITab(flow.flowContext.spark.sparkContext)
 
-    // Get data to pass to event
-    val actions: Seq[String] = flow.actions.map(_.description)
-
     // Add flow as Event
-    WaimakExecutionEvent.addEvent(flow.flowContext.spark.sparkContext, WaimakExecutionEvent(executionGUID, actions, WaimakGraph(flow)))
+    WaimakExecutionEvent.addEvent(flow.flowContext.spark.sparkContext, WaimakExecutionEvent(executionGUID, WaimakGraph(flow)))
   }
 
   override def reportExecutionFinished(flow: DataFlow[SparkFlowContext], executionGUID: String): Unit = Unit
