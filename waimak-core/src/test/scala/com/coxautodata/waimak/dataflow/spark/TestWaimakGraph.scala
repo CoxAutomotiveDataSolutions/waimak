@@ -132,7 +132,9 @@ class TestWaimakGraph extends SparkAndTmpDirSpec {
 
     it("should be a clusterBoxString string") {
 
-      val theOuterDotNode = WaimakNode(1, "", Nil, Nil, Set("written"), Set(), Seq(WaimakNode(0, "alias", List("csv_1"), List("csv_2")))).makeOuterDotNode
+      val theOuterDotNode =
+        WaimakNode(1, "", Nil, Nil, Set("written"), Set(), Seq(
+          WaimakNode(0, "alias", List("csv_1"), List("csv_2")))).makeOuterDotNode
 
       theOuterDotNode should be(
         s"""|
@@ -146,18 +148,37 @@ class TestWaimakGraph extends SparkAndTmpDirSpec {
     }
   }
 
+  describe("WaimakNode.allNodes") {
+
+    it("should be all the nodes in the graph") {
+
+      val allNodes = WaimakGraph(Seq(
+        WaimakNode(2, "", Nil, Nil, Set("written"), Set(), Seq(
+          WaimakNode(0, "read", List(), List("csv_2")),//,
+          WaimakNode(1, "alias", List("csv_1"), List("csv_2"))))),
+        Seq(WaimakEdge(0, 1))).allNodes
+
+      allNodes should be (List(
+        WaimakNode(0, "read", List(), List("csv_2"), Set(), Set(), List()),
+        WaimakNode(1, "alias", List("csv_1"), List("csv_2"), Set(), Set(), List()),
+        WaimakNode(2, "", List(), List(), Set("written"), Set(), List(
+          WaimakNode(0, "read", List(), List("csv_2"), Set(), Set(), List()),
+          WaimakNode(1, "alias", List("csv_1"), List("csv_2"), Set(), Set(), List())))))
+    }
+  }
+
   describe("WaimakGraph.makeDotFile") {
 
     it("should be a makeDotFile string"){
 
-      val theWaimakGraph = WaimakGraph(Seq(
+      val theDotFile = WaimakGraph(Seq(
         WaimakNode(2, "", Nil, Nil, Set("written"), Set(), Seq(
           WaimakNode(0, "read", List(), List("csv_2")),//,
           WaimakNode(1, "alias", List("csv_1"), List("csv_2"))))),
       Seq(WaimakEdge(0, 1)))
         .makeDotFile
 
-      theWaimakGraph // strip trailing whitespaces in each line before comparing
+      theDotFile // strip trailing whitespaces in each line before comparing
         .split("\n").map(_.reverse.dropWhile(_ == ' ').reverse).mkString("\n") should be
          s"""|digraph G {
              |
