@@ -117,7 +117,7 @@ class TestPropertyEncoder extends SparkSpec {
         SupportedProperties(
           Some(false),
           Some(9),
-          Some(new Date(1532473200000L)),
+          Some(new Date(2018, 7, 25)),
           Some(BigDecimal(1.5)),
           Some(2.5),
           Some(3.5f),
@@ -139,7 +139,7 @@ class TestPropertyEncoder extends SparkSpec {
       maybeByteEncoded.getType should be(classOf[java.lang.Integer])
 
       val maybeDateEncoded = encoder("maybeDate")(row)
-      maybeDateEncoded.getValueAsDate.getTime should be(1532473200000L)
+      maybeDateEncoded.getValueAsDate.toInstant should be(new java.util.Date(2018, 7, 25).toInstant)
       maybeDateEncoded.getType should be(classOf[java.util.Date])
 
       val maybeDecimalEncoded = encoder("maybeDecimal")(row)
