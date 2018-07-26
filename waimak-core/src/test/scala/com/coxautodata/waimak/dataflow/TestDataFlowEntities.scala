@@ -8,7 +8,7 @@ import org.apache.spark.sql.Dataset
   */
 class TestDataFlowEntities extends SparkSpec {
 
-  var entities : DataFlowEntities = _
+  var entities: DataFlowEntities = _
 
   override def beforeEach(): Unit = {
     super.beforeEach()
@@ -68,7 +68,7 @@ class TestDataFlowEntities extends SparkSpec {
     }
 
     it("should return None if the entity is undefined") {
-        entities.getOption[String]("d") should be(None)
+      entities.getOption[String]("d") should be(None)
     }
 
     it("should throw an exception if the label does not exist") {
@@ -76,6 +76,29 @@ class TestDataFlowEntities extends SparkSpec {
         entities.getOption[String]("k")
       }
       res.text should be("Label k does not exist")
+    }
+  }
+
+  describe("collect and filter") {
+    it("collect should collect all dataset types") {
+
+      val res = entities.collect { case e@(_, Some(_: Dataset[_])) => e }
+      res should be(Seq(("c", Some(sparkSession.emptyDataFrame))))
+
+    }
+
+    it("filterValues should filter only Some values") {
+
+      val res = entities.filterValues(_.isDefined)
+      res should be(DataFlowEntities(Map("a" -> Some("not_an_integer"), "b" -> Some(3), "c" -> Some(sparkSession.emptyDataFrame))))
+
+    }
+
+    it("filterKeys should filter out a single key") {
+
+      val res = entities.filterLabels(entities.labels.filterNot(_ == "d").toList)
+      res should be(DataFlowEntities(Map("a" -> Some("not_an_integer"), "b" -> Some(3), "c" -> Some(sparkSession.emptyDataFrame))))
+
     }
   }
 

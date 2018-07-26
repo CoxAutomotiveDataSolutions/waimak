@@ -9,12 +9,12 @@ import scala.collection.mutable
   */
 class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
 
-  val func3: DataFlowEntities => ActionResult= ent => {
-    ent.getAll
+  val func3: DataFlowEntities => ActionResult = ent => {
+    ent.collect { case v => v._2 }
     List(Some("v1"), Some("v2"))
   }
 
-  val func2: () => ActionResult= () => List(Some("v1"), Some("v2"))
+  val func2: () => ActionResult = () => List(Some("v1"), Some("v2"))
 
   val func1 = (w: Seq[Option[String]]) => () => w
 
