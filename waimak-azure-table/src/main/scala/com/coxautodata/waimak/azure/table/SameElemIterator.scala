@@ -1,4 +1,4 @@
-package waimak.azure.table
+package com.coxautodata.waimak.azure.table
 
 import scala.collection.mutable.ListBuffer
 
