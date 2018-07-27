@@ -79,7 +79,7 @@ class TestDataFlowEntities extends SparkSpec {
     }
   }
 
-  describe("collect and filter") {
+  describe("collect, getAllOfTypes and filter") {
     it("collect should collect all dataset types") {
 
       val res = entities.collect { case e@(_, Some(_: Dataset[_])) => e }
@@ -98,6 +98,13 @@ class TestDataFlowEntities extends SparkSpec {
 
       val res = entities.filterLabels(entities.labels.filterNot(_ == "d").toList)
       res should be(DataFlowEntities(Map("a" -> Some("not_an_integer"), "b" -> Some(3), "c" -> Some(sparkSession.emptyDataFrame))))
+
+    }
+
+    it("getAllOfTypes should collect all dataset types") {
+
+      val res = entities.getAllOfType[Dataset[_]]
+      res should be(Seq(sparkSession.emptyDataFrame))
 
     }
   }
