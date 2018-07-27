@@ -26,7 +26,7 @@ case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
   override def description: String =
        super.description + "\n" +
       "Intercepted " + toIntercept.description + "\n" +
-      "Intercepted with " + postActions.map(_.description).mkString(" ")
+      "Intercepted with: " + postActions.map(_.description).mkString(", ")
 
   def addPostAction(newAction: PostAction[T, C]): PostActionInterceptor[T, C] = newAction match {
     // Cache already exists, so ignore
