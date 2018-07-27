@@ -1,4 +1,4 @@
-package waimak.azure.table
+package com.coxautodata.waimak.azure.table
 
 import java.util
 import java.util.concurrent.TimeUnit
@@ -11,7 +11,7 @@ import com.microsoft.azure.storage.table.{DynamicTableEntity, EntityProperty}
 import com.microsoft.azure.storage.{CloudStorageAccount, StorageException}
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types.StructType
-import waimak.azure.table.SparkAzureTable.{azureWriterOutputLabel, createIfNotExists, pushToTable}
+import com.coxautodata.waimak.azure.table.SparkAzureTable.{azureWriterOutputLabel, createIfNotExists, pushToTable}
 
 /**
   * Created by Alexei Perelighin on 2018/03/25.

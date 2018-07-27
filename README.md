@@ -96,14 +96,19 @@ Other versions of Spark 2.x are also likely to work and can be added to the list
 
 ## Changelog
 
+### 1.4.1 - 2018-07-27
+
+#### Fixed
+- Azure Table uploader now respects and uploads `null` values instead of converting them to zero'd values
+
 ### 1.4 - 2018-07-05
 
-### Added
+#### Added
 - Better exception logging on failing actions during execution
 - `Any` types allowed to be used by and returned from actions
 - Impala queries to the same connection object now reuse connections to improve query submission performance
 
-### Fixed
+#### Fixed
 - Spark 2.0, 2.1 and 2.3 compatability
 
 ### 1.3.1 - 2018-07-02

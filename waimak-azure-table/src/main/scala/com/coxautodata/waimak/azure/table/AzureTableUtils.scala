@@ -1,10 +1,6 @@
-package waimak.azure.table
+package com.coxautodata.waimak.azure.table
 
-import java.util
-
-import com.microsoft.azure.storage.CloudStorageAccount
-import com.microsoft.azure.storage.table.{DynamicTableEntity, EntityProperty}
-import org.apache.spark.sql.types.{StringType, StructType}
+import org.apache.spark.sql.types.StringType
 import org.apache.spark.sql.{Column, Dataset, Row}
 
 /**
