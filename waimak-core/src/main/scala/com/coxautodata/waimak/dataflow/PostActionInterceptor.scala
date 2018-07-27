@@ -23,6 +23,11 @@ case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
     tryRes.map(_.toList)
   }
 
+  override def description: String =
+       super.description + "\n" +
+      "Intercepted " + toIntercept.description + "\n" +
+      "Intercepted with " + postActions.map(_.description).mkString(" ")
+
   def addPostAction(newAction: PostAction[T, C]): PostActionInterceptor[T, C] = newAction match {
     // Cache already exists, so ignore
     case CachePostAction(_, l) if postActions.exists(a => a.isInstanceOf[CachePostAction[T, C]] && a.labelToIntercept == l) =>
@@ -42,6 +47,10 @@ case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
 
 sealed abstract class PostAction[T, C](val labelToIntercept: String) {
   def run: (Option[T], C) => Option[T]
+
+  def postActionName: String = getClass.getSimpleName
+
+  def description = s"PostAction: $postActionName Label: ${labelToIntercept}"
 }
 
 sealed case class CachePostAction[T, C](run: (Option[T], C) => Option[T], override val labelToIntercept: String) extends PostAction[T, C](labelToIntercept)
