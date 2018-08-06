@@ -4,7 +4,7 @@ import java.io.File
 
 import com.coxautodata.waimak.dataflow.{ActionResult, _}
 import org.apache.commons.io.FileUtils
-import org.apache.hadoop.fs.{FileAlreadyExistsException, Path}
+import org.apache.hadoop.fs.{FileAlreadyExistsException, FileSystem, Path}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{AnalysisException, Dataset, SparkSession}
 
@@ -701,8 +701,9 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val emptyFlow = Waimak.sparkFlow(spark, new Path("file://" + testingBaseDir.toAbsolutePath.toString + "/tmp").toString)
       emptyFlow.prepareForExecution()
 
-      emptyFlow.flowContext.fileSystem.getUri.toString should be ("file:///")
-
+      // Test the flow filesystem differs from what the default one would be
+      emptyFlow.flowContext.fileSystem.getUri.toString should be("file:///")
+      FileSystem.get(spark.sparkContext.hadoopConfiguration).getUri.toString should be("hdfs://localhost")
     }
   }
 
