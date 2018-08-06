@@ -96,6 +96,11 @@ Other versions of Spark 2.x are also likely to work and can be added to the list
 
 ## Changelog
 
+### 1.4.2 - 2018-08-06
+
+#### Added
+- Added optional Spark parameter `spark.waimak.fs.defaultFS` to specify the URI of the FileSystem object in the [`SparkFlowContext`](src/main/scala/com/coxautodata/waimak/dataflow/spark/SparkFlowContext.scala)
+
 ### 1.4.1 - 2018-07-27
 
 #### Fixed
