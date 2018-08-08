@@ -1,6 +1,7 @@
 package com.coxautodata.waimak.storage
 
 import java.sql.Timestamp
+import java.time.Duration
 
 import org.apache.spark.sql.{Column, Dataset}
 
@@ -27,9 +28,9 @@ import scala.util.Try
   *
   * There are 2 types of operations on the table:
   *   1. data extraction - which do not modify the state of the table, thus same instance of the AuditTable can be used
-  *       for multiple data extraction operations;
+  * for multiple data extraction operations;
   *   2. data mutators - adding data to the table, optimising storage. These lead to new state of the underlying storage
-  *       and the same instance of AuditTable can not be used for data mutators again.
+  * and the same instance of AuditTable can not be used for data mutators again.
   *
   * Created by Alexei Perelighin on 2018/03/03
   */
@@ -57,10 +58,10 @@ trait AuditTable {
     *
     * Fails when is called second time on same instance.
     *
-    * @param ds           records to append
-    * @param lastUpdated  column that returns java.sql.Timestamp that will be used for de-duplication on the primary keys
-    * @param appendTS     timestamp of when the append has happened. It will not be used for de-duplications
-    * @return             (new state of the AuditTable, count of appended records) or error
+    * @param ds          records to append
+    * @param lastUpdated column that returns java.sql.Timestamp that will be used for de-duplication on the primary keys
+    * @param appendTS    timestamp of when the append has happened. It will not be used for de-duplications
+    * @return (new state of the AuditTable, count of appended records) or error
     */
   def append(ds: Dataset[_], lastUpdated: Column, appendTS: Timestamp): Try[(AuditTable, Long)]
 
@@ -69,7 +70,7 @@ trait AuditTable {
     * primary keys.
     *
     * @param ts use records that are closest to this timestamp
-    * @return   if no data in storage layer, return None
+    * @return if no data in storage layer, return None
     */
   def snapshot(ts: Timestamp): Option[Dataset[_]]
 
@@ -78,7 +79,7 @@ trait AuditTable {
     *
     * @param from
     * @param to
-    * @return     if no data in storage layer, return None
+    * @return if no data in storage layer, return None
     */
   def allBetween(from: Option[Timestamp], to: Option[Timestamp]): Option[Dataset[_]]
 
@@ -87,10 +88,12 @@ trait AuditTable {
     *
     * Fails when is called second time on same instance.
     *
-    * @param compactTS    timestamp of when the compaction is requested, will not be used for any filtering of the data
-    * @return             new state of the AuditTable
+    * @param compactTS   timestamp of when the compaction is requested, will not be used for any filtering of the data
+    * @param trashMaxAge Maximum age of old region files kept in the .Trash folder
+    *                    after a compaction has happened.
+    * @return new state of the AuditTable
     */
-  def compact(compactTS: Timestamp): Try[AuditTable]
+  def compact(compactTS: Timestamp, trashMaxAge: Duration): Try[AuditTable]
 
   /**
     * Returns latest timestamp of records stored in the audit table.
