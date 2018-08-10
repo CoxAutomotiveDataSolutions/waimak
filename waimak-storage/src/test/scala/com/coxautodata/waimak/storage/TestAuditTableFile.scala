@@ -218,7 +218,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       cs3 should be(3)
 
       table_s3.regions.size should be(2)
-      table_s3.regions(0).store_region should be("3") // first compaction would re-compact first cold again
+      table_s3.regions(0).store_region should be("3") // The cold region would not be recompacted again
       table_s3.regions(1).store_region should be("4")
 
       val cold = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
