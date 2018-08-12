@@ -9,8 +9,20 @@ import scala.util.{Failure, Success, Try}
   */
 trait ActionScheduler[C] {
 
+  /**
+    *
+    * @return None if none of the pools are available for scheduling and Some(AVAILABLE POOL NAME) - one of the many pools
+    *         that is available for scheduling
+    */
   def availableExecutionPool(): Option[String]
 
+  /**
+    * Removes actions that are already running in the specified pool.
+    *
+    * @param poolName
+    * @param from
+    * @return
+    */
   def dropRunning(poolName: String, from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]]
 
   def hasRunningActions(): Boolean
