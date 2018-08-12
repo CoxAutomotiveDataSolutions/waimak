@@ -1,4 +1,4 @@
-package waimak.azure.table
+package com.coxautodata.waimak.azure.table
 
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{BlockingQueue, Executors, LinkedBlockingQueue, TimeUnit}

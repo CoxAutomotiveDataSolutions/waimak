@@ -1,5 +1,6 @@
 package com.coxautodata.waimak.dataflow.spark
 
+import java.net.URI
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
@@ -11,7 +12,10 @@ import org.apache.spark.sql.SparkSession
   * @param spark the SparkSession
   */
 case class SparkFlowContext(spark: SparkSession) {
-  //TODO: explore initialisation with non Hadoop files systems
-  lazy val fileSystem: FileSystem = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+
+  private val uriToUse = spark.conf.get("spark.waimak.fs.defaultFS", spark.sparkContext.hadoopConfiguration.get("fs.defaultFS"))
+
+  lazy val fileSystem: FileSystem = FileSystem.get(new URI(uriToUse), spark.sparkContext.hadoopConfiguration)
+
 }
 

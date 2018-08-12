@@ -4,9 +4,9 @@ import java.io.File
 
 import com.coxautodata.waimak.dataflow.{ActionResult, _}
 import org.apache.commons.io.FileUtils
-import org.apache.hadoop.fs.FileAlreadyExistsException
-import org.apache.spark.sql.{AnalysisException, Dataset}
+import org.apache.hadoop.fs.{FileAlreadyExistsException, FileSystem, Path}
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{AnalysisException, Dataset, SparkSession}
 
 import scala.util.Try
 
@@ -569,7 +569,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("tag dependency conflicting with input dependency") {
         val spark = sparkSession
-        import spark.implicits._
         val baseDest = testingBaseDir + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
@@ -596,7 +595,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("tag dependent action depends on an action that does not run and therefore does not run") {
         val spark = sparkSession
-        import spark.implicits._
         val baseDest = testingBaseDir + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
@@ -684,6 +682,29 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     }
   }
 
+  describe("prepareForExecution") {
+    it("Should create a filesystem object different to the one specified in the defaultFS and create a temp folder on the overridden fs") {
+
+      // Spark session with defaultFS set to something other than file
+      val spark = SparkSession
+        .builder()
+        .appName(appName)
+        .master(master)
+        .config("spark.executor.memory", "2g")
+        .config("spark.ui.enabled", "false")
+        .getOrCreate()
+      spark.sparkContext.hadoopConfiguration.set("fs.defaultFS", "hdfs://localhost/")
+
+      // Set the waimak defaultFS for the Spark Flow Context
+      spark.conf.set("spark.waimak.fs.defaultFS", "file:///")
+      val emptyFlow = Waimak.sparkFlow(spark, new Path("file://" + testingBaseDir.toAbsolutePath.toString + "/tmp").toString)
+      emptyFlow.prepareForExecution()
+
+      // Test the flow filesystem differs from what the default one would be
+      emptyFlow.flowContext.fileSystem.getUri.toString should be("file:///")
+      FileSystem.get(spark.sparkContext.hadoopConfiguration).getUri.toString should be("hdfs://localhost")
+    }
+  }
 
   describe("mixing multiple types in flow") {
 
