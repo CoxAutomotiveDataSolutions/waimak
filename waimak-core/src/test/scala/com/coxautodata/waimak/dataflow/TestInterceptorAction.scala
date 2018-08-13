@@ -71,6 +71,15 @@ class TestInterceptorAction extends FunSpec with Matchers {
 
       res.text should be(s"Can not apply post action to label doesnotexist, it does not exist in action ${action.guid}: Action: TestPresetAction Inputs: [] Outputs: [o1,o2].")
     }
+
+    it("description test") {
+      val action = new TestPresetAction(List.empty, List("o1", "o2"), func2None)
+      val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "o2"), CachePostAction(null, "o1")))
+
+      post.description should be("Action: PostActionInterceptor Inputs: [] Outputs: [o1,o2]"
+        + "\nIntercepted Action: TestPresetAction Inputs: [] Outputs: [o1,o2]"
+        + "\nIntercepted with: PostAction: TransformPostAction Label: o2, PostAction: CachePostAction Label: o1")
+    }
   }
 
 }

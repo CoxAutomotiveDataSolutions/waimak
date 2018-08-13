@@ -96,6 +96,15 @@ Other versions of Spark 2.x are also likely to work and can be added to the list
 
 ## Changelog
 
+### 1.5 - 2018-08-13
+
+#### Added
+- Trash deletion feature in Waimak-Storage that will clean up old region compactions stored in `.Trash`
+- Interceptor actions will now show details of the actions they intercepted and actions they intercepted with in the Spark UI
+
+#### Fixed
+- Single cold partitions will no longer be recompacted into themselves in the storage layer
+
 ### 1.4.3 - 2018-08-13
 
 #### Fixed

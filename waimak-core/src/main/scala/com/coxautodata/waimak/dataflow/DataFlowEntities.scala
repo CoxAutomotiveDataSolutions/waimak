@@ -48,17 +48,21 @@ class DataFlowEntities(private val entities: Map[String, Option[Any]]) {
 
   def canEqual(other: Any): Boolean = other.isInstanceOf[DataFlowEntities]
 
-  def map[A](f: Any => A) = DataFlowEntities(entities.mapValues(_.map(f)))
+  def filterValues(cond: Option[Any] => Boolean): DataFlowEntities = DataFlowEntities(collect { case e@(_, v) if cond(v) => e }.toMap)
 
-  def filterValues(cond: Any => Boolean): DataFlowEntities = DataFlowEntities(entities.filter {
-    case (_, entity) => cond(entity)
-  })
+  def collect[B](pf: PartialFunction[(String, Option[Any]), B]): Seq[B] = entities.collect(pf).toSeq
+
+  /**
+    * Return all defined (not None) entities for a given type [T]
+    *
+    * @tparam T Type of entities to return
+    * @return Sequence of all defined entities that match the given type
+    */
+  def getAllOfType[T: ClassTag]: Seq[T] = collect { case (_, Some(e: T)) => e }
 
   def nonEmpty: Boolean = entities.nonEmpty
 
   def isEmpty: Boolean = entities.isEmpty
-
-  def getAll: Seq[Option[Any]] = entities.values.toSeq
 
   def contains(label: String): Boolean = entities.contains(label)
 

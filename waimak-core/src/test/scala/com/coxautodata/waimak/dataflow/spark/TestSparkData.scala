@@ -57,6 +57,9 @@ object TestSparkData {
   val lastTS_1 = new Timestamp(formatter.parse("2018-01-01 00:00").getTime)
   val lastTS_2 = new Timestamp(formatter.parse("2018-01-02 00:00").getTime)
   val lastTS_3 = new Timestamp(formatter.parse("2018-01-03 00:00").getTime)
+  val lastTS_4 = new Timestamp(formatter.parse("2018-01-04 00:00").getTime)
+  val lastTS_5 = new Timestamp(formatter.parse("2018-01-05 00:00").getTime)
+  val lastTS_6 = new Timestamp(formatter.parse("2018-01-06 00:00").getTime)
 
 
   val persons_evolved_compacted_1 = Seq(
