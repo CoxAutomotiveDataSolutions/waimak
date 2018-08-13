@@ -96,6 +96,11 @@ Other versions of Spark 2.x are also likely to work and can be added to the list
 
 ## Changelog
 
+### 1.4.3 - 2018-08-13
+
+#### Fixed
+- Azure Table uploader will now clean up thread pools to prevent exhausting system threads after being invoked multiple times
+
 ### 1.4.2 - 2018-08-06
 
 #### Added

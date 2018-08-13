@@ -1,7 +1,7 @@
 package com.coxautodata.waimak.azure.table
 
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.{BlockingQueue, Executors, LinkedBlockingQueue, TimeUnit}
+import java.util.concurrent.{Future => _, TimeoutException => _, _}
 
 import com.coxautodata.waimak.log.Logging
 import com.microsoft.azure.storage.{CloudStorageAccount, StorageException}
@@ -40,6 +40,8 @@ class AzureTableMultiWriter(val table: String, val connection: String, val threa
 
   val threadFailed: AtomicBoolean = new AtomicBoolean(false)
 
+  val threadPool: ExecutorService = Executors.newFixedThreadPool(threadNum)
+
   protected var futures: Seq[Future[Int]] = _
 
   /**
@@ -49,11 +51,12 @@ class AzureTableMultiWriter(val table: String, val connection: String, val threa
     */
   def run(): Unit = {
 
-    implicit val ex: ExecutionContextExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(threadNum))
+    implicit val ex: ExecutionContextExecutor = ExecutionContext.fromExecutor(threadPool)
 
     futures = (0 until threadNum).map { _ =>
       Future[Int] {
-        val threadFutureExecutor: ExecutionContextExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
+        val singleExecutor = Executors.newFixedThreadPool(1)
+        val threadFutureExecutor: ExecutionContextExecutor = ExecutionContext.fromExecutor(singleExecutor)
         val storage = CloudStorageAccount.parse(connection)
         val tblClient = storage.createCloudTableClient
         val cloudTable = tblClient.getTableReference(table)
@@ -65,9 +68,15 @@ class AzureTableMultiWriter(val table: String, val connection: String, val threa
             cnt += page.size
             val batchInsert = page.foldLeft(new TableBatchOperation()) { (batch, de) => batch.insertOrReplace(de); batch }
             val f = () => Future(cloudTable.execute(batchInsert))(threadFutureExecutor)
-            retry(f, timeoutMs, retryDelayMs)
+            Try(retry(f, timeoutMs, retryDelayMs)) match {
+              case Success(_) =>
+              case Failure(e) =>
+                singleExecutor.shutdown()
+                throw e
+            }
           }
         }
+        singleExecutor.shutdown()
         cnt
       }
     }
@@ -107,6 +116,7 @@ class AzureTableMultiWriter(val table: String, val connection: String, val threa
   def finish: Int = {
     thereWillBeMoreData.set(false)
     val total = futures.map(f => Await.result(f, Duration.Inf)).sum
+    threadPool.shutdown()
     total
   }
 
