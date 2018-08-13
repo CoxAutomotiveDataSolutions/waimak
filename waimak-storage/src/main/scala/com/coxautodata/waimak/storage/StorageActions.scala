@@ -1,7 +1,7 @@
 package com.coxautodata.waimak.storage
 
 import java.sql.Timestamp
-import java.time.{LocalDateTime, ZoneOffset, ZonedDateTime}
+import java.time.{Duration, ZoneOffset, ZonedDateTime}
 
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
@@ -79,10 +79,13 @@ object StorageActions extends Logging {
       *                       Takes list of table regions, the count of records added in this batch and
       *                       the compaction zoned date time.
       *                       Default is not to trigger a compaction.
+      * @param trashMaxAge    Maximum age of old region files kept in the .Trash folder
+      *                       after a compaction has happened.
       * @return a new SparkDataFlow with the write action added
       */
     def writeToStorage(labelName: String, table: AuditTable, lastUpdatedCol: String, appendDateTime: ZonedDateTime,
-                       doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false): SparkDataFlow = {
+                       doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false,
+                       trashMaxAge: Duration = Duration.ofHours(24)): SparkDataFlow = {
       val run: DataFlowEntities => ActionResult = m => {
         import sparkDataFlow.flowContext.spark.implicits._
 
@@ -91,7 +94,7 @@ object StorageActions extends Logging {
         table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
           case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
             logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
-            t.compact(appendTimestamp) match {
+            t.compact(appendTimestamp, trashMaxAge) match {
               case Success(_) => Seq.empty
               case Failure(e) => throw StorageException(s"Failed to compact table [$labelName], with compaction timestamp [$appendTimestamp]", e)
             }
