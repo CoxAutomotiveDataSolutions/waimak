@@ -114,8 +114,10 @@ trait DataFlowExecutor[C] extends Logging {
         // TODO: maybe add to flowReporter info about failed actions
         logError("Failed Action " + t._1.logLabel + " " + t._2.failed)
       }
-      val failedAction = failed.head._1
-      Failure(new DataFlowException(s"Exception performing action: ${failedAction.logLabel}", failed.head._2.failed.get)) //:face_palm:
+      failed.head._2.asInstanceOf[Try[(DataFlow[C], Seq[DataFlowAction[C]])]]
+      Failure(throw new DataFlowException(s"Exception performing action: ${failed.head._1.logLabel}", failed.head._2.failed.get))
+//      val failedAction = failed.head._1
+//      Failure(new DataFlowException(s"Exception performing action: ${failedAction.logLabel}", failed.head._2.failed.get)) //:face_palm:
     }
   }
 

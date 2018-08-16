@@ -723,11 +723,11 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val ex1 = intercept[DataFlowException] {
         executor.execute(flow.inPlaceTransform("integer_2")(identity))
       }
-      ex1.text should be("Can only call inPlaceTransform on a Dataset. Label integer_2 is a java.lang.Integer")
+      ex1.cause.getMessage should be("Can only call inPlaceTransform on a Dataset. Label integer_2 is a java.lang.Integer")
       val ex2 = intercept[DataFlowException] {
         executor.execute(flow.cacheAsParquet("integer_2"))
       }
-      ex2.text should be("Can only call cacheAsParquet on a Dataset. Label integer_2 is a java.lang.Integer")
+      ex2.cause.getMessage should be("Can only call cacheAsParquet on a Dataset. Label integer_2 is a java.lang.Integer")
     }
   }
 }
