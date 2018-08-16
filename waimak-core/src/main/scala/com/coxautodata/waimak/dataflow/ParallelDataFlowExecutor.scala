@@ -103,9 +103,3 @@ class ParallelDataFlowExecutor[C]( numberOfParallelJobs: Int
 
   override def initActionScheduler(): ActionScheduler[C] = ???
 }
-
-object ParallelDataFlowExecutor {
-
-  def noPreference[C](actions: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = actions
-
-}
