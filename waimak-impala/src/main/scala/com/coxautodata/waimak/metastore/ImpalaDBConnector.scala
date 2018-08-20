@@ -4,6 +4,7 @@ import java.sql.ResultSet
 
 import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
@@ -51,10 +52,17 @@ trait ImpalaDBConnector extends HadoopDBConnector {
   * @param database     name of the database to connect to
   * @param cluster      the cluster label in the JDBC template string
   */
-case class ImpalaWaimakJDBCConnector(sparkSession: SparkSession, database: String, cluster: String = "default", forceRecreateTables: Boolean = false) extends ImpalaDBConnector with WaimakJDBCConnector {
+case class ImpalaWaimakJDBCConnector(sparkSession: SparkSession,
+                                     database: String,
+                                     cluster: String = "default",
+                                     forceRecreateTables: Boolean = false,
+                                     properties: java.util.Properties = new java.util.Properties(),
+                                     secureProperties: Map[String, String] = Map.empty) extends ImpalaDBConnector with WaimakJDBCConnector {
   override val driverName: String = "org.apache.hive.jdbc.HiveDriver"
   override val sparkConf: SparkConf = sparkSession.sparkContext.getConf
   override val service: String = "impala"
+
+  override def hadoopConfiguration: Configuration = sparkSession.sparkContext.hadoopConfiguration
 }
 
 /**
@@ -63,8 +71,14 @@ case class ImpalaWaimakJDBCConnector(sparkSession: SparkSession, database: Strin
   * @param sparkSession SparkSession object
   * @param jdbcString   the JDBC connection string
   */
-case class ImpalaJDBCConnector(sparkSession: SparkSession, jdbcString: String, forceRecreateTables: Boolean = false) extends ImpalaDBConnector with JDBCConnector {
+case class ImpalaJDBCConnector(sparkSession: SparkSession,
+                               jdbcString: String,
+                               forceRecreateTables: Boolean,
+                               properties: java.util.Properties = new java.util.Properties(),
+                               secureProperties: Map[String, String] = Map.empty) extends ImpalaDBConnector with JDBCConnector {
   override val driverName: String = "org.apache.hive.jdbc.HiveDriver"
+
+  override def hadoopConfiguration: Configuration = sparkSession.sparkContext.hadoopConfiguration
 }
 
 /**
