@@ -66,14 +66,14 @@ case class ImpalaWaimakJDBCConnector(sparkSession: SparkSession,
 }
 
 /**
-  * Impala Database connector that is contructed from a JDBC connection string
+  * Impala Database connector that is constructed from a JDBC connection string
   *
   * @param sparkSession SparkSession object
   * @param jdbcString   the JDBC connection string
   */
 case class ImpalaJDBCConnector(sparkSession: SparkSession,
                                jdbcString: String,
-                               forceRecreateTables: Boolean,
+                               forceRecreateTables: Boolean = false,
                                properties: java.util.Properties = new java.util.Properties(),
                                secureProperties: Map[String, String] = Map.empty) extends ImpalaDBConnector with JDBCConnector {
   override val driverName: String = "org.apache.hive.jdbc.HiveDriver"
