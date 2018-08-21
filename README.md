@@ -86,15 +86,21 @@ Waimak is tested against the following versions of Spark:
 
 Package Maintainer | Spark Version
 ------------------ | -------------
-Apache Spark | [2.0.0](https://spark.apache.org/releases/spark-release-2-0-0.html)
-Apache Spark | [2.1.0](https://spark.apache.org/releases/spark-release-2-1-0.html)
 Apache Spark | [2.2.0](https://spark.apache.org/releases/spark-release-2-2-0.html)
 Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.html)
 Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html)
 
-Other versions of Spark 2.x are also likely to work and can be added to the list of tested versions if there is sufficient need.
+Other versions of Spark >= 2.2 are also likely to work and can be added to the list of tested versions if there is sufficient need.
 
 ## Changelog
+
+### 1.5.1 - 2018-08-21
+
+#### Added
+- Support of custom properties for JDBC connections using the Metastore Utils by passing either a `Properties` object or a `Map` so they can be read securely from a `JCEKS` file
+
+#### Removed
+- Removed support for Spark 2.0 and Spark 2.1
 
 ### 1.5 - 2018-08-13
 
