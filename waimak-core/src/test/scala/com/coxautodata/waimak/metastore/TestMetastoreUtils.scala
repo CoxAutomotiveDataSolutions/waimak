@@ -6,6 +6,7 @@ import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.security.alias.CredentialProviderFactory
 import org.apache.spark.sql.SparkSession
+
 import scala.collection.JavaConversions._
 
 class TestMetastoreUtils extends SparkAndTmpDirSpec {
@@ -42,6 +43,52 @@ class TestMetastoreUtils extends SparkAndTmpDirSpec {
       jdbc.getAllProperties.toMap should contain theSameElementsAs Map("jdbc.timeout" -> "1")
       jdbc.properties.toMap should contain theSameElementsAs Map("jdbc.timeout" -> "1")
 
+    }
+
+    it("Should throw an exception if no credential store could be found") {
+
+      val properties = new Properties()
+      properties.setProperty("jdbc.timeout", "1")
+      val jdbcMapping = Map("user" -> "jdbc.user", "password" -> "jdbc.password")
+      val jdbc = TestJDBCConnector(sparkSession, properties, jdbcMapping)
+
+      val res = intercept[MetastoreUtilsException] {
+        jdbc.getAllProperties.toMap
+      }
+      res.text should be("Could not read secure parameter [user] as no jceks file is set using [hadoop.security.credential.provider.path]")
+    }
+
+    it("Should throw an exception if keys could not be found in an existing credential store") {
+      // Create local jceks file and put entries in
+      val jceksFile = s"jceks://file$testingBaseDirName/creds.jceks"
+      val entries = Map("user" -> "ringo")
+      createJceksWithEntries(jceksFile, entries, sparkSession.sparkContext.hadoopConfiguration)
+
+      val properties = new Properties()
+      properties.setProperty("jdbc.timeout", "1")
+      val jdbcMapping = Map("user" -> "jdbc.user", "password" -> "jdbc.password")
+      val jdbc = TestJDBCConnector(sparkSession, properties, jdbcMapping)
+
+      val res = intercept[MetastoreUtilsException] {
+        jdbc.getAllProperties.toMap
+      }
+      res.text should be(s"Could not find secure parameter [password] in any locations at [$jceksFile]")
+    }
+
+    it("Should throw an exception an incorrect jceks file was given") {
+      // Create local jceks file and put entries in
+      val jceksFile = s"jceks://file$testingBaseDirName/creds.jceks"
+      sparkSession.sparkContext.hadoopConfiguration.set(CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH, jceksFile)
+
+      val properties = new Properties()
+      properties.setProperty("jdbc.timeout", "1")
+      val jdbcMapping = Map("user" -> "jdbc.user", "password" -> "jdbc.password")
+      val jdbc = TestJDBCConnector(sparkSession, properties, jdbcMapping)
+
+      val res = intercept[MetastoreUtilsException] {
+        jdbc.getAllProperties.toMap
+      }
+      res.text should be(s"Could not find secure parameter [user] in any locations at [$jceksFile]")
     }
   }
 

@@ -1,9 +1,11 @@
 package com.coxautodata.waimak.metastore
 
 import java.sql.{Connection, DriverManager, ResultSet}
+
 import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.security.alias.CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH
 import org.apache.spark.SparkConf
 
 /**
@@ -94,8 +96,19 @@ trait JDBCConnector extends DBConnector {
 
     secureProperties.foldLeft(newProps) {
       case (props, (jcekKey, jdbcKey)) =>
-        props.setProperty(jdbcKey, hadoopConfiguration.getPassword(jcekKey).mkString)
+        setSecureProperty(jcekKey, jdbcKey, props)
         props
+    }
+  }
+
+  private def setSecureProperty(jceksKey: String, jdbcKey: String, props: java.util.Properties): Unit = {
+    Option(hadoopConfiguration.getPassword(jceksKey)) match {
+      case Some(cred) =>
+        props.setProperty(jdbcKey, cred.mkString)
+      case None if hadoopConfiguration.get(CREDENTIAL_PROVIDER_PATH) == null =>
+        throw new MetastoreUtilsException(s"Could not read secure parameter [$jceksKey] as no jceks file is set using [$CREDENTIAL_PROVIDER_PATH]")
+      case None =>
+        throw new MetastoreUtilsException(s"Could not find secure parameter [$jceksKey] in any locations at [${hadoopConfiguration.get(CREDENTIAL_PROVIDER_PATH)}]")
     }
   }
 
