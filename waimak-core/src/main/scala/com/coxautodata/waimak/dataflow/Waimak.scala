@@ -53,4 +53,6 @@ object Waimak {
   def sparkExecutor(): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter) //SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
 //  def sparkExecutor(): DataFlowExecutor[SparkFlowContext] = SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
 
+  def sparkMultiJobExecutor(maxJobs: Int, priorityStrategy: Seq[DataFlowAction[SparkFlowContext]] => Seq[DataFlowAction[SparkFlowContext]]): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter, maxJobs, priorityStrategy)
+
 }

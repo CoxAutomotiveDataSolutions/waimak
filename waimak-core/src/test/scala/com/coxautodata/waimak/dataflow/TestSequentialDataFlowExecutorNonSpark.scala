@@ -25,7 +25,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
   describe("executeWave") {
 
     it("empty flow") {
-      val res = executor.executeWave(emptyFlow)
+      val res = executor.execute(emptyFlow)
       res._1 should be(Seq.empty)
       res._2.inputs should be(DataFlowEntities.empty)
       res._2.actions should be(Seq.empty)
@@ -37,7 +37,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val action = new TestPresetAction(List.empty, List("t1", "t2"), func2)
         val flow = emptyFlow.addAction(action)
 
-        val res = executor.executeWave(flow)
+        val res = executor.execute(flow)
         res._1 should be(Seq(action))
         res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"))))
         res._2.actions should be(Seq.empty)
@@ -47,7 +47,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val action = new TestPresetAction(List("i1"), List("t1", "t2"), func2)
         val flow = emptyFlow.addInput("i1", Some("vi")).addAction(action)
 
-        val res = executor.executeWave(flow)
+        val res = executor.execute(flow)
         res._1 should be(Seq(action))
         res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "i1" -> Some("vi"))))
         res._2.actions should be(Seq.empty)
@@ -58,7 +58,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val action = new TestPresetAction(List("i1"), List("t1", "t2"), func2, true)
         val flow = emptyFlow.addInput("i1", None).addAction(action)
 
-        val res = executor.executeWave(flow)
+        val res = executor.execute(flow)
         res._1 should be(Seq.empty)
         res._2.inputs should be(DataFlowEntities(Map("i1" -> None)))
         res._2.actions should be(Seq(action))
@@ -68,7 +68,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val action = new TestInputAction(List("i1"), List("t1", "t2"), func3, false)
         val flow = emptyFlow.addInput("i1", None).addAction(action)
 
-        val res = executor.executeWave(flow)
+        val res = executor.execute(flow)
         res._1 should be(Seq(action))
         res._2.inputs should be(DataFlowEntities(Map("i1" -> None, "t1" -> Some("v1"), "t2" -> Some("v2"))))
         res._2.actions should be(Seq.empty)
@@ -82,7 +82,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val action_2 = new TestPresetAction(List.empty, List("t3", "t4"), func2)
         val flow = emptyFlow.addAction(action_1).addAction(action_2)
 
-        val res = executor.executeWave(flow)
+        val res = executor.execute(flow)
         res._1 should be(Seq(action_1, action_2))
         res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "t3" -> Some("v1"), "t4" -> Some("v2"))))
         res._2.actions should be(Seq.empty)
@@ -93,7 +93,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val action_2 = new TestPresetAction(List("i1"), List("t3", "t4"), func2, false)
         val flow = emptyFlow.addInput("i1", None).addAction(action_1).addAction(action_2)
 
-        val res = executor.executeWave(flow)
+        val res = executor.execute(flow)
         res._1 should be(Seq(action_1, action_2))
         res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "t3" -> Some("v1"), "t4" -> Some("v2"), "i1" -> None)))
         res._2.actions should be(Seq.empty)
@@ -110,14 +110,9 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val flow = emptyFlow.addAction(action_1).addAction(action_2)
           .addAction(action_3).addAction(action_4)
 
-        val res = executor.executeWave(flow)
-        res._1 should be(Seq(action_1, action_2))
-        res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "t3" -> Some("v1"), "t4" -> Some("v2"))))
-        res._2.actions should be(Seq(action_3, action_4))
+        val res2 = executor.execute(flow)
 
-        val res2 = executor.executeWave(res._2)
-
-        res2._1 should be(Seq(action_3, action_4))
+        res2._1 should be(Seq(action_1, action_2, action_3, action_4))
         res2._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "t3" -> Some("v1"), "t4" -> Some("v2")
           , "t5" -> Some("v1"), "t6" -> Some("v2"), "t7" -> Some("v1"), "t8" -> Some("v2"))))
         res2._2.actions should be(Seq.empty)
@@ -170,7 +165,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val reporter = new TestReporter()
         val reportedExecutor = SequentialDataFlowExecutor[EmptyFlowContext](reporter)
 
-        val res = reportedExecutor.executeWave(flow)
+        val res = reportedExecutor.execute(flow)
         res._1 should be(Seq(action_1, action_2))
         res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "t3" -> Some("v1"), "t4" -> Some("v2"))))
         res._2.actions should be(Seq.empty)
