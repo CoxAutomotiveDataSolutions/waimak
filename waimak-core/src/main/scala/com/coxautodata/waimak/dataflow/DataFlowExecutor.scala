@@ -30,7 +30,7 @@ trait DataFlowExecutor[C] extends Logging {
     */
   def flowReporter: FlowReporter[C]
 
-  def priorityStrategy: Seq[DataFlowAction[C]] => Seq[DataFlowAction[C]]
+  def priorityStrategy: DFExecutorPriorityStrategies.priorityStrategy[C]
 
   def initActionScheduler(): ActionScheduler[C]
 

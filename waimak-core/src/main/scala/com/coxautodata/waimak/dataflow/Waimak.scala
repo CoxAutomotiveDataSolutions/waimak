@@ -19,7 +19,8 @@ package com.coxautodata.waimak.dataflow
 import com.coxautodata.waimak.ParallelDataFlowExecutor
 import com.coxautodata.waimak.dataflow.spark.{SimpleSparkDataFlow, SparkDataFlow, SparkFlowContext, SparkFlowReporter}
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.sql.SparkSession
+import DFExecutorPriorityStrategies._
 
 /**
   * Defines factory functions for creating and running Waimak data flows.
@@ -53,6 +54,6 @@ object Waimak {
   def sparkExecutor(): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter) //SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
 //  def sparkExecutor(): DataFlowExecutor[SparkFlowContext] = SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
 
-  def sparkMultiJobExecutor(maxJobs: Int, priorityStrategy: Seq[DataFlowAction[SparkFlowContext]] => Seq[DataFlowAction[SparkFlowContext]]): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter, maxJobs, priorityStrategy)
+  def sparkMultiJobExecutor(maxJobs: Int, priorityStrategy: priorityStrategy[SparkFlowContext]): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter, maxJobs, priorityStrategy)
 
 }

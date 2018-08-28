@@ -17,10 +17,8 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
   override val appName: String = "Simple Spark Data Flow"
 
-  val executor = Waimak.sparkExecutor()
-
-  // Need to explicitly use sequential executor
-  val sequentialExecutor = SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
+  // Need to explicitly use sequential like executor with preference to loaders
+  val executor = Waimak.sparkMultiJobExecutor(1, DFExecutorPriorityStrategies.preferLoaders)
 
   import SparkActions._
   import TestSparkData._
@@ -490,7 +488,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           .writeParquet(baseDest)("person", "items")
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Could not find any actions tagged with label [write_person] when resolving dependent actions for action [${flow.actions.head.guid}]")
 
@@ -502,17 +500,18 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         val baseDest = testingBaseDir + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-          .openParquet(baseDest)("person_written", "items_written")
+          .openFileParquet(s"$baseDest/person", "person_written")
+          .openFileParquet(s"$baseDest/items", "items_written")
           .openCSV(basePath)("csv_1", "csv_2")
           .alias("csv_1", "items")
           .alias("csv_2", "person")
           .writeParquet(baseDest)("person", "items")
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.cause shouldBe a[AnalysisException]
-        res.cause.asInstanceOf[AnalysisException].message should be(s"Path does not exist: file:$baseDest/person_written")
+        res.cause.asInstanceOf[AnalysisException].message should be(s"Path does not exist: file:$baseDest/person")
       }
 
       it("tag dependency between write and open") {
@@ -533,7 +532,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
             _.writeParquet(baseDest)("person", "items")
           }
 
-        val (_, finalState) = sequentialExecutor.execute(flow)
+        val (_, finalState) = executor.execute(flow)
         finalState.inputs.size should be(6)
 
         finalState.inputs.get[Dataset[_]]("items_written").as[TPurchase].collect() should be(purchases)
@@ -561,7 +560,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           }
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Circular reference for action [${flow.actions.find(_.inputLabels.contains("person")).get.guid}] as a result of cyclic tag dependency. " +
           "Action has the following tag dependencies [read] and depends on the following input labels [person]")
@@ -586,7 +585,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           }
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Circular reference for action [${flow.actions.find(_.inputLabels.contains("csv_1")).get.guid}] as a result of cyclic tag dependency. " +
           "Action has the following tag dependencies [written] and depends on the following input labels [csv_1]")
@@ -606,7 +605,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
             _.openCSV(basePath)("csv_1")
           }
 
-        val (executed, _) = sequentialExecutor.execute(flow)
+        val (executed, _) = executor.execute(flow)
         executed.size should be(0)
 
       }
