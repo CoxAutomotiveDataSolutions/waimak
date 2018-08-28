@@ -49,7 +49,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def fastTrackToDAGAndThanSort[C](orderedLabels: Seq[String]) = fastTrackToDAG andThen sortByOutputLabel(orderedLabels)
+  def fastTrackToDAGAndThanSort[C](orderedLabels: Seq[String]) = fastTrackToDAG[C] andThen sortByOutputLabel[C](orderedLabels)
 
   def takeWriters[C] = new PartialFunction[actionQueue[C], actionQueue[C]] {
 

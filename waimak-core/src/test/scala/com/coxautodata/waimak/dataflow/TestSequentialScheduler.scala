@@ -9,6 +9,8 @@ import scala.util.Success
   */
 class TestSequentialScheduler extends FunSpec with Matchers {
 
+  val defaultPool = Set(DEFAULT_POOL_NAME)
+
   val func2 = () => List(Some("v1"), Some("v2"))
 
   val action1 = new TestPresetAction(List.empty, List("o1", "o2"),func2)
@@ -20,11 +22,11 @@ class TestSequentialScheduler extends FunSpec with Matchers {
   describe("SequentialScheduler.availableExecutionPool") {
 
     it("nothing is running") {
-      emptyScheduler.availableExecutionPool() should be (Some(DEFAULT_POOL_NAME))
+      emptyScheduler.availableExecutionPools() should be (Some(Set(DEFAULT_POOL_NAME)))
     }
 
     it("action already running") {
-      schedulerWithAction.availableExecutionPool() should be (None)
+      schedulerWithAction.availableExecutionPools() should be (None)
     }
 
   }
@@ -34,16 +36,16 @@ class TestSequentialScheduler extends FunSpec with Matchers {
     val toSchedule = Seq(action1, new TestPresetAction(List("o1", "o2"), List("o3", "o4"),func2))
 
     it("nothing is running") {
-      emptyScheduler.dropRunning(DEFAULT_POOL_NAME, toSchedule) should be(toSchedule)
+      emptyScheduler.dropRunning(defaultPool, toSchedule) should be(toSchedule)
     }
 
     it("action is running") {
-      schedulerWithAction.dropRunning(DEFAULT_POOL_NAME, toSchedule) should be(toSchedule.drop(1))
+      schedulerWithAction.dropRunning(defaultPool, toSchedule) should be(toSchedule.drop(1))
     }
 
     it("no action to schedule") {
-      emptyScheduler.dropRunning(DEFAULT_POOL_NAME, Seq.empty) should be(Seq.empty)
-      schedulerWithAction.dropRunning(DEFAULT_POOL_NAME, Seq.empty) should be(Seq.empty)
+      emptyScheduler.dropRunning(defaultPool, Seq.empty) should be(Seq.empty)
+      schedulerWithAction.dropRunning(defaultPool, Seq.empty) should be(Seq.empty)
     }
 
   }

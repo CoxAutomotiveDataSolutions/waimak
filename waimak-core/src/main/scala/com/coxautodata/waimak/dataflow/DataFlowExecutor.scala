@@ -57,10 +57,11 @@ trait DataFlowExecutor[C] extends Logging {
                             , actionScheduler: ActionScheduler[C]
                             , successfulActions: Seq[DataFlowAction[C]]
                            ): Try[(Seq[DataFlowAction[C]], DataFlow[C])] = {
+    //(Pool into which to schedule, Action to schedule)
     val toSchedule: Option[(String, DataFlowAction[C])] = actionScheduler
-      .availableExecutionPool()
-      .flatMap(executionPoolName => priorityStrategy(actionScheduler.dropRunning(executionPoolName, currentFlow.nextRunnable(executionPoolName)))
-        .headOption.map((executionPoolName, _))
+      .availableExecutionPools()
+      .flatMap(executionPoolNames => priorityStrategy(actionScheduler.dropRunning(executionPoolNames, currentFlow.nextRunnable(executionPoolNames)))
+        .headOption.map(actionToSchedule => (currentFlow.schedulingMeta.executionPoolName(actionToSchedule), actionToSchedule))
       )
     toSchedule match {
       case None if (!actionScheduler.hasRunningActions()) => {

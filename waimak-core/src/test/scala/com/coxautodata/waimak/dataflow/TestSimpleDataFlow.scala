@@ -6,6 +6,8 @@ import scala.util.Try
 
 class TestSimpleDataFlow extends FunSpec with Matchers {
 
+  val defaultPool = Set(DEFAULT_POOL_NAME)
+
   describe("Add actions success") {
 
     it("empty") {
@@ -114,7 +116,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     it("empty queued") {
       val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
-      val res = emptyFlow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = emptyFlow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -122,7 +124,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", None)
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -130,7 +132,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -139,7 +141,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       val flow = emptyFlow
         .addInput("test_1", None)
         .addAction(new TestEmptyAction(List("test_1"), List("test_2")))
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -149,7 +151,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
         .addAction(new TestEmptyAction(List("test_1"), List("test_3")))
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -159,7 +161,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
         .addAction(new TestEmptyAction(List("test_1", "test_2"), List("test_3")))
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -169,7 +171,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
         .addAction(new TestEmptyAction(List("test_2"), List("test_3")))
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_2"))
     }
@@ -179,7 +181,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addAction(new TestEmptyAction(List("test_1"), List("test_2")))
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_1"))
     }
@@ -196,7 +198,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addAction(new TestEmptyAction(List("test_3", "test_2"), List("test_23")))
         .addAction(new TestEmptyAction(List("test_1"), List("test_24")))
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(4)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_1", "test_2"))
@@ -216,7 +218,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addAction(new TestEmptyAction(List("test_3", "test_2"), List("test_23")))
         .addAction(new TestEmptyAction(List("test_1"), List("test_24")))
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(3)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_1", "test_2"))
@@ -232,7 +234,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addAction(new TestEmptyAction(List("test_1"), List.empty))
         .addAction(new TestEmptyAction(List("test_2"), List.empty))
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(2)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_2"))
@@ -248,7 +250,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         }
         .addAction(new TestEmptyAction(List("test_2"), List.empty))
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(2)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_2"))
@@ -266,7 +268,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(2)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_2"))
@@ -284,7 +286,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_1"))
     }
@@ -301,7 +303,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_1"))
     }
@@ -318,7 +320,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(0)
 
     }
@@ -331,7 +333,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable(DEFAULT_POOL_NAME)
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_2"))
     }

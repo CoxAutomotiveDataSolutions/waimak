@@ -154,6 +154,7 @@ trait DataFlow[C] extends Logging {
   }
 
   /**
+    *
     * @param executionPoolName
     * @param nestedFlow
     * @tparam S
@@ -198,7 +199,7 @@ trait DataFlow[C] extends Logging {
     if (outputs.size != executed.outputLabels.size) throw new DataFlowException(s"Action produced different number of results. Expected ${executed.outputLabels.size}, but was ${outputs.size}. ${executed.logLabel}")
     val newActions = actions.filter(_.guid != executed.guid)
     val newInputs = executed.outputLabels.zip(outputs).foldLeft(inputs)((resInput, value) => resInput + value)
-    createInstance(newInputs, newActions, tagState, schedulingMeta)
+    createInstance(newInputs, newActions, tagState, schedulingMeta.removeAction(executed))
   }
 
   /**
@@ -206,15 +207,16 @@ trait DataFlow[C] extends Logging {
     * 1. have no input labels;
     * 2. whose inputs have been created
     * 3. all actions whose dependent tags have been run
+    * 4. belong to the available pool
     *
     * will not include actions that are skipped.
     *
-    * @param executionPoolAvailable  set of execution pool for which to schedule actions
+    * @param executionPoolsAvailable  set of execution pool for which to schedule actions
     * @return
     */
-  def nextRunnable(executionPoolAvailable: String): Seq[DataFlowAction[C]] = {
+  def nextRunnable(executionPoolsAvailable: Set[String]): Seq[DataFlowAction[C]] = {
     val withInputs = actions
-      .filter(ac => executionPoolAvailable == schedulingMeta.executionPoolName(ac))
+      .filter(ac => executionPoolsAvailable.contains(schedulingMeta.executionPoolName(ac)))
       .filter { ac =>
         ac.flowState(inputs) match {
           case ReadyToRun(_) if actionHasNoTagDependencies(ac) => true
@@ -380,7 +382,12 @@ case class DataFlowActionTags(tags: Set[String], dependentOnTags: Set[String])
   */
 case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[String], taggedActions: Map[String, DataFlowActionTags])
 
-case class SchedulingMeta[C](val currentExecutionPoolName: String, actionExecutionPools: Map[String, String]) {
+/**
+  * @param currentExecutionPoolName
+  * @param actionExecutionPools
+  * @tparam C
+  */
+case class SchedulingMeta[C](currentExecutionPoolName: String, actionExecutionPools: Map[String, String]) {
 
   //TODO: May be add tags into here to have a common place to accumulate extra scheduling info about actions and
   // simplify createInstance function
@@ -389,6 +396,10 @@ case class SchedulingMeta[C](val currentExecutionPoolName: String, actionExecuti
 
   def addAction(action: DataFlowAction[C]): SchedulingMeta[C] = {
     SchedulingMeta(currentExecutionPoolName, actionExecutionPools + (action.schedulingGuid -> currentExecutionPoolName))
+  }
+
+  def removeAction(action: DataFlowAction[C]): SchedulingMeta[C] = {
+    SchedulingMeta(currentExecutionPoolName, actionExecutionPools - action.schedulingGuid)
   }
 
   def executionPoolName(action: DataFlowAction[C]): String = actionExecutionPools.getOrElse(action.schedulingGuid, DEFAULT_POOL_NAME)

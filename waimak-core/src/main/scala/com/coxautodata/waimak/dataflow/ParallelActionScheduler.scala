@@ -15,19 +15,21 @@ import scala.collection.JavaConverters._
   * @param pools
   * @tparam C
   */
-class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc], val actionFinishedNotificationQueue: BlockingQueue[(String, DataFlowAction[C], Try[ActionResult])])
+class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
+                                 , val actionFinishedNotificationQueue: BlockingQueue[(String, DataFlowAction[C], Try[ActionResult])]
+                                , val poolIntoContext: (String, C) => Unit
+                                )
   extends ActionScheduler[C] with Logging {
 
   type actionType = DataFlowAction[C]
 
   type futureResult = (String, actionType, Try[ActionResult])
 
-  override def dropRunning(poolName: String, from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = {
+  override def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = {
     if (from.isEmpty) from
     else {
-      pools.get(poolName).fold(from)(epd =>
-        from.filter(a => !epd.running.contains(a.schedulingGuid))
-      )
+      val running = pools.filterKeys(poolNames.contains(_)).values.flatMap(_.running).toSet
+      from.filter(a => !running.contains(a.schedulingGuid))
     }
   }
 
@@ -54,7 +56,7 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc], val 
           val newPoolDesc = newPools(kv._1).removeActionGUIDS(kv._2)
           newPools + (kv._1 -> newPoolDesc)
         }
-        (new ParallelActionScheduler(newPools, actionFinishedNotificationQueue), rSet.map(r => (r._2, r._3)))
+        (new ParallelActionScheduler(newPools, actionFinishedNotificationQueue, poolIntoContext), rSet.map(r => (r._2, r._3)))
       }
     }.flatMap(_ match {
       case Some(r) => Success(r)
@@ -67,17 +69,18 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc], val 
     logInfo("Submitting Action: " + poolName + " : " + action.logLabel)
     val poolDesc = pools.getOrElse(poolName, ExecutionPoolDesc(poolName, 1, Set.empty, ExecutionContext.fromExecutor(Executors.newFixedThreadPool(3))))
     val ft = Future[futureResult] {
-      logInfo("Executing action " + + actionFinishedNotificationQueue.size() + " " + action.logLabel)
+      logInfo("Executing action " + actionFinishedNotificationQueue.size() + " " + action.logLabel)
+      poolIntoContext(poolName, flowContext)
       val actionResult = Try(action.performAction(entities, flowContext)).flatten
       val res = (poolName, action, actionResult)
       actionFinishedNotificationQueue.offer(res)
       res
     }(poolDesc.threadsExecutor)
     val newPoolDesc = poolDesc.addActionGUID(action.schedulingGuid)
-    new ParallelActionScheduler(pools + (poolName -> newPoolDesc), actionFinishedNotificationQueue)
+    new ParallelActionScheduler(pools + (poolName -> newPoolDesc), actionFinishedNotificationQueue, poolIntoContext)
   }
 
-  override def availableExecutionPool(): Option[String] = pools.find(kv => kv._2.running.size < kv._2.maxJobs).map(_._1)
+  override def availableExecutionPools(): Option[Set[String]] = Option(pools.filter(kv => kv._2.running.size < kv._2.maxJobs).keySet).filter(_.nonEmpty)
 
 }
 
@@ -91,13 +94,14 @@ case class ExecutionPoolDesc(poolName: String, maxJobs: Int, running: Set[String
 
 object ParallelActionScheduler {
 
-  def apply[C](): ParallelActionScheduler[C] = apply(1)
+  def apply[C]()(poolIntoContext: (String, C) => Unit): ParallelActionScheduler[C] = apply(1)(poolIntoContext)
 
-  def apply[C](maxJobs: Int): ParallelActionScheduler[C] = apply(Map(DEFAULT_POOL_NAME -> maxJobs))
+  def apply[C](maxJobs: Int)(poolIntoContext: (String, C) => Unit): ParallelActionScheduler[C] = apply(Map(DEFAULT_POOL_NAME -> maxJobs))(poolIntoContext)
 
-  def apply[C](poolsSpec: Map[String, Int]): ParallelActionScheduler[C] = {
+  def apply[C](poolsSpec: Map[String, Int])(poolIntoContext: (String, C) => Unit): ParallelActionScheduler[C] = {
     val pools = poolsSpec.map( kv => (kv._1, ExecutionPoolDesc(kv._1, kv._2, Set.empty, ExecutionContext.fromExecutor(Executors.newFixedThreadPool(kv._2 + 3)))))
-    new ParallelActionScheduler[C](pools, new LinkedBlockingQueue[(String, DataFlowAction[C], Try[ActionResult])]())
+    new ParallelActionScheduler[C](pools, new LinkedBlockingQueue[(String, DataFlowAction[C], Try[ActionResult])](), poolIntoContext)
   }
 
+  def noPool[C](p: String, c: C): Unit = ()
 }

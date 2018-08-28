@@ -9,6 +9,8 @@ import scala.util.Success
   */
 class TestParallelActionScheduler extends FunSpec with Matchers {
 
+  val defaultPool = Set(DEFAULT_POOL_NAME)
+
   val func2 = () => {
     List(Some("v1"), Some("v2"))
   }
@@ -19,21 +21,21 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
 
   describe("With single thread") {
 
-    val emptySchedulerOneThread = ParallelActionScheduler[EmptyFlowContext]()
+    val emptySchedulerOneThread = ParallelActionScheduler[EmptyFlowContext]()(ParallelActionScheduler.noPool[EmptyFlowContext])
 
     val dummyBusySchedulerOneThread = {
       val poolDesc = emptySchedulerOneThread.pools(DEFAULT_POOL_NAME).addActionGUID(action1.guid)
-      new ParallelActionScheduler(emptySchedulerOneThread.pools + (DEFAULT_POOL_NAME -> poolDesc), emptySchedulerOneThread.actionFinishedNotificationQueue)
+      new ParallelActionScheduler(emptySchedulerOneThread.pools + (DEFAULT_POOL_NAME -> poolDesc), emptySchedulerOneThread.actionFinishedNotificationQueue, ParallelActionScheduler.noPool[EmptyFlowContext])
     }
 
     describe("availableExecutionPool") {
 
       it("nothing is running") {
-        emptySchedulerOneThread.availableExecutionPool() should be (Some(DEFAULT_POOL_NAME))
+        emptySchedulerOneThread.availableExecutionPools() should be (Some(Set(DEFAULT_POOL_NAME)))
       }
 
       it("action already running") {
-        dummyBusySchedulerOneThread.availableExecutionPool() should be (None)
+        dummyBusySchedulerOneThread.availableExecutionPools() should be (None)
       }
 
     }
@@ -43,16 +45,16 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
       val toSchedule = Seq(action1, new TestPresetAction(List("o1", "o2"), List("o3", "o4"),func2))
 
       it("nothing is running") {
-        emptySchedulerOneThread.dropRunning(DEFAULT_POOL_NAME, toSchedule) should be(toSchedule)
+        emptySchedulerOneThread.dropRunning(defaultPool, toSchedule) should be(toSchedule)
       }
 
       it("action is running") {
-        dummyBusySchedulerOneThread.dropRunning(DEFAULT_POOL_NAME, toSchedule) should be(toSchedule.drop(1))
+        dummyBusySchedulerOneThread.dropRunning(defaultPool, toSchedule) should be(toSchedule.drop(1))
       }
 
       it("no action to schedule") {
-        emptySchedulerOneThread.dropRunning(DEFAULT_POOL_NAME, Seq.empty) should be(Seq.empty)
-        dummyBusySchedulerOneThread.dropRunning(DEFAULT_POOL_NAME, Seq.empty) should be(Seq.empty)
+        emptySchedulerOneThread.dropRunning(defaultPool, Seq.empty) should be(Seq.empty)
+        dummyBusySchedulerOneThread.dropRunning(defaultPool, Seq.empty) should be(Seq.empty)
       }
 
     }
@@ -102,7 +104,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
         nextScheduler.pools.size should be(1)
         nextScheduler.pools.get(DEFAULT_POOL_NAME).map(_.running) should be(Some(Set(action1.guid)))
         nextScheduler.hasRunningActions() should be(true)
-        nextScheduler.availableExecutionPool() should be(None)
+        nextScheduler.availableExecutionPools() should be(None)
       }
 
 //      it("an input only one action is running") {

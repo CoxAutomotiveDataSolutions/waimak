@@ -15,10 +15,10 @@ class ParallelDataFlowExecutor[C](val scheduler: ParallelActionScheduler[C],
 
 object ParallelDataFlowExecutor {
 
-  def apply[C](flowReporter: FlowReporter[C]) = new ParallelDataFlowExecutor[C](ParallelActionScheduler(), flowReporter, defaultPriorityStrategy)
+  def apply[C](flowReporter: FlowReporter[C])(poolIntoContext: (String, C) => Unit) = new ParallelDataFlowExecutor[C](ParallelActionScheduler()(poolIntoContext), flowReporter, defaultPriorityStrategy)
 
-  def apply[C](flowReporter: FlowReporter[C], maxJobs: Int, priorityStrategy: priorityStrategy[C]) = new ParallelDataFlowExecutor[C](ParallelActionScheduler(maxJobs), flowReporter, priorityStrategy)
+  def apply[C](flowReporter: FlowReporter[C], maxJobs: Int, priorityStrategy: priorityStrategy[C])(poolIntoContext: (String, C) => Unit) = new ParallelDataFlowExecutor[C](ParallelActionScheduler(maxJobs)(poolIntoContext), flowReporter, priorityStrategy)
 
-  def apply[C](flowReporter: FlowReporter[C], poolsSpec: Map[String, Int], priorityStrategy: priorityStrategy[C]) = new ParallelDataFlowExecutor[C](ParallelActionScheduler(poolsSpec), flowReporter, priorityStrategy)
+  def apply[C](flowReporter: FlowReporter[C], poolsSpec: Map[String, Int], priorityStrategy: priorityStrategy[C])(poolIntoContext: (String, C) => Unit) = new ParallelDataFlowExecutor[C](ParallelActionScheduler(poolsSpec)(poolIntoContext), flowReporter, priorityStrategy)
 
 }

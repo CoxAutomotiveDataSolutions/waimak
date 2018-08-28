@@ -19,3 +19,10 @@ case class SparkFlowContext(spark: SparkSession) {
 
 }
 
+object SparkFlowContext {
+
+  def setPoolIntoContext(poolName: String, context: SparkFlowContext): Unit = {
+    context.spark.sparkContext.setLocalProperty("spark.scheduler.pool", poolName)
+  }
+
+}

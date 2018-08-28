@@ -19,4 +19,6 @@ object SimpleDataFlow {
 
   def empty() = new SimpleDataFlow[EmptyFlowContext](DataFlowEntities.empty, Seq.empty, DataFlowTagState(Set.empty, Set.empty, Map.empty), new EmptyFlowContext, new SchedulingMeta[EmptyFlowContext]())
 
+  def noPool[C](poolName: String, context: EmptyFlowContext): Unit = ()
+
 }
