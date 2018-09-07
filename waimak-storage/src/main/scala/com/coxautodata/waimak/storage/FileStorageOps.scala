@@ -1,6 +1,8 @@
 package com.coxautodata.waimak.storage
 
 import java.io.{InputStreamReader, OutputStreamWriter}
+import java.sql.Timestamp
+import java.time.Duration
 import java.util.Properties
 
 import com.coxautodata.waimak.filesystem.FSUtils
@@ -75,19 +77,31 @@ trait FileStorageOps {
     * Final state:
     *
     * /data/db/tbl1/type=cold/region=15
-    * /data/db/.Trash/tbl1/region=11
+    * /data/db/.Trash/tbl1/${appendTimestamp}/region=11
     * .../region=12
     * .../region=13
     * .../region=14
     *
-    * @param tableName      name of the table
-    * @param compactedData  the data set with data from fromSubFolders already repartitioned, it will be saved into
-    *                       newDataPath
-    * @param newDataPath    path into which combined and repartitioned data from the dataset will be committed into
-    * @param cleanUpBase    parent folder from which to remove the cleanUpFolders
-    * @param cleanUpFolders list of sub-folders to remove once the writing and committing of the combined data is successful
+    * @param tableName       name of the table
+    * @param compactedData   the data set with data from fromSubFolders already repartitioned, it will be saved into
+    *                        newDataPath
+    * @param newDataPath     path into which combined and repartitioned data from the dataset will be committed into
+    * @param cleanUpBase     parent folder from which to remove the cleanUpFolders
+    * @param cleanUpFolders  list of sub-folders to remove once the writing and committing of the combined data is successful
+    * @param appendTimestamp Timestamp of the compaction/append. Used to date the Trash folders.
     */
-  def atomicWriteAndCleanup(tableName: String, compactedData: Dataset[_], newDataPath: Path, cleanUpBase: Path, cleanUpFolders: Seq[String])
+  def atomicWriteAndCleanup(tableName: String, compactedData: Dataset[_], newDataPath: Path, cleanUpBase: Path, cleanUpFolders: Seq[String], appendTimestamp: Timestamp)
+
+  /**
+    * Purge the trash folder for a given table. All trashed region folders that were placed into the trash
+    * older than the given maximum age will be deleted.
+    *
+    * @param tableName       Name of the table to purge the trash for
+    * @param appendTimestamp Timestamp of the current compaction/append. All ages will be compared
+    *                        relative to this timestamp
+    * @param trashMaxAge     Maximum age of trashed regions to keep relative to the above timestamp
+    */
+  def purgeTrash(tableName: String, appendTimestamp: Timestamp, trashMaxAge: Duration): Unit
 
   /**
     * Lists tables in the basePath. It will ignore any folder/table that starts with '.'
@@ -167,15 +181,29 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
 
   override def mkdirs(path: Path): Boolean = fs.mkdirs(path)
 
-  override def atomicWriteAndCleanup(tableName: String, data: Dataset[_], newDataPath: Path, cleanUpBase: Path, cleanUpFolders: Seq[String]): Unit = {
+  override def atomicWriteAndCleanup(tableName: String, data: Dataset[_], newDataPath: Path, cleanUpBase: Path, cleanUpFolders: Seq[String], appendTimestamp: Timestamp): Unit = {
     val writePath = new Path(new Path(tmpFolder, tableName), newDataPath.getName)
     data.write.mode(SaveMode.Overwrite).parquet(writePath.toString)
     if (!FSUtils.moveOverwriteFolder(fs, writePath, newDataPath)) throw new StorageException(s"Can not write compacted data for table [${tableName}] into folder [${newDataPath.toString}]")
-    val trashPath = new Path(trashBinFolder, tableName)
+    val trashRootPath = new Path(trashBinFolder, tableName)
+    val trashPath = new Path(trashRootPath, appendTimestamp.getTime.toString)
     cleanUpFolders.foreach { fName =>
       val from = new Path(cleanUpBase, fName)
       val trash = new Path(trashPath, fName)
       if (!FSUtils.moveOverwriteFolder(fs, from, trash)) throw new StorageException(s"Can not move old folder [${from.toString}] into folder [${trash.toString}]")
+    }
+  }
+
+  override def purgeTrash(tableName: String, appendTimestamp: Timestamp, trashMaxAge: Duration): Unit = {
+    val minTimestampToKeep = appendTimestamp.getTime - trashMaxAge.toMillis
+
+    val probTSAndOlderThanMin: PartialFunction[FileStatus, Path] = {
+      case f if f.getPath.getName.matches("[0-9]+") && f.getPath.getName.toLong < minTimestampToKeep => f.getPath
+    }
+
+    val foldersToDelete = globTablePaths(trashBinFolder, Seq(tableName), Seq("*"), probTSAndOlderThanMin)
+    foldersToDelete.foreach {
+      f => FSUtils.removeFolder(fs, f.toString)
     }
   }
 

@@ -1,7 +1,7 @@
 package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.Timestamp
-import java.time.ZonedDateTime
+import java.time.{Duration, ZonedDateTime}
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
@@ -34,7 +34,10 @@ object RDBMIngestionActions {
       * @param doCompaction      a lambda used to decide whether a compaction should happen after an append.
       *                          Takes list of table regions, the count of records added in this batch and
       *                          the compaction timestamp.
-      *                          Default is not to trigger a compaction.
+      *                          Default is not to trigger a compaction
+      * @param trashMaxAge       Maximum age of old region files kept in the .Trash folder
+      *                          after a compaction has happened.
+      *                          Default is 24 hours.
       * @return A new SparkDataFlow with the extraction actions added
       */
     def extractToStorageFromRDBM(rdbmExtractor: RDBMExtractor
@@ -44,7 +47,8 @@ object RDBMIngestionActions {
                                  , extractDateTime: ZonedDateTime
                                  , lastUpdatedOffset: Long = 0
                                  , forceFullLoad: Boolean = false
-                                 , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false)(tables: String*): SparkDataFlow = {
+                                 , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false
+                                 , trashMaxAge: Duration = Duration.ofHours(24))(tables: String*): SparkDataFlow = {
 
       val basePath = new Path(storageBasePath)
 
@@ -83,7 +87,7 @@ object RDBMIngestionActions {
           , table.tableName
           , tableConfigs(table.tableName).maxRowsPerPartition
           , forceFullLoad)
-          .writeToStorage(table.tableName, table, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction)
+          .writeToStorage(table.tableName, table, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction, trashMaxAge)
       })
     }
 

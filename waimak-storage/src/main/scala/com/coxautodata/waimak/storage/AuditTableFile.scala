@@ -1,11 +1,14 @@
 package com.coxautodata.waimak.storage
 
 import java.sql.Timestamp
+import java.time.Duration
+
 import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.sql._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
+
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -76,10 +79,14 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     }
   }
 
-  override def compact(compactTS: Timestamp): Try[this.type] = {
+  override def compact(compactTS: Timestamp, trashMaxAge: Duration): Try[this.type] = {
     val res: Try[AuditTableFile] = Try(markToUpdate())
       .flatMap(_ => commitHotToCold(compactTS, 1000000))
       .flatMap(_.compactCold(compactTS, 50000000, 2500000))
+      .map { f =>
+        f.storageOps.purgeTrash(f.tableName, compactTS, trashMaxAge)
+        f
+      }
     res.map(_.asInstanceOf[this.type])
   }
 
@@ -135,12 +142,14 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     */
   protected def compactCold(compactTS: Timestamp, rowsPerRegion: Int, rowsPerPartition: Int): Try[AuditTableFile] = {
     val smallerRegions = regions.filter(r => r.store_type == COLD_PARTITION && r.count < rowsPerRegion)
-    compactRegions(coldPath, smallerRegions, compactTS, rowsPerPartition)
+    // No use compacting a single small region into itself
+    compactRegions(coldPath, if (smallerRegions.length < 2) Seq.empty else smallerRegions, compactTS, rowsPerPartition)
   }
 
   protected def compactRegions(typePath: Path, toCompact: Seq[AuditTableRegionInfo], compactTS: Timestamp, rowsPerPartition: Int): Try[AuditTableFile] = {
     Try {
-      val res = if (toCompact.isEmpty) this else {
+      val res = if (toCompact.isEmpty) new AuditTableFile(this.tableInfo, this.regions, this.storageOps, this.baseFolder, this.newRegionID)
+      else {
         val numOfPartitions = (toCompact.map(_.count).sum / rowsPerPartition).toInt + 1
         val ids = toCompact.map(_.store_region)
         val regionID = newRegionID(this)
@@ -151,7 +160,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
         val data = storageOps.openParquet(typePath)
         val newRegionSet = data.map { rows =>
           val hotRows = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN).coalesce(numOfPartitions)
-          storageOps.atomicWriteAndCleanup(tableInfo.table_name, hotRows, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"))
+          storageOps.atomicWriteAndCleanup(tableInfo.table_name, hotRows, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"), compactTS)
           val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(regionPath).get)
           val idSet = ids.toSet
           val remainingRegions = regions.filter(r => !idSet.contains(r.store_region))

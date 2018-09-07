@@ -1,11 +1,9 @@
 package com.coxautodata.waimak.metastore
 
-import java.sql.{DriverManager, ResultSet}
-
+import java.sql.{Connection, DriverManager, ResultSet}
 import com.coxautodata.waimak.dataflow.DataFlowException
-import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.log.Logging
-import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkConf
 
 /**
@@ -69,10 +67,45 @@ trait JDBCConnector extends DBConnector {
     */
   def jdbcString: String
 
-  override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {
+  /**
+    * Key value pairs passed as connection arguments to the DriverManager during connection
+    */
+  def properties: java.util.Properties
+
+  /**
+    * Key value set of parameters used to get parameter values for JDBC properties
+    * from a secure jceks file at CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH.
+    * First value is the key of the parameter in the jceks file and the second parameter
+    * is the key of the parameter you want in jdbc properties
+    *
+    * @return
+    */
+  def secureProperties: Map[String, String]
+
+  /**
+    * Hadoop configuration object. Used to access secure credentials.
+    */
+  def hadoopConfiguration: Configuration
+
+  private[metastore] def getAllProperties: java.util.Properties = {
+    // Construct new properties and copy over existing to maintain immutability
+    val newProps = new java.util.Properties()
+    newProps.putAll(properties)
+
+    secureProperties.foldLeft(newProps) {
+      case (props, (jcekKey, jdbcKey)) =>
+        props.setProperty(jdbcKey, hadoopConfiguration.getPassword(jcekKey).mkString)
+        props
+    }
+  }
+
+  private def getConnection: Connection = {
     Class.forName(driverName)
-    val connection = DriverManager.getConnection(jdbcString, "", "")
-    val statement = connection.createStatement
+    DriverManager.getConnection(jdbcString, getAllProperties)
+  }
+
+  override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {
+    val statement = getConnection.createStatement
     ddls.map(ddl => {
       logInfo(s"Submitting query to $jdbcString: $ddl")
       val submit = statement.execute(ddl)

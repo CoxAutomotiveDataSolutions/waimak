@@ -1,5 +1,9 @@
 package com.coxautodata.waimak.storage
 
+import java.io.File
+import java.sql.Timestamp
+import java.time.Duration
+
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPerson}
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -35,6 +39,9 @@ class TestFileStorageOpsWithStaging extends SparkAndTmpDirSpec {
   )
 
   describe("ops") {
+
+    val compactTS_1 = new Timestamp(formatter.parse("2018-01-03 00:00").getTime)
+    val compactTS_2 = new Timestamp(formatter.parse("2018-01-03 01:00").getTime)
 
     val tableName = "persons"
 
@@ -83,12 +90,13 @@ class TestFileStorageOpsWithStaging extends SparkAndTmpDirSpec {
       fops.writeParquet(tableName, new Path(tablePath, "p=r3"), r1Data)
 
       val r2Data = persons_2.toDS()
-      fops.atomicWriteAndCleanup(tableName, r2Data, new Path(tablePath, "p=c1"), tablePath, Seq("p=r1", "p=r2"))
+      fops.atomicWriteAndCleanup(tableName, r2Data, new Path(tablePath, "p=c1"), tablePath, Seq("p=r1", "p=r2"), compactTS_1)
 
       val updatedData = fops.openParquet(tablePath).get.groupBy("p").count().collect().map(r => (r.get(0), r.get(1))).toMap
       updatedData should be(Map("c1" -> 3, "r3" -> 5))
 
       val trashData = fops.openParquet(new Path(trashBinPath, tableName)).get.groupBy("p").count().collect().map(r => (r.get(0), r.get(1))).toMap
+      new File(s"${trashBinPath.toString}/$tableName").list() should contain theSameElementsAs Seq(compactTS_1.getTime.toString)
       trashData should be(Map("r1" -> 5, "r2" -> 5))
     }
 
@@ -107,12 +115,13 @@ class TestFileStorageOpsWithStaging extends SparkAndTmpDirSpec {
       fops.writeParquet(tableName, new Path(tablePath, "p=r3"), r1Data)
       fops.writeParquet(tableName, new Path(tablePath, "p=c1"), r1Data)
 
-      fops.atomicWriteAndCleanup(tableName, r2Data, new Path(tablePath, "p=c1"), tablePath, Seq("p=r1", "p=r2"))
+      fops.atomicWriteAndCleanup(tableName, r2Data, new Path(tablePath, "p=c1"), tablePath, Seq("p=r1", "p=r2"), compactTS_1)
 
       val updatedData = fops.openParquet(tablePath).get.groupBy("p").count().collect().map(r => (r.get(0), r.get(1))).toMap
       updatedData should be(Map("c1" -> 3, "r3" -> 5))
 
       val trashData = fops.openParquet(new Path(trashBinPath, tableName)).get.groupBy("p").count().collect().map(r => (r.get(0), r.get(1))).toMap
+      new File(s"${trashBinPath.toString}/$tableName").list() should contain theSameElementsAs Seq(compactTS_1.getTime.toString)
       trashData should be(Map("r1" -> 5, "r2" -> 5))
     }
 
@@ -136,6 +145,35 @@ class TestFileStorageOpsWithStaging extends SparkAndTmpDirSpec {
         .groupBy("extra").count()
         .collect().map(r => (r.get(0), r.get(1))).toMap
       readBack should be(Map(-1 -> 15, 4 -> 3))
+    }
+
+    it("purgeTrash") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val tablePath = new Path(basePath, tableName)
+      val fops = createFops()
+
+      val r1Data = persons.toDS()
+      fops.writeParquet(tableName, new Path(tablePath, "p=r1"), r1Data)
+      fops.writeParquet(tableName, new Path(tablePath, "p=r2"), r1Data)
+      fops.writeParquet(tableName, new Path(tablePath, "p=r3"), r1Data)
+
+      val r2Data = persons_2.toDS()
+      fops.atomicWriteAndCleanup(tableName, r2Data, new Path(tablePath, "p=c1"), tablePath, Seq("p=r1", "p=r2"), compactTS_1)
+
+      val updatedData = fops.openParquet(tablePath).get.groupBy("p").count().collect().map(r => (r.get(0), r.get(1))).toMap
+      updatedData should be(Map("c1" -> 3, "r3" -> 5))
+
+      val trashData = fops.openParquet(new Path(trashBinPath, tableName)).get.groupBy("p").count().collect().map(r => (r.get(0), r.get(1))).toMap
+      new File(s"${trashBinPath.toString}/$tableName").list() should contain theSameElementsAs Seq(compactTS_1.getTime.toString)
+      trashData should be(Map("r1" -> 5, "r2" -> 5))
+
+      fops.purgeTrash(tableName, compactTS_2, Duration.ofHours(1))
+      new File(s"${trashBinPath.toString}/$tableName").list() should contain theSameElementsAs Seq(compactTS_1.getTime.toString)
+
+      fops.purgeTrash(tableName, compactTS_2, Duration.ofMinutes(59))
+      new File(s"${trashBinPath.toString}/$tableName").list() should contain theSameElementsAs Seq()
     }
   }
 
