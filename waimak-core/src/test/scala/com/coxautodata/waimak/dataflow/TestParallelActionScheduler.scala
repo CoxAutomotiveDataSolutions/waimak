@@ -99,7 +99,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
 
     describe("submitAction") {
 
-      it("nothing is running") {
+      it("nothing is running before submitting") {
         val nextScheduler: ParallelActionScheduler[EmptyFlowContext] = emptySchedulerOneThread.submitAction(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, new EmptyFlowContext).asInstanceOf[ParallelActionScheduler[EmptyFlowContext]]
         nextScheduler.pools.size should be(1)
         nextScheduler.pools.get(DEFAULT_POOL_NAME).map(_.running) should be(Some(Set(action1.guid)))
@@ -107,11 +107,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
         nextScheduler.availableExecutionPools() should be(None)
       }
 
-//      it("an input only one action is running") {
-//        val res = schedulerWithAction.waitToFinish()
-//        res.get._1.asInstanceOf[SequentialScheduler[EmptyFlowContext]].toRun should be(None)
-//        res.get._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
-//      }
+      //TODO: figure out a way to test when no slots are available in the Executor
 
     }
 

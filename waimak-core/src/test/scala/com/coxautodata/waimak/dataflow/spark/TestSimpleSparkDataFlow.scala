@@ -729,6 +729,32 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       ex2.cause.getMessage should be("Can only call cacheAsParquet on a Dataset. Label integer_2 is a java.lang.Integer")
     }
   }
+
+  describe("fully parallel") {
+
+    it("smoke test") {
+      val parallelExecutor = Waimak.sparkMultiJobExecutor(10, DFExecutorPriorityStrategies.fastTrackToDAG)
+      val spark = sparkSession
+      import spark.implicits._
+
+      val baseDest = testingBaseDir + "/dest"
+      val flow = Waimak.sparkFlow(spark)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .sql("csv_1")("person_summary", "select id, count(item) as item_cnt, sum(amount) as total from csv_1 group by id")
+        .transform("csv_2", "person_summary")("report") { (l, r) => l.join(r, l("id") === r("id"), "left").drop(r("id")) }
+        .alias("csv_1", "person")
+        .alias("csv_2", "purchase")
+        .show("report")
+        .show("csv_1")
+        .show("csv_2")
+        .show("person_summary")
+        .writeParquet(baseDest, true)("person", "purchase", "report", "person_summary")
+
+      val (executedActions, finalState) = parallelExecutor.execute(flow)
+
+      executedActions.size should be(14) //all actions
+    }
+  }
 }
 
 class TestEmptySparkAction(val inputLabels: List[String], val outputLabels: List[String]) extends SparkDataFlowAction {

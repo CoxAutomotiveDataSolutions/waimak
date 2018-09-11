@@ -51,13 +51,7 @@ trait DataFlowExecutor[C] extends Logging {
                             , actionScheduler: ActionScheduler[C]
                             , successfulActions: Seq[DataFlowAction[C]]
                            ): Try[(Seq[DataFlowAction[C]], DataFlow[C])] = {
-    //(Pool into which to schedule, Action to schedule)
-    val toSchedule: Option[(String, DataFlowAction[C])] = actionScheduler
-      .availableExecutionPools()
-      .flatMap(executionPoolNames => priorityStrategy(actionScheduler.dropRunning(executionPoolNames, currentFlow.nextRunnable(executionPoolNames)))
-        .headOption.map(actionToSchedule => (currentFlow.schedulingMeta.executionPoolName(actionToSchedule), actionToSchedule))
-      )
-    toSchedule match {
+    toSchedule(currentFlow, actionScheduler) match {
       case None if (!actionScheduler.hasRunningActions()) => { //No more actions to schedule and none are running => finish data flow execution
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
         Success((successfulActions, currentFlow))
@@ -82,6 +76,26 @@ trait DataFlowExecutor[C] extends Logging {
         loopExecution(currentFlow, actionScheduler.submitAction(executionPoolName, action, inputEntities, currentFlow.flowContext), successfulActions)
       }
     }
+  }
+
+  /**
+    * Determines which execution pool to schedule in and an action to schedule into it.
+    * Decision depends on:
+    *   1) slots available in the pools
+    *   2) actions available for the pools with slots
+    *   3) priority strategy that will select and change the order of the available actions
+    *
+    * @param currentFlow
+    * @param actionScheduler
+    * @return (Pool into which to schedule, Action to schedule)
+    */
+  protected[dataflow] def toSchedule(currentFlow: DataFlow[C], actionScheduler: ActionScheduler[C]): Option[(String, DataFlowAction[C])] = {
+    val toSchedule: Option[(String, DataFlowAction[C])] = actionScheduler
+      .availableExecutionPools()
+      .flatMap(executionPoolNames => priorityStrategy(actionScheduler.dropRunning(executionPoolNames, currentFlow.nextRunnable(executionPoolNames)))
+        .headOption.map(actionToSchedule => (currentFlow.schedulingMeta.executionPoolName(actionToSchedule), actionToSchedule))
+      )
+    toSchedule
   }
 
   /**
