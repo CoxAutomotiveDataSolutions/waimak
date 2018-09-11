@@ -30,27 +30,21 @@ trait DataFlowExecutor[C] extends Logging {
     */
   def flowReporter: FlowReporter[C]
 
-  def priorityStrategy: DFExecutorPriorityStrategies.priorityStrategy[C]
-
-  def initActionScheduler(): ActionScheduler[C]
-
   /**
-    * Execute the action by calling it's performAction function and unpack the result.
+    * A complex data flow has lots of parallel, diverging and converging actions, lots of the actions could be started
+    * in parallel, but certain actions if started earlier could lead to quicker end to end execution of all of the
+    * flows and various strategies could lead to it. This strategy will always be applied to a set of actions to schedule
+    * regardless of the scheduler implementation.
     *
-    * @param action        Action to be performed
-    * @param inputEntities Inputs for the actions
-    * @param flowContext   Context of the dataflow
     * @return
     */
-  def executeAction(action: DataFlowAction[C], inputEntities: DataFlowEntities, flowContext: C): ActionResult = {
-    flowReporter.reportActionStarted(action, flowContext)
-    action.performAction(inputEntities, flowContext) match {
-      case Success(v) =>
-        flowReporter.reportActionFinished(action, flowContext)
-        v
-      case Failure(e) => throw new DataFlowException(s"Exception performing action: ${action.logLabel}", e)
-    }
-  }
+  def priorityStrategy: DFExecutorPriorityStrategies.priorityStrategy[C]
+
+  /**
+    * Initialises action scheduler.
+    * @return
+    */
+  def initActionScheduler(): ActionScheduler[C]
 
   @tailrec
   private def loopExecution(currentFlow: DataFlow[C]
@@ -64,12 +58,12 @@ trait DataFlowExecutor[C] extends Logging {
         .headOption.map(actionToSchedule => (currentFlow.schedulingMeta.executionPoolName(actionToSchedule), actionToSchedule))
       )
     toSchedule match {
-      case None if (!actionScheduler.hasRunningActions()) => {
+      case None if (!actionScheduler.hasRunningActions()) => { //No more actions to schedule and none are running => finish data flow execution
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
         Success((successfulActions, currentFlow))
       }
       case None => {
-        actionScheduler.waitToFinish() match {
+        actionScheduler.waitToFinish() match { // nothing to schedule, in order to continue need to wait for some running actions to finish to unlock other actions
           case Success((newScheduler, actionResults)) => {
             processActionResults(actionResults, currentFlow, successfulActions) match {
               case Success((newFlow, newSuccessfulActions)) => loopExecution(newFlow, newScheduler, newSuccessfulActions)
@@ -80,7 +74,7 @@ trait DataFlowExecutor[C] extends Logging {
         }
       }
       case Some((executionPoolName, action)) => {
-        //submit action for execution
+        //submit action for execution aka to schedule
         flowReporter.reportActionStarted(action, currentFlow.flowContext)
         val inputEntities: DataFlowEntities = {
           currentFlow.inputs.filterLabels(action.inputLabels)
@@ -91,9 +85,10 @@ trait DataFlowExecutor[C] extends Logging {
   }
 
   /**
+    * Marks actions as processed in the data flow and if all were successful return new state of the data flow.
     *
-    * @param actionResults
-    * @param currentFlow
+    * @param actionResults              Success or Failure of multiple actions
+    * @param currentFlow                Flow in which to mark actions as successful
     * @param successfulActionsUntilNow
     * @return                   Success((new state of the flow, appended list of successful actions)), Failure will be returned
     *                           if at least one action in the actionResults has failed

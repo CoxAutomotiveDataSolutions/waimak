@@ -57,6 +57,12 @@ trait ActionScheduler[C] {
 
 }
 
+/**
+  * Executes only one action at a time.
+  *
+  * @param toRun
+  * @tparam C
+  */
 class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntities, C)])
   extends ActionScheduler[C] with Logging {
 
