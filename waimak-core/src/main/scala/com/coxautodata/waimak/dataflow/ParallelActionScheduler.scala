@@ -26,9 +26,13 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
   type futureResult = (String, actionType, Try[ActionResult])
 
   override def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = {
+    logInfo("dropRunning from:")
+    from.foreach(a => logInfo(a.schedulingGuid + " " + a.logLabel)) //DEBUG msgs, to remove after investigations
     if (from.isEmpty) from
     else {
       val running = pools.filterKeys(poolNames.contains).values.flatMap(_.running).toSet
+      logInfo("dropRunning running:")
+      running.foreach(a => logInfo("running: " + a)) //DEBUG msgs, to remove after investigations
       from.filter(a => !running.contains(a.schedulingGuid))
     }
   }
@@ -52,6 +56,8 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
       logInfo(s"No more waiting for an action. ${finished.isDefined}")
       finished.map { rSet =>
         val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet)
+        logInfo("waitToFinish:")
+        poolActionGuids.foreach(kv => logInfo("waitToFinish finished: " + kv._1 + " " + kv._2.mkString("[", ",", "]")))
         val newPools = poolActionGuids.foldLeft(pools) { (newPools, kv) =>
           val newPoolDesc = newPools(kv._1).removeActionGUIDS(kv._2)
           newPools + (kv._1 -> newPoolDesc)
@@ -65,7 +71,7 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
   }
 
   override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C] = {
-    logInfo("Submitting Action: " + poolName + " : " + action.logLabel)
+    logInfo("Submitting Action: " + poolName + " : " + action.schedulingGuid + " : " + action.logLabel)
     val poolDesc = pools.getOrElse(poolName, ExecutionPoolDesc(poolName, 1, Set.empty, ExecutionContext.fromExecutor(Executors.newFixedThreadPool(3))))
     val ft = Future[futureResult] {
       logInfo("Executing action " + actionFinishedNotificationQueue.size() + " " + action.logLabel)
@@ -75,11 +81,16 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
       actionFinishedNotificationQueue.offer(res)
       res
     }(poolDesc.threadsExecutor)
+    logInfo("Submitted to Pool Action: " + poolName + " : " + action.schedulingGuid + " : " +  action.logLabel)
     val newPoolDesc = poolDesc.addActionGUID(action.schedulingGuid)
     new ParallelActionScheduler(pools + (poolName -> newPoolDesc), actionFinishedNotificationQueue, poolIntoContext)
   }
 
-  override def availableExecutionPools(): Option[Set[String]] = Option(pools.filter(kv => kv._2.running.size < kv._2.maxJobs).keySet).filter(_.nonEmpty)
+  override def availableExecutionPools(): Option[Set[String]] = {
+    val res = Option(pools.filter(kv => kv._2.running.size < kv._2.maxJobs).keySet).filter(_.nonEmpty)
+    logInfo("availableExecutionPools: " + res.map(_.mkString("[", ",", "]")))
+    res
+  }
 
 }
 
