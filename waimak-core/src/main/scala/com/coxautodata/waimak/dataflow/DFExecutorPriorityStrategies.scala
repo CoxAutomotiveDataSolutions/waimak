@@ -17,7 +17,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def defaultPriorityStrategy[C] = doNothing[C]
+  def defaultPriorityStrategy[C]: PartialFunction[actionQueue[C], actionQueue[C]] = doNothing[C]
 
   /**
     * Preserves the order of the actions in which they are defined, but at first will give preference to loaders. If
@@ -26,7 +26,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def preferLoaders[C] = takeLoaders[C] orElse doNothing[C]
+  def preferLoaders[C]: PartialFunction[actionQueue[C], actionQueue[C]] = takeLoaders[C] orElse doNothing[C]
 
   /**
     * With Spark, waimak writers would usually force execution of the DAG and will produce outputs, while other waimak actions
@@ -37,7 +37,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def fastTrackToDAG[C] = takeWriters[C] orElse takeWithInputs[C] orElse doNothing[C]
+  def fastTrackToDAG[C]: PartialFunction[actionQueue[C], actionQueue[C]] = takeWriters[C] orElse takeWithInputs[C] orElse doNothing[C]
 
   /**
     * In order to race to actions that execute Spark DAG faster, it is needed to schedule certain actions earlier, regardless
@@ -49,9 +49,9 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def fastTrackToDAGAndThanSort[C](orderedLabels: Seq[String]) = fastTrackToDAG[C] andThen sortByOutputLabel[C](orderedLabels)
+  def fastTrackToDAGAndThanSort[C](orderedLabels: Seq[String]): PartialFunction[actionQueue[C], actionQueue[C]] = fastTrackToDAG[C] andThen sortByOutputLabel[C](orderedLabels)
 
-  def takeWriters[C] = new PartialFunction[actionQueue[C], actionQueue[C]] {
+  def takeWriters[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
 
     override def isDefinedAt(x: actionQueue[C]): Boolean = x.exists(_.outputLabels.isEmpty)
 
@@ -59,7 +59,7 @@ object DFExecutorPriorityStrategies {
 
   }
 
-  def takeLoaders[C] = new PartialFunction[actionQueue[C], actionQueue[C]] {
+  def takeLoaders[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
 
     override def isDefinedAt(x: actionQueue[C]): Boolean = x.exists(_.inputLabels.isEmpty)
 
@@ -67,7 +67,7 @@ object DFExecutorPriorityStrategies {
 
   }
 
-  def takeWithInputs[C] = new PartialFunction[actionQueue[C], actionQueue[C]] {
+  def takeWithInputs[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
 
     override def isDefinedAt(x: actionQueue[C]): Boolean = x.exists(_.inputLabels.nonEmpty)
 
@@ -75,7 +75,7 @@ object DFExecutorPriorityStrategies {
 
   }
 
-  def doNothing[C] = new PartialFunction[actionQueue[C], actionQueue[C]] {
+  def doNothing[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
 
     override def isDefinedAt(x: actionQueue[C]): Boolean = true
 
@@ -83,15 +83,15 @@ object DFExecutorPriorityStrategies {
 
   }
 
-  def sortByOutputLabel[C](orderedLabels: Seq[String]) = new PartialFunction[actionQueue[C], actionQueue[C]] {
+  def sortByOutputLabel[C](orderedLabels: Seq[String]): PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
 
-    val labelsPos = orderedLabels.zipWithIndex.toMap
+    val labelsPos: Map[String, Int] = orderedLabels.zipWithIndex.toMap
 
     override def isDefinedAt(x: actionQueue[C]): Boolean = orderedLabels.nonEmpty && !x.exists(_.outputLabels.isEmpty)
 
     override def apply(v1: actionQueue[C]): actionQueue[C] = if (v1.isEmpty) v1 else {
-      val parts = v1.partition(a => a.outputLabels.exists(labelsPos.contains(_)))
-      val sortedPart = parts._1.map(a => (a, a.outputLabels.filter(labelsPos.contains(_)).map(labelsPos(_)).min)).sortWith(_._2 < _._2).map(_._1)
+      val parts = v1.partition(a => a.outputLabels.exists(labelsPos.contains))
+      val sortedPart = parts._1.map(a => (a, a.outputLabels.filter(labelsPos.contains).map(labelsPos(_)).min)).sortWith(_._2 < _._2).map(_._1)
       sortedPart ++ parts._2
     }
 

@@ -16,7 +16,6 @@
 
 package com.coxautodata.waimak.dataflow
 
-import com.coxautodata.waimak.ParallelDataFlowExecutor
 import com.coxautodata.waimak.dataflow.spark.{SimpleSparkDataFlow, SparkDataFlow, SparkFlowContext, SparkFlowReporter}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession

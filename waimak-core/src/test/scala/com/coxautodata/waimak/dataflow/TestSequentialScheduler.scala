@@ -53,11 +53,11 @@ class TestSequentialScheduler extends FunSpec with Matchers {
   describe("SequentialScheduler.hasRunningActions") {
 
     it("nothing is running") {
-      emptyScheduler.hasRunningActions() should be(false)
+      emptyScheduler.hasRunningActions should be(false)
     }
 
     it("an action is running") {
-      schedulerWithAction.hasRunningActions() should be(true)
+      schedulerWithAction.hasRunningActions should be(true)
     }
 
   }

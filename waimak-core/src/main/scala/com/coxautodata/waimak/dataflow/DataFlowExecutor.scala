@@ -42,6 +42,7 @@ trait DataFlowExecutor[C] extends Logging {
 
   /**
     * Initialises action scheduler.
+    *
     * @return
     */
   def initActionScheduler(): ActionScheduler[C]
@@ -52,10 +53,9 @@ trait DataFlowExecutor[C] extends Logging {
                             , successfulActions: Seq[DataFlowAction[C]]
                            ): Try[(Seq[DataFlowAction[C]], DataFlow[C])] = {
     toSchedule(currentFlow, actionScheduler) match {
-      case None if (!actionScheduler.hasRunningActions()) => { //No more actions to schedule and none are running => finish data flow execution
+      case None if !actionScheduler.hasRunningActions => //No more actions to schedule and none are running => finish data flow execution
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
         Success((successfulActions, currentFlow))
-      }
       case None => {
         actionScheduler.waitToFinish() match { // nothing to schedule, in order to continue need to wait for some running actions to finish to unlock other actions
           case Success((newScheduler, actionResults)) => {
@@ -81,9 +81,9 @@ trait DataFlowExecutor[C] extends Logging {
   /**
     * Determines which execution pool to schedule in and an action to schedule into it.
     * Decision depends on:
-    *   1) slots available in the pools
-    *   2) actions available for the pools with slots
-    *   3) priority strategy that will select and change the order of the available actions
+    * 1) slots available in the pools
+    * 2) actions available for the pools with slots
+    * 3) priority strategy that will select and change the order of the available actions
     *
     * @param currentFlow
     * @param actionScheduler
@@ -101,17 +101,17 @@ trait DataFlowExecutor[C] extends Logging {
   /**
     * Marks actions as processed in the data flow and if all were successful return new state of the data flow.
     *
-    * @param actionResults              Success or Failure of multiple actions
-    * @param currentFlow                Flow in which to mark actions as successful
+    * @param actionResults Success or Failure of multiple actions
+    * @param currentFlow   Flow in which to mark actions as successful
     * @param successfulActionsUntilNow
-    * @return                   Success((new state of the flow, appended list of successful actions)), Failure will be returned
-    *                           if at least one action in the actionResults has failed
+    * @return Success((new state of the flow, appended list of successful actions)), Failure will be returned
+    *         if at least one action in the actionResults has failed
     */
   private[dataflow] def processActionResults(actionResults: Seq[(DataFlowAction[C], Try[ActionResult])]
                                              , currentFlow: DataFlow[C]
                                              , successfulActionsUntilNow: Seq[DataFlowAction[C]]): Try[(DataFlow[C], Seq[DataFlowAction[C]])] = {
     val (success, failed) = actionResults.partition(_._2.isSuccess)
-    val res = success.foldLeft( (currentFlow, successfulActionsUntilNow) ) { (res, actionRes) =>
+    val res = success.foldLeft((currentFlow, successfulActionsUntilNow)) { (res, actionRes) =>
       val action = actionRes._1
       flowReporter.reportActionFinished(action, currentFlow.flowContext)
       val nextFlow = res._1.executed(action, actionRes._2.get)
@@ -120,14 +120,12 @@ trait DataFlowExecutor[C] extends Logging {
     if (failed.isEmpty) {
       Success(res)
     } else {
-      failed.foreach{ t =>
+      failed.foreach { t =>
         // TODO: maybe add to flowReporter info about failed actions
         logError("Failed Action " + t._1.logLabel + " " + t._2.failed)
       }
       failed.head._2.asInstanceOf[Try[(DataFlow[C], Seq[DataFlowAction[C]])]]
       Failure(throw new DataFlowException(s"Exception performing action: ${failed.head._1.logLabel}", failed.head._2.failed.get))
-//      val failedAction = failed.head._1
-//      Failure(new DataFlowException(s"Exception performing action: ${failedAction.logLabel}", failed.head._2.failed.get)) //:face_palm:
     }
   }
 

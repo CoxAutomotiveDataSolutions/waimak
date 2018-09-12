@@ -1,11 +1,10 @@
-package com.coxautodata.waimak
+package com.coxautodata.waimak.dataflow
 
-import com.coxautodata.waimak.dataflow._
+import com.coxautodata.waimak.dataflow.DFExecutorPriorityStrategies._
 import com.coxautodata.waimak.log.Logging
-import DFExecutorPriorityStrategies._
 
-class ParallelDataFlowExecutor[C](val scheduler: ParallelActionScheduler[C],
-                                  override val flowReporter: FlowReporter[C]
+class ParallelDataFlowExecutor[C](val scheduler: ParallelActionScheduler[C]
+                                  , override val flowReporter: FlowReporter[C]
                                   , override val priorityStrategy: priorityStrategy[C])
   extends DataFlowExecutor[C] with Logging {
 

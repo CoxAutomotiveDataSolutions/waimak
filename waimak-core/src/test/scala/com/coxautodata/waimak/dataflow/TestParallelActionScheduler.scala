@@ -62,11 +62,11 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
     describe("hasRunningActions") {
 
       it("nothing is running") {
-        emptySchedulerOneThread.hasRunningActions() should be(false)
+        emptySchedulerOneThread.hasRunningActions should be(false)
       }
 
       it("an action is running") {
-        dummyBusySchedulerOneThread.hasRunningActions() should be(true)
+        dummyBusySchedulerOneThread.hasRunningActions should be(true)
       }
 
     }
@@ -103,7 +103,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
         val nextScheduler: ParallelActionScheduler[EmptyFlowContext] = emptySchedulerOneThread.submitAction(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, new EmptyFlowContext).asInstanceOf[ParallelActionScheduler[EmptyFlowContext]]
         nextScheduler.pools.size should be(1)
         nextScheduler.pools.get(DEFAULT_POOL_NAME).map(_.running) should be(Some(Set(action1.guid)))
-        nextScheduler.hasRunningActions() should be(true)
+        nextScheduler.hasRunningActions should be(true)
         nextScheduler.availableExecutionPools() should be(None)
       }
 

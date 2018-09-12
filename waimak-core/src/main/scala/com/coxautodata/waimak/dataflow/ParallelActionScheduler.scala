@@ -28,27 +28,27 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
   override def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = {
     if (from.isEmpty) from
     else {
-      val running = pools.filterKeys(poolNames.contains(_)).values.flatMap(_.running).toSet
+      val running = pools.filterKeys(poolNames.contains).values.flatMap(_.running).toSet
       from.filter(a => !running.contains(a.schedulingGuid))
     }
   }
 
-  override def hasRunningActions(): Boolean = pools.exists(kv => kv._2.running.nonEmpty)
+  override def hasRunningActions: Boolean = pools.exists(kv => kv._2.running.nonEmpty)
 
   override def waitToFinish(): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])] = {
     Try {
       var finished: Option[Seq[futureResult]] = None
       do {
         val runningActionsCount = pools.map(_._2.running.size).sum
-        logInfo(s"Waiting for an action to finish to continue. Running actions: ${runningActionsCount}")
+        logInfo(s"Waiting for an action to finish to continue. Running actions: $runningActionsCount")
         finished = Option(actionFinishedNotificationQueue.poll(1, TimeUnit.SECONDS))
-            .map { oneAction =>
-              //optimistic attempt to get results for more actions without blocking
-              val bucket = new util.LinkedList[futureResult]()
-              actionFinishedNotificationQueue.drainTo(bucket, 1000)
-              bucket.asScala :+ oneAction
-            }
-      } while (!finished.isDefined)
+          .map { oneAction =>
+            //optimistic attempt to get results for more actions without blocking
+            val bucket = new util.LinkedList[futureResult]()
+            actionFinishedNotificationQueue.drainTo(bucket, 1000)
+            bucket.asScala :+ oneAction
+          }
+      } while (finished.isEmpty)
       logInfo(s"No more waiting for an action. ${finished.isDefined}")
       finished.map { rSet =>
         val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet)
@@ -58,11 +58,10 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
         }
         (new ParallelActionScheduler(newPools, actionFinishedNotificationQueue, poolIntoContext), rSet.map(r => (r._2, r._3)))
       }
-    }.flatMap(_ match {
+    }.flatMap {
       case Some(r) => Success(r)
       case _ => Failure(new DataFlowException(s"Something when wrong!!! Not sure what happend."))
     }
-    )
   }
 
   override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C] = {

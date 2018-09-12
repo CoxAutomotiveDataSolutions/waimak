@@ -34,7 +34,7 @@ trait ActionScheduler[C] {
     *
     * @return
     */
-  def hasRunningActions(): Boolean
+  def hasRunningActions: Boolean
 
   /**
     * Locks and waits for at least one action to finish running, can return more than one action if they have finished and
@@ -73,7 +73,7 @@ class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntit
 
   override def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = toRun.fold(from)(r => from.filterNot(_.guid == r._1.guid))
 
-  override def hasRunningActions(): Boolean = toRun.isDefined
+  override def hasRunningActions: Boolean = toRun.isDefined
 
   override def waitToFinish(): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])] = {
     logInfo("waitToFinish " + toRun.fold("None")(e => e._1.logLabel))
