@@ -733,7 +733,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
   describe("fully parallel") {
 
     it("smoke test") {
-      val parallelExecutor = Waimak.sparkMultiJobExecutor(10, DFExecutorPriorityStrategies.fastTrackToDAG)
+      val parallelExecutor = Waimak.sparkMultiJobExecutor(10, DFExecutorPriorityStrategies.raceToOutputs)
       val spark = sparkSession
       import spark.implicits._
 

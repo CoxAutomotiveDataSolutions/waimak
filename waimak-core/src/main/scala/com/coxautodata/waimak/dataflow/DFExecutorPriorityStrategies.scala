@@ -37,7 +37,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def fastTrackToDAG[C]: PartialFunction[actionQueue[C], actionQueue[C]] = takeWriters[C] orElse takeWithInputs[C] orElse doNothing[C]
+  def raceToOutputs[C]: PartialFunction[actionQueue[C], actionQueue[C]] = takeWriters[C] orElse takeWithInputs[C] orElse doNothing[C]
 
   /**
     * In order to race to actions that execute Spark DAG faster, it is needed to schedule certain actions earlier, regardless
@@ -49,7 +49,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def fastTrackToDAGAndThanSort[C](orderedLabels: Seq[String]): PartialFunction[actionQueue[C], actionQueue[C]] = fastTrackToDAG[C] andThen sortByOutputLabel[C](orderedLabels)
+  def fastTrackToDAGAndThanSort[C](orderedLabels: Seq[String]): PartialFunction[actionQueue[C], actionQueue[C]] = raceToOutputs[C] andThen sortByOutputLabel[C](orderedLabels)
 
   def takeWriters[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
 

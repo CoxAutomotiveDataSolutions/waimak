@@ -305,9 +305,9 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.executionPool("p2") { _.addAction(action_2) }
         }
 
-      flow.schedulingMeta.actionExecutionPools.size should be(2)
-      flow.schedulingMeta.actionExecutionPools(action_1.schedulingGuid) should be("p1")
-      flow.schedulingMeta.actionExecutionPools(action_2.schedulingGuid) should be("p2")
+      flow.schedulingMeta.actionState.size should be(2)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("p1")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("p2")
 
       val res = flow.nextRunnable(Set("p1"))
       res.size should be(1)
@@ -871,11 +871,11 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
                     .addAction(action_3)
                     .addAction(action_4)
 
-      flow.schedulingMeta.actionExecutionPools.size should be(4)
-      flow.schedulingMeta.actionExecutionPools(action_1.schedulingGuid) should be(DEFAULT_POOL_NAME)
-      flow.schedulingMeta.actionExecutionPools(action_2.schedulingGuid) should be(DEFAULT_POOL_NAME)
-      flow.schedulingMeta.actionExecutionPools(action_3.schedulingGuid) should be(DEFAULT_POOL_NAME)
-      flow.schedulingMeta.actionExecutionPools(action_4.schedulingGuid) should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState.size should be(4)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
 
       val runnable = flow.nextRunnable(Set(DEFAULT_POOL_NAME))
       runnable.size should be(3)
@@ -892,11 +892,11 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addAction(action_4)
         .addInterceptor(post, action_2.guid)
 
-      flow.schedulingMeta.actionExecutionPools.size should be(4)
-      flow.schedulingMeta.actionExecutionPools(action_1.schedulingGuid) should be(DEFAULT_POOL_NAME)
-      flow.schedulingMeta.actionExecutionPools(action_2.schedulingGuid) should be(DEFAULT_POOL_NAME)
-      flow.schedulingMeta.actionExecutionPools(action_3.schedulingGuid) should be(DEFAULT_POOL_NAME)
-      flow.schedulingMeta.actionExecutionPools(action_4.schedulingGuid) should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState.size should be(4)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
     }
 
     it("non default execution pool") {
@@ -909,11 +909,11 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           .addAction(action_4)
       }
 
-      flow.schedulingMeta.actionExecutionPools.size should be(4)
-      flow.schedulingMeta.actionExecutionPools(action_1.schedulingGuid) should be("first_pool")
-      flow.schedulingMeta.actionExecutionPools(action_2.schedulingGuid) should be("first_pool")
-      flow.schedulingMeta.actionExecutionPools(action_3.schedulingGuid) should be("first_pool")
-      flow.schedulingMeta.actionExecutionPools(action_4.schedulingGuid) should be("first_pool")
+      flow.schedulingMeta.actionState.size should be(4)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be("first_pool")
 
       flow.nextRunnable(Set(DEFAULT_POOL_NAME)).isEmpty should be(true)
       val runnable = flow.nextRunnable(Set("first_pool")).map(_.schedulingGuid)
@@ -936,11 +936,11 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
             _.addAction(action_4)
           }
 
-        flow.schedulingMeta.actionExecutionPools.size should be(4)
-        flow.schedulingMeta.actionExecutionPools(action_1.schedulingGuid) should be(DEFAULT_POOL_NAME)
-        flow.schedulingMeta.actionExecutionPools(action_2.schedulingGuid) should be(DEFAULT_POOL_NAME)
-        flow.schedulingMeta.actionExecutionPools(action_3.schedulingGuid) should be(DEFAULT_POOL_NAME)
-        flow.schedulingMeta.actionExecutionPools(action_4.schedulingGuid) should be("first_pool")
+        flow.schedulingMeta.actionState.size should be(4)
+        flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+        flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+        flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+        flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be("first_pool")
       }
     }
 
@@ -953,11 +953,11 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         }
         .addAction(action_4)
 
-      flow.schedulingMeta.actionExecutionPools.size should be(4)
-      flow.schedulingMeta.actionExecutionPools(action_1.schedulingGuid) should be("first_pool")
-      flow.schedulingMeta.actionExecutionPools(action_2.schedulingGuid) should be("first_pool")
-      flow.schedulingMeta.actionExecutionPools(action_3.schedulingGuid) should be("first_pool")
-      flow.schedulingMeta.actionExecutionPools(action_4.schedulingGuid) should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState.size should be(4)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
     }
 
     it("nested pools") {
@@ -972,12 +972,12 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
       }.addAction(action_4)
 
-      flow.schedulingMeta.actionExecutionPools.size should be(5)
-      flow.schedulingMeta.actionExecutionPools(action_1.schedulingGuid) should be("first_pool")
-      flow.schedulingMeta.actionExecutionPools(action_2.schedulingGuid) should be("second_pool")
-      flow.schedulingMeta.actionExecutionPools(action_3.schedulingGuid) should be("third_pool")
-      flow.schedulingMeta.actionExecutionPools(action_4.schedulingGuid) should be(DEFAULT_POOL_NAME)
-      flow.schedulingMeta.actionExecutionPools(action_5.schedulingGuid) should be("first_pool")
+      flow.schedulingMeta.actionState.size should be(5)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("second_pool")
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be("third_pool")
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_5.schedulingGuid).executionPoolName should be("first_pool")
 
       val allPools = flow.nextRunnable(Set(DEFAULT_POOL_NAME, "first_pool", "second_pool", "third_pool")).map(_.schedulingGuid)
       allPools.size should be(3)
@@ -1006,12 +1006,12 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
       }.addAction(action_4)
 
-      flow.schedulingMeta.actionExecutionPools.size should be(5)
-      flow.schedulingMeta.actionExecutionPools(action_1.schedulingGuid) should be("first_pool")
-      flow.schedulingMeta.actionExecutionPools(action_2.schedulingGuid) should be("second_pool")
-      flow.schedulingMeta.actionExecutionPools(action_3.schedulingGuid) should be("third_pool")
-      flow.schedulingMeta.actionExecutionPools(action_4.schedulingGuid) should be(DEFAULT_POOL_NAME)
-      flow.schedulingMeta.actionExecutionPools(action_5.schedulingGuid) should be("first_pool")
+      flow.schedulingMeta.actionState.size should be(5)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("second_pool")
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be("third_pool")
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_5.schedulingGuid).executionPoolName should be("first_pool")
 
       val allPools = flow.nextRunnable(Set(DEFAULT_POOL_NAME, "first_pool", "second_pool", "third_pool")).map(_.schedulingGuid)
       allPools.size should be(2)
