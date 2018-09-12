@@ -42,7 +42,7 @@ trait ActionScheduler[C] {
     *
     * @return
     */
-  def waitToFinish(): Try[ (ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])]) ]
+  def waitToFinish(): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])]
 
   /**
     * Submits action into the specified execution pool.
@@ -88,7 +88,7 @@ class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntit
 
   override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C] = {
     logInfo("submitAction " + action.logLabel)
-    new SequentialScheduler[C](Some((action, entities, flowContext)) )
+    new SequentialScheduler[C](Some((action, entities, flowContext)))
   }
 
 }
