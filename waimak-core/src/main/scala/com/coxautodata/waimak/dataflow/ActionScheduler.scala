@@ -55,6 +55,8 @@ trait ActionScheduler[C] {
     */
   def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C]
 
+  def shutDown(): Try[Unit]
+
 }
 
 /**
@@ -90,5 +92,7 @@ class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntit
     logInfo("submitAction " + action.logLabel)
     new SequentialScheduler[C](Some((action, entities, flowContext)))
   }
+
+  override def shutDown(): Try[Unit] = Success(())
 
 }

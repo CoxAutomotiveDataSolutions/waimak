@@ -15,7 +15,7 @@ class SequentialDataFlowExecutor[C](override val flowReporter: FlowReporter[C]
                                        , override val priorityStrategy: Seq[DataFlowAction[C]] => Seq[DataFlowAction[C]])
   extends DataFlowExecutor[C] with Logging {
 
-  override def initActionScheduler(): ActionScheduler[C] = new SequentialScheduler[C](None)
+  override def actionScheduler(): ActionScheduler[C] = new SequentialScheduler[C](None)
 }
 
 
