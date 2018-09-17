@@ -2,6 +2,7 @@ package com.coxautodata.waimak.storage
 
 import java.io.File
 import java.sql.Timestamp
+import java.time.Duration
 
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPersonEvolved}
@@ -57,6 +58,9 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
   val compactTS_1 = new Timestamp(formatter.parse("2018-01-03 00:00").getTime)
   val t1 = new Timestamp(formatter.parse("2018-01-01 10:00").getTime)
   val t2 = new Timestamp(formatter.parse("2018-01-01 10:01").getTime)
+
+  val d3d = Duration.ofDays(3)
+  val d12h = Duration.ofHours(12)
 
   describe("ops") {
 
@@ -204,18 +208,18 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val onlyColdRegion_empty = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
       onlyColdRegion_empty should be(Seq.empty)
 
-      val compactedTable = table_s2.compact(lastTS_3).get
+      val compactedTable = table_s2.compact(lastTS_3, d3d).get
 
       val onlyColdRegion = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
-      onlyColdRegion should be(Seq(AuditTableRegionInfo("person", "cold", "4", lastTS_3, false, 8, lastTS_2)))
+      onlyColdRegion should be(Seq(AuditTableRegionInfo("person", "cold", "3", lastTS_3, false, 8, lastTS_2)))
 
       val (table_s31, cs3) = compactedTable.append(r3Data, lastUpdated(r3Data), lastTS_3).get
       val table_s3 = table_s31.asInstanceOf[AuditTableFile]
       cs3 should be(3)
 
       table_s3.regions.size should be(2)
-      table_s3.regions(0).store_region should be("4") // first compaction would re-compact first cold again
-      table_s3.regions(1).store_region should be("5")
+      table_s3.regions(0).store_region should be("3") // The cold region would not be recompacted again
+      table_s3.regions(1).store_region should be("4")
 
       val cold = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
       cold.map(_.store_type) should be(Seq("cold"))
@@ -223,9 +227,28 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val coldHot = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), true).sortBy(_.store_region)
       coldHot.map(_.store_type).sorted should be(Seq("cold", "hot"))
 
-      val secondCompact = table_s3.compact(lastTS_3).get
+      // Should be one trashed compaction
+      new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_3.getTime.toString)
+
+      val secondCompact = table_s3.compact(lastTS_4, d12h).get
       secondCompact.regions.size should be(1)
-      secondCompact.regions(0).store_region should be("7")
+      secondCompact.regions(0).store_region should be("6")
+
+      // Should be a different trashed compaction, original one would be deleted
+      new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_4.getTime.toString)
+
+      // Empty compaction with previous in range should not delete trash
+      val thirdCompact = secondCompact.compact(lastTS_5, d3d).get
+      thirdCompact.regions.size should be(1)
+      thirdCompact.regions(0).store_region should be("6")
+      new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_4.getTime.toString)
+
+      // Empty compaction with previous not in range should delete trash
+      val fourthCompact = thirdCompact.compact(lastTS_6, d12h).get
+      fourthCompact.regions.size should be(1)
+      fourthCompact.regions(0).store_region should be("6")
+      new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq()
+
     }
 
     it("single compact into new with schema evolution on hot") {
@@ -243,20 +266,20 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       table_s2.regions(0).store_region should be("0")
       table_s2.regions(1).store_region should be("1")
 
-      val compacted_table = table_s2.compact(compactTS_1).get
+      val compacted_table = table_s2.compact(compactTS_1, d3d).get
       compacted_table.regions.size should be(1)
       compacted_table.regions(0).count should be(8)
       compacted_table.regions(0).store_type should be("cold")
       compacted_table.regions(0).created_on should be(compactTS_1)
       compacted_table.regions(0).is_deprecated should be(false)
       compacted_table.regions(0).max_last_updated should be(lastTS_2)
-      compacted_table.regions(0).store_region should be("3") //first hot will be compacted into cold and cold re-compacted again
+      compacted_table.regions(0).store_region should be("2") //first hot will be compacted into cold, cold will not be re-compacted
 
       compacted_table.getLatestTimestamp() should be(Some(lastTS_2))
 
       //Nothing in the hot partitions
       (new File(s"${basePath.toString}/person/de_store_type=hot")).list().length should be(0)
-      val compactedPath_1 = new File(s"${basePath.toString}/person/de_store_type=cold/de_store_region=3")
+      val compactedPath_1 = new File(s"${basePath.toString}/person/de_store_type=cold/de_store_region=2")
 
       //Testing compacted data
       val compacted_1 = spark.read.parquet(compactedPath_1.toString)
@@ -266,11 +289,11 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       lastCount should be(Map(lastTS_1 -> 5, lastTS_2 -> 3))
       compacted_1.orderBy($"id", $"_de_last_updated").as[TPersonEvolved].collect() should be(persons_evolved_compacted_1.sortBy(r => (r.id, r.lastTS)))
 
-      val trashFolder = new File(s"${trashBinPath.toString}/person") //cold or hot is not carried over, just region ids
-      trashFolder.list().sorted should be(Array("de_store_region=0", "de_store_region=1", "de_store_region=2"))
+      val trashFolder = new File(s"${trashBinPath.toString}/person/${compactTS_1.getTime.toString}") //cold or hot is not carried over, just region ids
+      trashFolder.list().sorted should be(Array("de_store_region=0", "de_store_region=1"))
 
       val inferredRegions = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName))
-      inferredRegions should be(Seq(AuditTableRegionInfo("person", "cold", "3", compactTS_1, false, 8, lastTS_2)))
+      inferredRegions should be(Seq(AuditTableRegionInfo("person", "cold", "2", compactTS_1, false, 8, lastTS_2)))
     }
 
     it("fail to append twice") {
@@ -302,14 +325,14 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val finalPerson = person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2))
+        .flatMap(_._1.compact(lastTS_2, d3d))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
         .get._1.asInstanceOf[AuditTableFile]
 
       val inferredCachedRegions = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq("prsn"), true)
       inferredCachedRegions should contain theSameElementsAs Seq(
-        AuditTableRegionInfo("prsn", "cold", "3", lastTS_2, false, 8, lastTS_2),
-        AuditTableRegionInfo("prsn", "hot", "4", lastTS_3, false, 3, lastTS_3))
+        AuditTableRegionInfo("prsn", "cold", "2", lastTS_2, false, 8, lastTS_2),
+        AuditTableRegionInfo("prsn", "hot", "3", lastTS_3, false, 3, lastTS_3))
 
       val fs = FileSystem.getLocal(sparkSession.sparkContext.hadoopConfiguration)
       val prsnCachePath = new Path(new Path(basePath, AuditTableFile.REGION_INFO_DIRECTORY), "prsn")
@@ -321,18 +344,18 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
       val inferredAllRegions = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq("prsn"), true)
       inferredAllRegions should contain theSameElementsAs Seq(
-        AuditTableRegionInfo("prsn", "cold", "3", lowTimestamp, false, 8, lastTS_2),
-        AuditTableRegionInfo("prsn", "hot", "4", lowTimestamp, false, 3, lastTS_3)
+        AuditTableRegionInfo("prsn", "cold", "2", lowTimestamp, false, 8, lastTS_2),
+        AuditTableRegionInfo("prsn", "hot", "3", lowTimestamp, false, 3, lastTS_3)
       )
 
       val reopenedTable = AuditTableFile.openTables(sparkSession, finalPerson.storageOps, basePath, Seq("prsn"), true)(finalPerson.newRegionID)._1("prsn")
-      reopenedTable.map(_.compact(lastTS_3))
+      reopenedTable.map(_.compact(lastTS_3, d3d))
 
       val inferredCachedRegionsAfterCompaction = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq("prsn"), true)
-      inferredCachedRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "6", lastTS_3, false, 11, lastTS_3)))
+      inferredCachedRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "5", lastTS_3, false, 11, lastTS_3)))
 
       val inferredAllRegionsAfterCompaction = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq("prsn"), true)
-      inferredAllRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "6", lastTS_3, false, 11, lastTS_3)))
+      inferredAllRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "5", lastTS_3, false, 11, lastTS_3)))
 
     }
   }
@@ -370,7 +393,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2))
+        .flatMap(_._1.compact(lastTS_2, d3d))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
 
       reportTable.append(rep1, lastUpdated(rep1), lastTS_2)
@@ -418,15 +441,15 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val finalPerson = person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2))
+        .flatMap(_._1.compact(lastTS_2, d3d))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
 
       val finalReport = reportTable.append(rep1, lastUpdated(rep1), lastTS_2)
 
       val inferredCachedRegions = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq("prsn", "rep"), true)
       inferredCachedRegions should contain theSameElementsAs Seq(
-        AuditTableRegionInfo("prsn", "cold", "3", lastTS_2, false, 8, lastTS_2),
-        AuditTableRegionInfo("prsn", "hot", "4", lastTS_3, false, 3, lastTS_3),
+        AuditTableRegionInfo("prsn", "cold", "2", lastTS_2, false, 8, lastTS_2),
+        AuditTableRegionInfo("prsn", "hot", "3", lastTS_3, false, 3, lastTS_3),
         AuditTableRegionInfo("rep", "hot", "0", lastTS_2, false, 5, lastTS_1))
 
 
@@ -437,14 +460,14 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
       val inferredCachedRegionsAfterDelete = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq("prsn", "rep"), true)
       inferredCachedRegionsAfterDelete should contain theSameElementsAs Seq(
-        AuditTableRegionInfo("prsn", "cold", "3", lastTS_2, false, 8, lastTS_2),
-        AuditTableRegionInfo("prsn", "hot", "4", lastTS_3, false, 3, lastTS_3))
+        AuditTableRegionInfo("prsn", "cold", "2", lastTS_2, false, 8, lastTS_2),
+        AuditTableRegionInfo("prsn", "hot", "3", lastTS_3, false, 3, lastTS_3))
 
 
       val inferredAllRegions = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq("prsn", "rep"), true)
       inferredAllRegions should contain theSameElementsAs Seq(
-        AuditTableRegionInfo("prsn", "cold", "3", lastTS_2, false, 8, lastTS_2),
-        AuditTableRegionInfo("prsn", "hot", "4", lastTS_3, false, 3, lastTS_3),
+        AuditTableRegionInfo("prsn", "cold", "2", lastTS_2, false, 8, lastTS_2),
+        AuditTableRegionInfo("prsn", "hot", "3", lastTS_3, false, 3, lastTS_3),
         AuditTableRegionInfo("rep", "hot", "0", lowTimestamp, false, 5, lastTS_1)
       )
 

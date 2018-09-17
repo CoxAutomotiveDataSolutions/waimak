@@ -22,7 +22,7 @@
     <groupId>com.coxautodata</groupId>
     <artifactId>waimak-parent_2.11</artifactId>
     <packaging>pom</packaging>
-    <version>1.5-SNAPSHOT</version>
+    <version>1.6-SNAPSHOT</version>
 
     <name>Waimak</name>
     <description>An open-source tool that helps data teams row their own boats. Copyright 2018 Cox Automotive UK
@@ -77,22 +77,6 @@
     </modules>
     <profiles>
         <!-- Spark profiles -->
-        <profile>
-            <id>apache-2.0.0</id>
-            <properties>
-                <spark.version>2.0.0</spark.version>
-                <scala.compatible.version>2.11</scala.compatible.version>
-                <scala.lang.version>2.11.8</scala.lang.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>apache-2.1.0</id>
-            <properties>
-                <spark.version>2.1.0</spark.version>
-                <scala.compatible.version>2.11</scala.compatible.version>
-                <scala.lang.version>2.11.8</scala.lang.version>
-            </properties>
-        </profile>
         <profile>
             <id>apache-2.2.0</id>
             <activation>

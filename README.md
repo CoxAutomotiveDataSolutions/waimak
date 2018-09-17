@@ -86,24 +86,54 @@ Waimak is tested against the following versions of Spark:
 
 Package Maintainer | Spark Version
 ------------------ | -------------
-Apache Spark | [2.0.0](https://spark.apache.org/releases/spark-release-2-0-0.html)
-Apache Spark | [2.1.0](https://spark.apache.org/releases/spark-release-2-1-0.html)
 Apache Spark | [2.2.0](https://spark.apache.org/releases/spark-release-2-2-0.html)
 Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.html)
 Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html)
 
-Other versions of Spark 2.x are also likely to work and can be added to the list of tested versions if there is sufficient need.
+Other versions of Spark >= 2.2 are also likely to work and can be added to the list of tested versions if there is sufficient need.
 
 ## Changelog
 
+### 1.5.1 - 2018-08-21
+
+#### Added
+- Support of custom properties for JDBC connections using the Metastore Utils by passing either a `Properties` object or a `Map` so they can be read securely from a `JCEKS` file
+
+#### Removed
+- Removed support for Spark 2.0 and Spark 2.1
+
+### 1.5 - 2018-08-13
+
+#### Added
+- Trash deletion feature in Waimak-Storage that will clean up old region compactions stored in `.Trash`
+- Interceptor actions will now show details of the actions they intercepted and actions they intercepted with in the Spark UI
+
+#### Fixed
+- Single cold partitions will no longer be recompacted into themselves in the storage layer
+
+### 1.4.3 - 2018-08-13
+
+#### Fixed
+- Azure Table uploader will now clean up thread pools to prevent exhausting system threads after being invoked multiple times
+
+### 1.4.2 - 2018-08-06
+
+#### Added
+- Added optional Spark parameter `spark.waimak.fs.defaultFS` to specify the URI of the FileSystem object in the [`SparkFlowContext`](src/main/scala/com/coxautodata/waimak/dataflow/spark/SparkFlowContext.scala)
+
+### 1.4.1 - 2018-07-27
+
+#### Fixed
+- Azure Table uploader now respects and uploads `null` values instead of converting them to zero'd values
+
 ### 1.4 - 2018-07-05
 
-### Added
+#### Added
 - Better exception logging on failing actions during execution
 - `Any` types allowed to be used by and returned from actions
 - Impala queries to the same connection object now reuse connections to improve query submission performance
 
-### Fixed
+#### Fixed
 - Spark 2.0, 2.1 and 2.3 compatability
 
 ### 1.3.1 - 2018-07-02

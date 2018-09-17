@@ -14,8 +14,6 @@ cache:
 
 matrix:
   include:
-    - env: MAVEN_PROFILE="apache-2.0.0"
-    - env: MAVEN_PROFILE="apache-2.1.0"
     - env: MAVEN_PROFILE="apache-2.2.0" DEPLOY_PROFILE="true" COVERAGE_PROFILE="true"
     - env: MAVEN_PROFILE="apache-2.3.0"
     - env: MAVEN_PROFILE="cloudera-2.2.0.cloudera1"

@@ -1,8 +1,9 @@
-package waimak.azure.table
+package com.coxautodata.waimak.azure.table
 
 import java.util
 import java.util.concurrent.TimeUnit
 
+import com.coxautodata.waimak.azure.table.SparkAzureTable.{azureWriterOutputLabel, createIfNotExists, pushToTable}
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, DataFlowException}
@@ -11,7 +12,6 @@ import com.microsoft.azure.storage.table.{DynamicTableEntity, EntityProperty}
 import com.microsoft.azure.storage.{CloudStorageAccount, StorageException}
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.types.StructType
-import waimak.azure.table.SparkAzureTable.{azureWriterOutputLabel, createIfNotExists, pushToTable}
 
 /**
   * Created by Alexei Perelighin on 2018/03/25.
@@ -83,7 +83,11 @@ object SparkAzureTable extends Logging {
       sit.foreach {
         insertBatch: Seq[DynamicTableEntity] =>
           while (!writer.queue.offer(insertBatch, 500, TimeUnit.MILLISECONDS)) {
-            if (writer.threadFailed.get()) throw new DataFlowException(s"Thread failure when writing to the Azure Table")
+            if (writer.threadFailed.get()) {
+              writer.queue.clear()
+              writer.threadPool.shutdown()
+              throw new DataFlowException(s"Thread failure when writing to the Azure Table")
+            }
           }
 
       }
