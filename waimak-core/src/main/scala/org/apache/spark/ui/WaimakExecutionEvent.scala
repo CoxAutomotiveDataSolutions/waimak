@@ -4,7 +4,9 @@ import com.coxautodata.waimak.dataflow.spark.ui.{WaimakEventListener, WaimakGrap
 import org.apache.spark.SparkContext
 import org.apache.spark.scheduler.SparkListenerEvent
 
-case class WaimakExecutionEvent(executionId: String, flowGraph: WaimakGraph) extends SparkListenerEvent
+case class WaimakExecutionEvent(executionId: String, flowGraph: WaimakGraph) extends SparkListenerEvent {
+  override def logEvent: Boolean = false
+}
 
 object WaimakExecutionEvent {
 
