@@ -20,13 +20,17 @@ trait DataFlowExecutor[C] extends Logging {
   def execute(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C]) = {
     val preparedDataFlow = dataFlow.prepareForExecution()
 
-    val executionResults: Try[(Seq[DataFlowAction[C]], DataFlow[C])] = loopExecution(preparedDataFlow, actionScheduler(), Seq.empty)
+    val actionScheduler = initActionScheduler()
+    val executionResults: Try[(Seq[DataFlowAction[C]], DataFlow[C])] = loopExecution(preparedDataFlow, actionScheduler, Seq.empty)
 
+    actionScheduler.shutDown() match {
+      case Failure(e) => logError("Problem shutting down execution pools", e)
+      case _ => logInfo("Execution pools were shutdown ok.")
+    }
     executionResults.get
   }
 
-  def shutDown(): Try[Unit] = actionScheduler().shutDown()
-
+  
   /**
     * Used to report events on the flow.
     */
@@ -47,7 +51,7 @@ trait DataFlowExecutor[C] extends Logging {
     *
     * @return
     */
-  def actionScheduler(): ActionScheduler[C]
+  def initActionScheduler(): ActionScheduler[C]
 
   @tailrec
   private def loopExecution(currentFlow: DataFlow[C]

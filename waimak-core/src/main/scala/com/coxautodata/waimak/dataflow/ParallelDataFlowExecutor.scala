@@ -8,8 +8,12 @@ class ParallelDataFlowExecutor[C](val scheduler: ParallelActionScheduler[C]
                                   , override val priorityStrategy: priorityStrategy[C])
   extends DataFlowExecutor[C] with Logging {
 
-  override def actionScheduler(): ActionScheduler[C] = scheduler
-
+  /**
+    * Action scheduler used to run actions
+    *
+    * @return
+    */
+  override def initActionScheduler(): ActionScheduler[C] = scheduler
 }
 
 object ParallelDataFlowExecutor {
