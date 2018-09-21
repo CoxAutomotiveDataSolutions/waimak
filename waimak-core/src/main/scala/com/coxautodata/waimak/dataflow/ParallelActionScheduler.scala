@@ -39,7 +39,7 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
 
   override def hasRunningActions: Boolean = pools.exists(kv => kv._2.running.nonEmpty)
 
-  override def waitToFinish(): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])] = {
+  override def waitToFinish(flowContext: C, flowReporter: FlowReporter[C]): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])] = {
     Try {
       var finished: Option[Seq[futureResult]] = None
       do {
@@ -70,15 +70,17 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
     }
   }
 
-  override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C] = {
+  override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C] = {
     logInfo("Submitting Action: " + poolName + " : " + action.schedulingGuid + " : " + action.logLabel)
     val poolDesc = pools.getOrElse(poolName, ExecutionPoolDesc(poolName, 1, Set.empty, None)).ensureRunning()
     val ft = Future[futureResult] {
+      flowReporter.reportActionStarted(action, flowContext)
       logInfo("Executing action " + actionFinishedNotificationQueue.size() + " " + action.logLabel)
       poolIntoContext(poolName, flowContext)
       val actionResult = Try(action.performAction(entities, flowContext)).flatten
       val res = (poolName, action, actionResult)
       actionFinishedNotificationQueue.offer(res)
+      flowReporter.reportActionFinished(action, flowContext)
       res
     }(poolDesc.threadsExecutor.get) // ensureRunning made sure that this is a Some
     logInfo("Submitted to Pool Action: " + poolName + " : " + action.schedulingGuid + " : " +  action.logLabel)

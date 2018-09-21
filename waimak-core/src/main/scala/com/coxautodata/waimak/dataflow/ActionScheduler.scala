@@ -40,9 +40,11 @@ trait ActionScheduler[C] {
     * Locks and waits for at least one action to finish running, can return more than one action if they have finished and
     * their results are available.
     *
+    * @param flowContext
+    * @param flowReporter
     * @return
     */
-  def waitToFinish(): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])]
+  def waitToFinish(flowContext: C, flowReporter: FlowReporter[C]): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])]
 
   /**
     * Submits action into the specified execution pool.
@@ -51,9 +53,10 @@ trait ActionScheduler[C] {
     * @param action
     * @param entities
     * @param flowContext
+    * @param flowReporter
     * @return
     */
-  def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C]
+  def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C]
 
   def shutDown(): Try[ActionScheduler[C]]
 
@@ -77,18 +80,20 @@ class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntit
 
   override def hasRunningActions: Boolean = toRun.isDefined
 
-  override def waitToFinish(): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])] = {
+  override def waitToFinish(flowContext: C, flowReporter: FlowReporter[C]): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])] = {
     logInfo("waitToFinish " + toRun.fold("None")(e => e._1.logLabel))
     toRun match {
       case Some((action, entities, context)) => {
-        val actionRes = Seq((action, action.performAction(entities, context)))
+        flowReporter.reportActionStarted(action, flowContext)
+        val actionRes = Seq((action, Try(action.performAction(entities, context)).flatten))
+        flowReporter.reportActionFinished(action, flowContext)
         Success((new SequentialScheduler(None), actionRes))
       }
       case None => Failure(new RuntimeException("Error while waiting to finish"))
     }
   }
 
-  override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C): ActionScheduler[C] = {
+  override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C] = {
     logInfo("submitAction " + action.logLabel)
     new SequentialScheduler[C](Some((action, entities, flowContext)))
   }

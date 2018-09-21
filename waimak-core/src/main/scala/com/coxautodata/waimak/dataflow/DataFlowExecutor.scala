@@ -63,7 +63,7 @@ trait DataFlowExecutor[C] extends Logging {
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
         Success((successfulActions, currentFlow))
       case None => {
-        actionScheduler.waitToFinish() match { // nothing to schedule, in order to continue need to wait for some running actions to finish to unlock other actions
+        actionScheduler.waitToFinish(currentFlow.flowContext, flowReporter) match { // nothing to schedule, in order to continue need to wait for some running actions to finish to unlock other actions
           case Success((newScheduler, actionResults)) => {
             processActionResults(actionResults, currentFlow, successfulActions) match {
               case Success((newFlow, newSuccessfulActions)) => loopExecution(newFlow, newScheduler, newSuccessfulActions)
@@ -75,11 +75,10 @@ trait DataFlowExecutor[C] extends Logging {
       }
       case Some((executionPoolName, action)) => {
         //submit action for execution aka to schedule
-        flowReporter.reportActionStarted(action, currentFlow.flowContext)
         val inputEntities: DataFlowEntities = {
           currentFlow.inputs.filterLabels(action.inputLabels)
         }
-        loopExecution(currentFlow, actionScheduler.submitAction(executionPoolName, action, inputEntities, currentFlow.flowContext), successfulActions)
+        loopExecution(currentFlow, actionScheduler.submitAction(executionPoolName, action, inputEntities, currentFlow.flowContext, flowReporter), successfulActions)
       }
     }
   }
@@ -119,7 +118,6 @@ trait DataFlowExecutor[C] extends Logging {
     val (success, failed) = actionResults.partition(_._2.isSuccess)
     val res = success.foldLeft((currentFlow, successfulActionsUntilNow)) { (res, actionRes) =>
       val action = actionRes._1
-      flowReporter.reportActionFinished(action, currentFlow.flowContext)
       val nextFlow = res._1.executed(action, actionRes._2.get)
       (nextFlow, res._2 :+ action)
     }

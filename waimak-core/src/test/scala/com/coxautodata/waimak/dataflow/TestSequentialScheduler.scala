@@ -19,6 +19,10 @@ class TestSequentialScheduler extends FunSpec with Matchers {
 
   val schedulerWithAction = new SequentialScheduler[EmptyFlowContext](Some((action1, DataFlowEntities.empty, new EmptyFlowContext)))
 
+  val flowContext = new EmptyFlowContext
+
+  val reporter = NoReportingFlowReporter[EmptyFlowContext]
+
   describe("SequentialScheduler.availableExecutionPool") {
 
     it("nothing is running") {
@@ -65,12 +69,12 @@ class TestSequentialScheduler extends FunSpec with Matchers {
   describe("SequentialScheduler.waitToFinish") {
 
     it("nothing is running") {
-      val error = emptyScheduler.waitToFinish()
+      val error = emptyScheduler.waitToFinish(flowContext, reporter)
       error.failed.get.getMessage should be("Error while waiting to finish")
     }
 
     it("an input only one action is running") {
-      val res = schedulerWithAction.waitToFinish()
+      val res = schedulerWithAction.waitToFinish(flowContext, reporter)
       res.get._1.asInstanceOf[SequentialScheduler[EmptyFlowContext]].toRun should be(None)
       res.get._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
     }
@@ -80,13 +84,13 @@ class TestSequentialScheduler extends FunSpec with Matchers {
   describe("SequentialScheduler.submitAction") {
 
     it("nothing is running") {
-      val nextScheduler: SequentialScheduler[EmptyFlowContext] = emptyScheduler.submitAction(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, new EmptyFlowContext).asInstanceOf[SequentialScheduler[EmptyFlowContext]]
+      val nextScheduler: SequentialScheduler[EmptyFlowContext] = emptyScheduler.submitAction(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, flowContext, reporter).asInstanceOf[SequentialScheduler[EmptyFlowContext]]
       nextScheduler.toRun.isDefined should be(true)
       nextScheduler.toRun.get._1 should be(action1)
     }
 
     it("an input only one action is running") {
-      val res = schedulerWithAction.waitToFinish()
+      val res = schedulerWithAction.waitToFinish(flowContext, reporter)
       res.get._1.asInstanceOf[SequentialScheduler[EmptyFlowContext]].toRun should be(None)
       res.get._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
     }
