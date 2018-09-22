@@ -18,7 +18,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
   override val appName: String = "Simple Spark Data Flow"
 
   // Need to explicitly use sequential like executor with preference to loaders
-  val executor = Waimak.sparkMultiJobExecutor(1, DFExecutorPriorityStrategies.preferLoaders)
+  val executor = Waimak.sparkExecutor(1, DFExecutorPriorityStrategies.preferLoaders)
 
   import SparkActions._
   import TestSparkData._
@@ -733,7 +733,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
   describe("fully parallel") {
 
     it("smoke test") {
-      val parallelExecutor = Waimak.sparkMultiJobExecutor(10, DFExecutorPriorityStrategies.raceToOutputs)
+      val parallelExecutor = Waimak.sparkExecutor(10, DFExecutorPriorityStrategies.raceToOutputs)
       val spark = sparkSession
       import spark.implicits._
 

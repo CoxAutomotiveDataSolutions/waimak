@@ -48,10 +48,10 @@ object Waimak {
   /**
     * Creates a spark data flow executor.
     *
+    * @param maxParallelActions defines how maximum number of actions can be run in parallel, default is 20
+    * @param priorityStrategy   a function that decides which actions are to be scheduled first
     * @return
     */
-  def sparkExecutor(): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter)(SparkFlowContext.setPoolIntoContext)
-
-  def sparkMultiJobExecutor(maxJobs: Int, priorityStrategy: priorityStrategy[SparkFlowContext]): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter, maxJobs, priorityStrategy)(SparkFlowContext.setPoolIntoContext)
+  def sparkExecutor(maxParallelActions: Int = 20, priorityStrategy: priorityStrategy[SparkFlowContext] = DFExecutorPriorityStrategies.defaultPriorityStrategy): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter, maxParallelActions, priorityStrategy)(SparkFlowContext.setPoolIntoContext)
 
 }

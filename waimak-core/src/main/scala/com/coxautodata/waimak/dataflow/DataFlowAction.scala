@@ -31,9 +31,20 @@ trait DataFlowAction[C] {
     */
   val outputLabels: List[String]
 
+  /**
+    * Unique id of the action, but using it for adding behaviours can be problematic due to Interceptors that are
+    * defined at a much later stage. Because of that ActionSchedulers must use this guid.
+    */
   val guid: String = UUID.randomUUID().toString
 
+  /**
+    * Interceptors must not override this property, as certain behaviours of the data flow (Ex, execution pools)
+    * will be associated with this scheduling guid. Also ActionScheduler will use this guid to track scheduled actions.
+    *
+    * @return
+    */
   def schedulingGuid: String = guid
+
   /**
     * For representing the action
     */

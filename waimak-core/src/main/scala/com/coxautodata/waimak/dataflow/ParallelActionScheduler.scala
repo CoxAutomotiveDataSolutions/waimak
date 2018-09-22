@@ -66,7 +66,7 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
       }
     }.flatMap {
       case Some(r) => Success(r)
-      case _ => Failure(new DataFlowException(s"Something when wrong!!! Not sure what happend."))
+      case _ => Failure(new DataFlowException(s"Something went wrong!!! Not sure what happened."))
     }
   }
 

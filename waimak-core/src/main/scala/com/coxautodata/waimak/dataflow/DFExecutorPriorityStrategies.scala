@@ -17,7 +17,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def defaultPriorityStrategy[C]: PartialFunction[actionQueue[C], actionQueue[C]] = doNothing[C]
+  def defaultPriorityStrategy[C]: PartialFunction[actionQueue[C], actionQueue[C]] = raceToOutputs[C]
 
   /**
     * Preserves the order of the actions in which they are defined, but at first will give preference to loaders. If
@@ -49,7 +49,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def fastTrackToDAGAndThanSort[C](orderedLabels: Seq[String]): PartialFunction[actionQueue[C], actionQueue[C]] = raceToOutputs[C] andThen sortByOutputLabel[C](orderedLabels)
+  def raceToOutputsAndThanSort[C](orderedLabels: Seq[String]): PartialFunction[actionQueue[C], actionQueue[C]] = raceToOutputs[C] andThen sortByOutputLabel[C](orderedLabels)
 
   def takeWriters[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
 
