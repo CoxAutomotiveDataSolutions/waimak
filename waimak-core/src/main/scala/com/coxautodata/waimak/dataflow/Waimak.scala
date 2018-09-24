@@ -18,7 +18,8 @@ package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.dataflow.spark.{SimpleSparkDataFlow, SparkDataFlow, SparkFlowContext, SparkFlowReporter}
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.{Dataset, SparkSession}
+import org.apache.spark.sql.SparkSession
+import DFExecutorPriorityStrategies._
 
 /**
   * Defines factory functions for creating and running Waimak data flows.
@@ -47,8 +48,10 @@ object Waimak {
   /**
     * Creates a spark data flow executor.
     *
+    * @param maxParallelActions defines how maximum number of actions can be run in parallel, default is 20
+    * @param priorityStrategy   a function that decides which actions are to be scheduled first
     * @return
     */
-  def sparkExecutor(): DataFlowExecutor[SparkFlowContext] = new SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
+  def sparkExecutor(maxParallelActions: Int = 20, priorityStrategy: priorityStrategy[SparkFlowContext] = DFExecutorPriorityStrategies.defaultPriorityStrategy): DataFlowExecutor[SparkFlowContext] = ParallelDataFlowExecutor[SparkFlowContext](SparkFlowReporter, maxParallelActions, priorityStrategy)(SparkFlowContext.setPoolIntoContext)
 
 }
