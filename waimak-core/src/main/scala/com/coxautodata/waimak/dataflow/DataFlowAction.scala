@@ -33,7 +33,7 @@ trait DataFlowAction[C] {
 
   /**
     * Unique id of the action, but using it for adding behaviours can be problematic due to Interceptors that are
-    * defined at a much later stage. Because of that ActionSchedulers must use this guid.
+    * defined at a much later stage. Because of that ActionSchedulers must NOT use this guid.
     */
   val guid: String = UUID.randomUUID().toString
 

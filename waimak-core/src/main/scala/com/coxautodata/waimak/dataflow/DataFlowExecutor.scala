@@ -94,7 +94,7 @@ trait DataFlowExecutor[C] extends Logging {
     * @param actionScheduler
     * @return (Pool into which to schedule, Action to schedule)
     */
-  protected[dataflow] def toSchedule(currentFlow: DataFlow[C], actionScheduler: ActionScheduler[C]): Option[(String, DataFlowAction[C])] = { DEFAULT_POOL_NAME
+  protected[dataflow] def toSchedule(currentFlow: DataFlow[C], actionScheduler: ActionScheduler[C]): Option[(String, DataFlowAction[C])] = {
     val toSchedule: Option[(String, DataFlowAction[C])] = actionScheduler
       .availableExecutionPools()
       .flatMap(executionPoolNames => priorityStrategy(actionScheduler.dropRunning(executionPoolNames, currentFlow.nextRunnable(executionPoolNames)))

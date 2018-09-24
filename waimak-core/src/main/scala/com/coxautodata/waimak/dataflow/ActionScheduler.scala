@@ -23,7 +23,7 @@ trait ActionScheduler[C] {
     *
     * @param poolNames  pool names to which the from actions belong to
     * @param from       list of actions from poolNames that DataFlow knows have not been marked as executed and can be scheduled
-    * @return           list of action the do not contain running actions
+    * @return           list of actions that are not currently running
     */
   def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]]
 
@@ -57,7 +57,7 @@ trait ActionScheduler[C] {
   def schedule(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C]
 
   /**
-    * Executors must call it before exiting the execuiton of the flow to release resources.
+    * Executors must call it before exiting the execution of the flow to release resources.
     *
     * @return
     */

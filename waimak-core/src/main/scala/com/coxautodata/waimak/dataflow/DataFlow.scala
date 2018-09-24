@@ -465,7 +465,7 @@ case class SchedulingMeta[C](state: SchedulingMetaState, actionState: Map[String
   */
 case class SchedulingMetaState(executionPoolName: String) {
 
-  //TODO: May be add tags into here to have a common place to accumulate extra scheduling info about actions and
+  //TODO: May be add tags into here to have a common place to accumulate extra scheduling info about actions and tags
 
   def setExecutionPoolName(poolName: String): SchedulingMetaState = SchedulingMetaState(poolName)
 
