@@ -21,13 +21,13 @@ trait DataFlowExecutor[C] extends Logging {
     val preparedDataFlow = dataFlow.prepareForExecution()
 
     val actionScheduler = initActionScheduler()
-    val executionResults: Try[(Seq[DataFlowAction[C]], DataFlow[C])] = loopExecution(preparedDataFlow, actionScheduler, Seq.empty)
+    val executionResults = loopExecution(preparedDataFlow, actionScheduler, Seq.empty)
 
-    actionScheduler.shutDown() match {
+    executionResults._1.shutDown() match {
       case Failure(e) => logError("Problem shutting down execution pools", e)
       case _ => logInfo("Execution pools were shutdown ok.")
     }
-    executionResults.get
+    executionResults._2.get
   }
 
   
@@ -57,20 +57,20 @@ trait DataFlowExecutor[C] extends Logging {
   private def loopExecution(currentFlow: DataFlow[C]
                             , actionScheduler: ActionScheduler[C]
                             , successfulActions: Seq[DataFlowAction[C]]
-                           ): Try[(Seq[DataFlowAction[C]], DataFlow[C])] = {
+                           ): (ActionScheduler[C], Try[(Seq[DataFlowAction[C]], DataFlow[C])]) = {
     toSchedule(currentFlow, actionScheduler) match {
       case None if !actionScheduler.hasRunningActions => //No more actions to schedule and none are running => finish data flow execution
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
-        Success((successfulActions, currentFlow))
+        (actionScheduler, Success((successfulActions, currentFlow)))
       case None => {
         actionScheduler.waitToFinish(currentFlow.flowContext, flowReporter) match { // nothing to schedule, in order to continue need to wait for some running actions to finish to unlock other actions
           case Success((newScheduler, actionResults)) => {
             processActionResults(actionResults, currentFlow, successfulActions) match {
               case Success((newFlow, newSuccessfulActions)) => loopExecution(newFlow, newScheduler, newSuccessfulActions)
-              case Failure(e) => Failure(e)
+              case Failure(e) => (actionScheduler, Failure(e))
             }
           }
-          case Failure(e) => Failure(e)
+          case Failure(e) => (actionScheduler, Failure(e))
         }
       }
       case Some((executionPoolName, action)) => {
