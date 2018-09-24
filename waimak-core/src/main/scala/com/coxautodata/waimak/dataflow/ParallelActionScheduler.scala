@@ -126,7 +126,7 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
   override def shutDown(): Try[ActionScheduler[C]] = {
     logInfo("ParallelScheduler.close")
     Try {
-      val newPools = pools.mapValues(_.shutdown())
+      val newPools = pools.map(kv => (kv._1, kv._2.shutdown()))
       new ParallelActionScheduler(newPools, actionFinishedNotificationQueue, poolIntoContext)
     }
   }
