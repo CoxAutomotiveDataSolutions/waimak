@@ -21,16 +21,16 @@ trait ActionScheduler[C] {
   /**
     * Removes actions that are already running in the specified set pools.
     *
-    * @param poolNames
-    * @param from
-    * @return
+    * @param poolNames  pool names to which the from actions belong to
+    * @param from       list of actions from poolNames that DataFlow knows have not been marked as executed and can be scheduled
+    * @return           list of action the do not contain running actions
     */
   def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]]
 
   /**
     * Checks if there are actions running at all, regardless of the execution pool.
     *
-    * @return
+    * @return true if at least one action is running in any of the pools
     */
   def hasRunningActions: Boolean
 
@@ -38,8 +38,8 @@ trait ActionScheduler[C] {
     * Locks and waits for at least one action to finish running, can return more than one action if they have finished and
     * their results are available.
     *
-    * @param flowContext
-    * @param flowReporter
+    * @param flowContext   object that allows access to the context of the flow and application
+    * @param flowReporter  object that is used to signal start and end of the action execution
     * @return
     */
   def waitToFinish(flowContext: C, flowReporter: FlowReporter[C]): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])]
@@ -47,15 +47,20 @@ trait ActionScheduler[C] {
   /**
     * Submits action into the specified execution pool.
     *
-    * @param poolName
-    * @param action
-    * @param entities
-    * @param flowContext
-    * @param flowReporter
+    * @param poolName     pool into which to schedule the action
+    * @param action       action to schedule
+    * @param entities     action labels that have data
+    * @param flowContext  object that allows access to the context of the flow and application
+    * @param flowReporter object that is used to signal start and end of the action execution
     * @return
     */
-  def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C]
+  def schedule(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C]
 
+  /**
+    * Executors must call it before exiting the execuiton of the flow to release resources.
+    *
+    * @return
+    */
   def shutDown(): Try[ActionScheduler[C]]
 
 }

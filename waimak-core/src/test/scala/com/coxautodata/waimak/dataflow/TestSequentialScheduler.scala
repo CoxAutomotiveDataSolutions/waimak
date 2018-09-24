@@ -84,7 +84,7 @@ class TestSequentialScheduler extends FunSpec with Matchers {
   describe("SequentialScheduler.submitAction") {
 
     it("nothing is running") {
-      val nextScheduler: SequentialScheduler[EmptyFlowContext] = emptyScheduler.submitAction(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, flowContext, reporter).asInstanceOf[SequentialScheduler[EmptyFlowContext]]
+      val nextScheduler: SequentialScheduler[EmptyFlowContext] = emptyScheduler.schedule(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, flowContext, reporter).asInstanceOf[SequentialScheduler[EmptyFlowContext]]
       nextScheduler.toRun.isDefined should be(true)
       nextScheduler.toRun.get._1 should be(action1)
     }

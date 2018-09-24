@@ -86,7 +86,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
       */
 
       it("an input only one action is running") {
-        val withAction = emptySchedulerOneThread.submitAction(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, flowContext, reporter)
+        val withAction = emptySchedulerOneThread.schedule(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, flowContext, reporter)
         val res = withAction.waitToFinish(flowContext, reporter)
         val scheduler = res.get._1.asInstanceOf[ParallelActionScheduler[EmptyFlowContext]]
         scheduler.pools.get(DEFAULT_POOL_NAME).map(_.running.isEmpty) should be(Some(true))
@@ -95,7 +95,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
 
       it("wait for failed action") {
         val failedAction = new TestPresetAction(List.empty, List("o1", "o2"), () => {throw new RuntimeException("ERROR 1") } )
-        val withAction = emptySchedulerOneThread.submitAction(DEFAULT_POOL_NAME, failedAction, DataFlowEntities.empty, flowContext, reporter)
+        val withAction = emptySchedulerOneThread.schedule(DEFAULT_POOL_NAME, failedAction, DataFlowEntities.empty, flowContext, reporter)
         val res = withAction.waitToFinish(flowContext, reporter)
 
       }
@@ -104,7 +104,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
     describe("submitAction") {
 
       it("nothing is running before submitting") {
-        val nextScheduler: ParallelActionScheduler[EmptyFlowContext] = emptySchedulerOneThread.submitAction(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, new EmptyFlowContext, reporter).asInstanceOf[ParallelActionScheduler[EmptyFlowContext]]
+        val nextScheduler: ParallelActionScheduler[EmptyFlowContext] = emptySchedulerOneThread.schedule(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, new EmptyFlowContext, reporter).asInstanceOf[ParallelActionScheduler[EmptyFlowContext]]
         nextScheduler.pools.size should be(1)
         nextScheduler.pools.get(DEFAULT_POOL_NAME).map(_.running) should be(Some(Set(action1.guid)))
         nextScheduler.hasRunningActions should be(true)

@@ -10,9 +10,40 @@ import scala.util.{Failure, Success, Try}
 import scala.collection.JavaConverters._
 
 /**
+  * Can run multiple actions in parallel with multiple execution pools support.
+  *
+  * It was originally designed to benefit from Spark fair scheduler https://spark.apache.org/docs/latest/job-scheduling.html#fair-scheduler-pools
+  * Execution pool names must be the same as the Fair Scheduler pool names and number of parallel jobs within a pool is the number of Java threads.
+  *
+  * Example:
+  * to configure 2 pools for Spark Fair Scheduler following xml must be passed to spark :
+  *
+  * <?xml version="1.0"?>
+  * <allocations>
+  *   <pool name="high">
+  *     <schedulingMode>FAIR</schedulingMode>
+  *      <weight>1000</weight>
+  *      <minShare>0</minShare>
+  *   </pool>
+  *   <pool name="medium">
+  *     <schedulingMode>FAIR</schedulingMode>
+  *       <weight>25</weight>
+  *       <minShare>0</minShare>
+  *   </pool>
+  * </allocations>
+  *
+  * following configuration options need to be specified:
+  *   1. spark.scheduler.mode=FAIR
+  *   2. spark.scheduler.allocation.file=PATH_TO_THE_XML
+  *
+  * in code pools parameter:
+  * Map( ("high" -> ExecutionPoolDesc("high", 10, Set.Empty, None)), ("medium" -> ExecutionPoolDesc("medium", 20, Set.Empty, None)) )
+  *
   * Created by Alexei Perelighin on 2018/07/10
   *
-  * @param pools
+  * @param pools                            details of the execution pools: name, limits, running actions, thread pool
+  * @param actionFinishedNotificationQueue  thread safe queue through which threads that have finished actions will communicate back to the scheduler
+  * @param poolIntoContext                  callback function that is called to let context know that an action is about to be executed
   * @tparam C
   */
 class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
@@ -27,12 +58,10 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
 
   override def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]] = {
     logInfo("dropRunning from:")
-    from.foreach(a => logInfo(a.schedulingGuid + " " + a.logLabel)) //DEBUG msgs, to remove after investigations
     if (from.isEmpty) from
     else {
       val running = pools.filterKeys(poolNames.contains).values.flatMap(_.running).toSet
       logInfo("dropRunning running:")
-      running.foreach(a => logInfo("running: " + a)) //DEBUG msgs, to remove after investigations
       from.filter(a => !running.contains(a.schedulingGuid))
     }
   }
@@ -70,8 +99,8 @@ class ParallelActionScheduler[C](val pools: Map[String, ExecutionPoolDesc]
     }
   }
 
-  override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C] = {
-    logInfo("Submitting Action: " + poolName + " : " + action.schedulingGuid + " : " + action.logLabel)
+  override def schedule(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C] = {
+    logInfo("Scheduling Action: " + poolName + " : " + action.schedulingGuid + " : " + action.logLabel)
     val poolDesc = pools.getOrElse(poolName, ExecutionPoolDesc(poolName, 1, Set.empty, None)).ensureRunning()
     val ft = Future[futureResult] {
       flowReporter.reportActionStarted(action, flowContext)

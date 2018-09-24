@@ -78,7 +78,7 @@ trait DataFlowExecutor[C] extends Logging {
         val inputEntities: DataFlowEntities = {
           currentFlow.inputs.filterLabels(action.inputLabels)
         }
-        loopExecution(currentFlow, actionScheduler.submitAction(executionPoolName, action, inputEntities, currentFlow.flowContext, flowReporter), successfulActions)
+        loopExecution(currentFlow, actionScheduler.schedule(executionPoolName, action, inputEntities, currentFlow.flowContext, flowReporter), successfulActions)
       }
     }
   }

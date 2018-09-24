@@ -9,7 +9,7 @@ import scala.util.{Failure, Success, Try}
   *
   * Created by Alexei Perelighin on 2018/07/06
   *
-  * @param toRun
+  * @param toRun  scheduled action. If None, than nothing is scheduled
   * @tparam C
   */
 class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntities, C)])
@@ -37,8 +37,8 @@ class SequentialScheduler[C](val toRun: Option[(DataFlowAction[C], DataFlowEntit
     }
   }
 
-  override def submitAction(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C] = {
-    logInfo("submitAction " + action.logLabel)
+  override def schedule(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C] = {
+    logInfo("schedule action " + action.logLabel)
     new SequentialScheduler[C](Some((action, entities, flowContext)))
   }
 
