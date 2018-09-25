@@ -17,10 +17,8 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
   override val appName: String = "Simple Spark Data Flow"
 
-  val executor = Waimak.sparkExecutor()
-
-  // Need to explicitly use sequential executor
-  val sequentialExecutor = new SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
+  // Need to explicitly use sequential like executor with preference to loaders
+  val executor = Waimak.sparkExecutor(1, DFExecutorPriorityStrategies.preferLoaders)
 
   import SparkActions._
   import TestSparkData._
@@ -151,7 +149,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       finalState.inputs.getOption[Dataset[_]]("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
 
     }
-
 
     it("stage and commit parquet, and force a cache as parquet") {
       val spark = sparkSession
@@ -491,7 +488,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           .writeParquet(baseDest)("person", "items")
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Could not find any actions tagged with label [write_person] when resolving dependent actions for action [${flow.actions.head.guid}]")
 
@@ -503,17 +500,18 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         val baseDest = testingBaseDir + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-          .openParquet(baseDest)("person_written", "items_written")
+          .openFileParquet(s"$baseDest/person", "person_written")
+          .openFileParquet(s"$baseDest/items", "items_written")
           .openCSV(basePath)("csv_1", "csv_2")
           .alias("csv_1", "items")
           .alias("csv_2", "person")
           .writeParquet(baseDest)("person", "items")
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.cause shouldBe a[AnalysisException]
-        res.cause.asInstanceOf[AnalysisException].message should be(s"Path does not exist: file:$baseDest/person_written")
+        res.cause.asInstanceOf[AnalysisException].message should be(s"Path does not exist: file:$baseDest/person")
       }
 
       it("tag dependency between write and open") {
@@ -534,7 +532,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
             _.writeParquet(baseDest)("person", "items")
           }
 
-        val (_, finalState) = sequentialExecutor.execute(flow)
+        val (_, finalState) = executor.execute(flow)
         finalState.inputs.size should be(6)
 
         finalState.inputs.get[Dataset[_]]("items_written").as[TPurchase].collect() should be(purchases)
@@ -562,7 +560,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           }
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Circular reference for action [${flow.actions.find(_.inputLabels.contains("person")).get.guid}] as a result of cyclic tag dependency. " +
           "Action has the following tag dependencies [read] and depends on the following input labels [person]")
@@ -587,7 +585,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           }
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Circular reference for action [${flow.actions.find(_.inputLabels.contains("csv_1")).get.guid}] as a result of cyclic tag dependency. " +
           "Action has the following tag dependencies [written] and depends on the following input labels [csv_1]")
@@ -607,7 +605,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
             _.openCSV(basePath)("csv_1")
           }
 
-        val (executed, _) = sequentialExecutor.execute(flow)
+        val (executed, _) = executor.execute(flow)
         executed.size should be(0)
 
       }
@@ -724,11 +722,37 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val ex1 = intercept[DataFlowException] {
         executor.execute(flow.inPlaceTransform("integer_2")(identity))
       }
-      ex1.text should be("Can only call inPlaceTransform on a Dataset. Label integer_2 is a java.lang.Integer")
+      ex1.cause.getMessage should be("Can only call inPlaceTransform on a Dataset. Label integer_2 is a java.lang.Integer")
       val ex2 = intercept[DataFlowException] {
         executor.execute(flow.cacheAsParquet("integer_2"))
       }
-      ex2.text should be("Can only call cacheAsParquet on a Dataset. Label integer_2 is a java.lang.Integer")
+      ex2.cause.getMessage should be("Can only call cacheAsParquet on a Dataset. Label integer_2 is a java.lang.Integer")
+    }
+  }
+
+  describe("fully parallel") {
+
+    it("smoke test") {
+      val parallelExecutor = Waimak.sparkExecutor(10, DFExecutorPriorityStrategies.raceToOutputs)
+      val spark = sparkSession
+      import spark.implicits._
+
+      val baseDest = testingBaseDir + "/dest"
+      val flow = Waimak.sparkFlow(spark)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .sql("csv_1")("person_summary", "select id, count(item) as item_cnt, sum(amount) as total from csv_1 group by id")
+        .transform("csv_2", "person_summary")("report") { (l, r) => l.join(r, l("id") === r("id"), "left").drop(r("id")) }
+        .alias("csv_1", "person")
+        .alias("csv_2", "purchase")
+        .show("report")
+        .show("csv_1")
+        .show("csv_2")
+        .show("person_summary")
+        .writeParquet(baseDest, true)("person", "purchase", "report", "person_summary")
+
+      val (executedActions, finalState) = parallelExecutor.execute(flow)
+
+      executedActions.size should be(14) //all actions
     }
   }
 }
