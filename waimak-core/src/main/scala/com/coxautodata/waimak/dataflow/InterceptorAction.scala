@@ -20,7 +20,7 @@ class InterceptorAction[C](val intercepted: DataFlowAction[C]) extends DataFlowA
   /**
     * @return same value as the intercepted action.
     */
-  override def requiresAllInputs = intercepted.requiresAllInputs
+  override def requiresAllInputs: Boolean = intercepted.requiresAllInputs
 
   /**
     * Generates its own guid, different from intercepted
@@ -36,6 +36,8 @@ class InterceptorAction[C](val intercepted: DataFlowAction[C]) extends DataFlowA
     * Same values as the intercepted action.
     */
   override val outputLabels: List[String] = intercepted.outputLabels
+
+  final override def schedulingGuid: String = intercepted.schedulingGuid
 
   /**
     * Perform the action

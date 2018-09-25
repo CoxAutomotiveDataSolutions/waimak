@@ -1,13 +1,12 @@
 package com.coxautodata.waimak.dataflow
 
-import org.apache.spark.sql.Dataset
 import org.scalatest.{FunSpec, Matchers}
 
 import scala.util.Try
 
-import scala.util.Try
-
 class TestSimpleDataFlow extends FunSpec with Matchers {
+
+  val defaultPool = Set(DEFAULT_POOL_NAME)
 
   describe("Add actions success") {
 
@@ -117,7 +116,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     it("empty queued") {
       val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
-      val res = emptyFlow.nextRunnable()
+      val res = emptyFlow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -125,7 +124,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", None)
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -133,7 +132,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -142,7 +141,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       val flow = emptyFlow
         .addInput("test_1", None)
         .addAction(new TestEmptyAction(List("test_1"), List("test_2")))
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -152,7 +151,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
         .addAction(new TestEmptyAction(List("test_1"), List("test_3")))
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -162,7 +161,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
         .addAction(new TestEmptyAction(List("test_1", "test_2"), List("test_3")))
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res should be(Seq.empty)
     }
 
@@ -172,7 +171,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addInput("test_1", None)
         .addInput("test_2", Some("value_2"))
         .addAction(new TestEmptyAction(List("test_2"), List("test_3")))
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_2"))
     }
@@ -182,7 +181,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       val flow = emptyFlow
         .addInput("test_1", Some("value_1"))
         .addAction(new TestEmptyAction(List("test_1"), List("test_2")))
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_1"))
     }
@@ -199,7 +198,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addAction(new TestEmptyAction(List("test_3", "test_2"), List("test_23")))
         .addAction(new TestEmptyAction(List("test_1"), List("test_24")))
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(4)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_1", "test_2"))
@@ -219,7 +218,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addAction(new TestEmptyAction(List("test_3", "test_2"), List("test_23")))
         .addAction(new TestEmptyAction(List("test_1"), List("test_24")))
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(3)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_1", "test_2"))
@@ -235,7 +234,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         .addAction(new TestEmptyAction(List("test_1"), List.empty))
         .addAction(new TestEmptyAction(List("test_2"), List.empty))
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(2)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_2"))
@@ -251,7 +250,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         }
         .addAction(new TestEmptyAction(List("test_2"), List.empty))
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(2)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_2"))
@@ -269,7 +268,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(2)
       res(0).inputLabels should be(List("test_1"))
       res(1).inputLabels should be(List("test_2"))
@@ -287,9 +286,34 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_1"))
+    }
+
+    it("multiple non-empty inputs, multiple actions, all ready, dependency between actions, different pools defined inside") {
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+      val action_1 = new TestEmptyAction(List("test_1"), List.empty)
+      val action_2 = new TestEmptyAction(List("test_2"), List.empty)
+      val flow = emptyFlow
+        .addInput("test_1", Some("value_1"))
+        .addInput("test_2", Some("value_2"))
+        .tag("tag1") {
+          _.executionPool("p1") { _.addAction(action_1)}
+        }
+        .tagDependency("tag1") {
+          _.executionPool("p2") { _.addAction(action_2) }
+        }
+
+      flow.schedulingMeta.actionState.size should be(2)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("p1")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("p2")
+
+      val res = flow.nextRunnable(Set("p1"))
+      res.size should be(1)
+      res(0).inputLabels should be(List("test_1"))
+
+      flow.nextRunnable(Set("p2")) should be(Seq.empty)
     }
 
     it("multiple non-empty inputs, multiple actions, all ready, dependency between actions tagged twice with different tags") {
@@ -304,7 +328,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_1"))
     }
@@ -321,7 +345,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(0)
 
     }
@@ -334,7 +358,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      val res = flow.nextRunnable()
+      val res = flow.nextRunnable(defaultPool)
       res.size should be(1)
       res(0).inputLabels should be(List("test_2"))
     }
@@ -827,6 +851,179 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     }
 
+  }
+
+  describe("Execution Pools") {
+
+    val action_1 = new TestEmptyAction(List.empty, List("t_1"))
+    val action_2 = new TestEmptyAction(List.empty, List("t_2"))
+    val action_3 = new TestEmptyAction(List.empty, List("t_3"))
+    val action_4 = new TestEmptyAction(List("t_1", "t_2", "t_3"), List.empty)
+    val action_5 = new TestEmptyAction(List("t_1"), List.empty)
+
+    val appendFunc = (in: Option[String], fl: EmptyFlowContext) => in.map(_ + "_6789")
+
+    it("default execution pool") {
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+      val flow = emptyFlow
+                    .addAction(action_1)
+                    .addAction(action_2)
+                    .addAction(action_3)
+                    .addAction(action_4)
+
+      flow.schedulingMeta.actionState.size should be(4)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+
+      val runnable = flow.nextRunnable(Set(DEFAULT_POOL_NAME))
+      runnable.size should be(3)
+    }
+
+    it("interceptor does not change the original scheduling guid") {
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+      val post = new PostActionInterceptor[String, EmptyFlowContext](action_2, Seq(TransformPostAction(appendFunc, "t_2")))
+
+      val flow = emptyFlow
+        .addAction(action_1)
+        .addAction(action_2)
+        .addAction(action_3)
+        .addAction(action_4)
+        .addInterceptor(post, action_2.guid)
+
+      flow.schedulingMeta.actionState.size should be(4)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+    }
+
+    it("non default execution pool") {
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+      val flow = emptyFlow
+        .executionPool("first_pool") {
+          _.addAction(action_1)
+          .addAction(action_2)
+          .addAction(action_3)
+          .addAction(action_4)
+      }
+
+      flow.schedulingMeta.actionState.size should be(4)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be("first_pool")
+
+      flow.nextRunnable(Set(DEFAULT_POOL_NAME)).isEmpty should be(true)
+      val runnable = flow.nextRunnable(Set("first_pool")).map(_.schedulingGuid)
+      runnable.size should be(3)
+      runnable.contains(action_1.schedulingGuid) should be(true)
+      runnable.contains(action_2.schedulingGuid) should be(true)
+      runnable.contains(action_3.schedulingGuid) should be(true)
+
+    }
+
+    describe("Multiple Execution pools") {
+
+      it("first wave is in default pool") {
+        val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+        val flow = emptyFlow
+          .addAction(action_1)
+          .addAction(action_2)
+          .addAction(action_3)
+          .executionPool("first_pool") {
+            _.addAction(action_4)
+          }
+
+        flow.schedulingMeta.actionState.size should be(4)
+        flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+        flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+        flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+        flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be("first_pool")
+      }
+    }
+
+    it("second wave is in default pool") {
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+      val flow = emptyFlow.executionPool("first_pool") {
+          _.addAction(action_1)
+            .addAction(action_2)
+            .addAction(action_3)
+        }
+        .addAction(action_4)
+
+      flow.schedulingMeta.actionState.size should be(4)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+    }
+
+    it("nested pools") {
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+      val flow = emptyFlow.executionPool("first_pool") {
+        _.addAction(action_1)
+          .executionPool("second_pool") {
+            _.addAction(action_2).executionPool("third_pool") {
+              _.addAction(action_3)
+            }
+          }.addAction(action_5)
+
+      }.addAction(action_4)
+
+      flow.schedulingMeta.actionState.size should be(5)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("second_pool")
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be("third_pool")
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_5.schedulingGuid).executionPoolName should be("first_pool")
+
+      val allPools = flow.nextRunnable(Set(DEFAULT_POOL_NAME, "first_pool", "second_pool", "third_pool")).map(_.schedulingGuid)
+      allPools.size should be(3)
+      allPools.intersect(Seq(action_1.schedulingGuid, action_2.schedulingGuid, action_3.schedulingGuid)).size should be(3)
+
+      val defaultPool = flow.nextRunnable(Set(DEFAULT_POOL_NAME)).map(_.schedulingGuid)
+      defaultPool.isEmpty should be(true)
+
+      val firstSecondPool = flow.nextRunnable(Set("first_pool", "second_pool")).map(_.schedulingGuid)
+      firstSecondPool.size should be(2)
+      firstSecondPool.intersect(Seq(action_1.schedulingGuid, action_2.schedulingGuid)).size should be(2)
+    }
+
+    it("nested pools and tags") {
+      val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+      val flow = emptyFlow.executionPool("first_pool") {
+        _.tag("t1") {
+          _.addAction(action_1)
+        }.executionPool("second_pool") {
+            _.addAction(action_2).executionPool("third_pool") {
+              _.tagDependency("t1") {
+                _.addAction(action_3)
+              }
+            }
+          }.addAction(action_5)
+
+      }.addAction(action_4)
+
+      flow.schedulingMeta.actionState.size should be(5)
+      flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
+      flow.schedulingMeta.actionState(action_2.schedulingGuid).executionPoolName should be("second_pool")
+      flow.schedulingMeta.actionState(action_3.schedulingGuid).executionPoolName should be("third_pool")
+      flow.schedulingMeta.actionState(action_4.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
+      flow.schedulingMeta.actionState(action_5.schedulingGuid).executionPoolName should be("first_pool")
+
+      val allPools = flow.nextRunnable(Set(DEFAULT_POOL_NAME, "first_pool", "second_pool", "third_pool")).map(_.schedulingGuid)
+      allPools.size should be(2)
+      allPools.intersect(Seq(action_1.schedulingGuid, action_2.schedulingGuid)).size should be(2) // no third action due to tag
+
+      val defaultPool = flow.nextRunnable(Set(DEFAULT_POOL_NAME)).map(_.schedulingGuid)
+      defaultPool.isEmpty should be(true)
+
+      val firstSecondPool = flow.nextRunnable(Set("first_pool", "second_pool")).map(_.schedulingGuid)
+      firstSecondPool.size should be(2)
+      firstSecondPool.intersect(Seq(action_1.schedulingGuid, action_2.schedulingGuid)).size should be(2)
+    }
   }
 }
 
