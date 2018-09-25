@@ -480,11 +480,10 @@ object SparkActions {
     }
 
     /**
-      * Executes Spark sql. All input labels must already be registered as sql tables using tempView* functions.
-      * Output is automatically added as temp view.
+      * Executes Spark sql. All input labels are automatically registered as sql tables.
       *
-      * @param inputs      - required inputs, used mainly for scheduling.
-      * @param sqlQuery    - sql code that uses registered labels as table names
+      * @param inputs      - required input labels
+      * @param sqlQuery    - sql code that uses labels as table names
       * @param outputLabel - label of the output transformation
       * @param dropColumns - optional list of columns to drop after transformation
       * @return

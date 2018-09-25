@@ -136,7 +136,7 @@ trait DataFlowExecutor[C] extends Logging {
         logError("Failed Action " + t._1.logLabel + " " + t._2.failed)
       }
       failed.head._2.asInstanceOf[Try[(DataFlow[C], Seq[DataFlowAction[C]])]]
-      Failure(throw new DataFlowException(s"Exception performing action: ${failed.head._1.logLabel}", failed.head._2.failed.get))
+      Failure(new DataFlowException(s"Exception performing action: ${failed.head._1.logLabel}", failed.head._2.failed.get))
     }
   }
 
