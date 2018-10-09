@@ -93,6 +93,10 @@ Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/to
 Other versions of Spark >= 2.2 are also likely to work and can be added to the list of tested versions if there is sufficient need.
 
 ## Changelog
+### 1.5.2 - 2018-10-09
+
+#### Added
+- Allowing optional output prefix on labels when reading from the storage layer
 
 ### 1.5.1 - 2018-08-21
 
