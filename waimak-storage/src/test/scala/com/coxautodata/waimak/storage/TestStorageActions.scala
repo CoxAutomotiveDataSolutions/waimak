@@ -46,18 +46,27 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val readEverythingFlow = Waimak.sparkFlow(spark)
         .loadFromStorage(testingBaseDirName)("t_record")
+        .loadFromStorage(testingBaseDirName, outputPrefix = Some("prefix"))("t_record")
 
       val res1 = executor.execute(readEverythingFlow)
       res1._2.inputs.get[Dataset[_]]("t_record").sort("lastUpdated").as[TRecord].collect() should be(records)
+      res1._2.inputs.get[Dataset[_]]("prefix_t_record").sort("lastUpdated").as[TRecord].collect() should be(records)
 
       val snapshotFlow = Waimak.sparkFlow(spark)
         .snapshotFromStorage(testingBaseDirName, ts3)("t_record")
+        .snapshotFromStorage(testingBaseDirName, ts3, outputPrefix = Some("prefix"))("t_record")
 
       val res2 = executor.execute(snapshotFlow)
       res2._2.inputs.get[Dataset[_]]("t_record").sort("id").as[TRecord].collect() should be(Seq(
         TRecord(1, "c", ts3)
         , TRecord(2, "b", ts2)
       ))
+
+      res2._2.inputs.get[Dataset[_]]("prefix_t_record").sort("id").as[TRecord].collect() should be(Seq(
+        TRecord(1, "c", ts3)
+        , TRecord(2, "b", ts2)
+      ))
+
     }
 
     it("should write with commit read everything") {
