@@ -15,12 +15,18 @@ class SimpleSparkDataFlow(val spark: SparkSession
                           , val tempFolder: Option[Path]
                           , val schedulingMeta: SchedulingMeta[SparkFlowContext]
                           , val commitLabels: Map[String, LabelCommitDefinition] = Map.empty
-                          , val tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty)) extends SparkDataFlow with Logging {
+                          , val tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty)
+                          , val commitMeta: CommitMeta[SparkFlowContext, DataFlow[SparkFlowContext]] = CommitMeta(Map.empty, Map.empty)
+                         ) extends SparkDataFlow with Logging {
 
-  override protected def createInstance(in: DataFlowEntities, ac: Seq[DataFlowAction[SparkFlowContext]], tags: DataFlowTagState, schMeta: SchedulingMeta[SparkFlowContext]): DataFlow[SparkFlowContext] = {
+  override protected def createInstance(in: DataFlowEntities
+                                        , ac: Seq[DataFlowAction[SparkFlowContext]]
+                                        , tags: DataFlowTagState
+                                        , schMeta: SchedulingMeta[SparkFlowContext]
+                                        , commitMeta: CommitMeta[SparkFlowContext, DataFlow[SparkFlowContext]]): DataFlow[SparkFlowContext] = {
     // collect all labels that are inputs for SQL labels
     val newSQLTables = sqlTables ++ ac.filter(_.getClass == classOf[SparkSimpleAction]).flatMap(a => a.asInstanceOf[SparkSimpleAction].sqlTables).toSet
-    new SimpleSparkDataFlow(spark, in, ac, newSQLTables, tempFolder, schMeta, commitLabels, tags)
+    new SimpleSparkDataFlow(spark, in, ac, newSQLTables, tempFolder, schMeta, commitLabels, tags, commitMeta)
   }
 
   override def addCommitLabel(label: String, definition: LabelCommitDefinition): SparkDataFlow = {

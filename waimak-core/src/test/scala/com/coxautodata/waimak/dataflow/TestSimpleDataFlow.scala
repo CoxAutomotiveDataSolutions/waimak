@@ -1025,6 +1025,51 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
       firstSecondPool.intersect(Seq(action_1.schedulingGuid, action_2.schedulingGuid)).size should be(2)
     }
   }
+
+  describe("Commits configuration") {
+
+    val action_1 = new TestEmptyAction(List.empty, List("t_1"))
+    val action_2 = new TestEmptyAction(List.empty, List("t_2"))
+    val action_3 = new TestEmptyAction(List.empty, List("t_3"))
+    val action_4 = new TestEmptyAction(List("t_1", "t_2", "t_3"), List("com_1"))
+    val action_5 = new TestEmptyAction(List("t_1"), List("com_2"))
+
+    val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
+
+    val flow = emptyFlow
+      .addAction(action_1)
+      .addAction(action_2)
+      .addAction(action_3)
+      .addAction(action_4)
+      .addAction(action_5)
+
+    it("no commits") {
+      flow.commitMeta.commits.isEmpty should be(true)
+    }
+
+    describe("one commit") {
+
+      it("one label, no partitions") {
+        val testFlow = flow.commit("commit_1")("com_1")
+        testFlow.commitMeta.commits.size should be(1)
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq.empty, false))))
+//        testFlow.tagState.
+      }
+
+      it("one label, partitions, no repartition") {
+        val testFlow = flow.commit("commit_1", Seq("id", "cntry"), false)("com_1")
+        testFlow.commitMeta.commits.size should be(1)
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), false))))
+      }
+
+      it("one label, partitions, repartition") {
+        val testFlow = flow.commit("commit_1", Seq("id", "cntry"))("com_1")
+        testFlow.commitMeta.commits.size should be(1)
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), true))))
+      }
+    }
+
+  }
 }
 
 class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[String]) extends DataFlowAction[EmptyFlowContext] {

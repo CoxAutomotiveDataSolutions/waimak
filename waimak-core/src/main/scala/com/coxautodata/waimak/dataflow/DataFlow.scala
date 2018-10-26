@@ -20,7 +20,9 @@ trait DataFlow[C] extends Logging {
 
   val flowContext: C
 
-  val schedulingMeta: SchedulingMeta[C]
+  def schedulingMeta: SchedulingMeta[C]
+
+  def commitMeta: CommitMeta[C, DataFlow[C]]
 
   /**
     * Inputs that were explicitly set or produced by previous actions, these are inputs for all following actions.
@@ -52,14 +54,15 @@ trait DataFlow[C] extends Logging {
     */
   def addAction(action: DataFlowAction[C]): this.type = {
 
-    action.outputLabels.foreach(l => labelIsInputOrProduced(l) match {
-      case true => throw new DataFlowException(s"Output label [${l}] is already in the inputs or is produced by another action.")
-      case _ => Unit
+    action.outputLabels.foreach(l => if (labelIsInputOrProduced(l)) {
+      throw new DataFlowException(s"Output label [${l}] is already in the inputs or is produced by another action.")
+    } else {
+      Unit
     })
     val newActions = actions :+ action
     // Add current action into tagstate with current active tags/dep tags
     val newTagState = tagState.copy(taggedActions = tagState.taggedActions + (action.guid -> DataFlowActionTags(tagState.activeTags, tagState.activeDependentOnTags)))
-    createInstance(inputs, newActions, newTagState, schedulingMeta.addAction(action)).asInstanceOf[this.type]
+    createInstance(inputs, newActions, newTagState, schedulingMeta.addAction(action), commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -91,7 +94,7 @@ trait DataFlow[C] extends Logging {
   def addInput(label: String, value: Option[Any]): this.type = {
     if (inputs.labels.contains(label)) throw new DataFlowException(s"Input label [$label] already exists")
     val newInputs = inputs + (label -> value)
-    createInstance(newInputs, actions, tagState, schedulingMeta).asInstanceOf[this.type]
+    createInstance(newInputs, actions, tagState, schedulingMeta, commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -115,7 +118,7 @@ trait DataFlow[C] extends Logging {
       })
     }
     //interceptors are not added to the execution pools
-    createInstance(inputs, newActions, newTagState, schedulingMeta).asInstanceOf[this.type]
+    createInstance(inputs, newActions, newTagState, schedulingMeta, commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -131,9 +134,9 @@ trait DataFlow[C] extends Logging {
     val (alreadyActiveTags, newTags) = tags.toSet.partition(tagState.activeTags.contains)
     logInfo(s"The following tags are already active, therefore the outer (wider) tagging scope will take precedence: ${alreadyActiveTags.mkString(", ")}")
     val newTagState = tagState.copy(activeTags = tagState.activeTags union newTags)
-    val intermediateFlow = taggedFlow(createInstance(inputs, actions, newTagState, schedulingMeta).asInstanceOf[this.type])
+    val intermediateFlow = taggedFlow(createInstance(inputs, actions, newTagState, schedulingMeta, commitMeta).asInstanceOf[this.type])
     val finalTagState = intermediateFlow.tagState.copy(activeTags = intermediateFlow.tagState.activeTags diff newTags)
-    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState, intermediateFlow.schedulingMeta).asInstanceOf[this.type]
+    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState, intermediateFlow.schedulingMeta, commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -148,9 +151,9 @@ trait DataFlow[C] extends Logging {
     val (alreadyActiveDeps, newDeps) = depTags.toSet.partition(tagState.activeDependentOnTags.contains)
     logInfo(s"The following tag dependencies are already active, therefore the outer (wider) tag dependency scope will take precedence: ${alreadyActiveDeps.mkString(", ")}")
     val newTagState = tagState.copy(activeDependentOnTags = tagState.activeDependentOnTags union newDeps)
-    val intermediateFlow = tagDependentFlow(createInstance(inputs, actions, newTagState, schedulingMeta).asInstanceOf[this.type])
+    val intermediateFlow = tagDependentFlow(createInstance(inputs, actions, newTagState, schedulingMeta, commitMeta).asInstanceOf[this.type])
     val finalTagState = intermediateFlow.tagState.copy(activeDependentOnTags = intermediateFlow.tagState.activeDependentOnTags diff newDeps)
-    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState, intermediateFlow.schedulingMeta).asInstanceOf[this.type]
+    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState, intermediateFlow.schedulingMeta, commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -180,15 +183,15 @@ trait DataFlow[C] extends Logging {
     * Generic method that can be used to add context and state to all actions inside the block.
     *
     * @param mutateState  function that adds attributes to the state
-    * @param nestedFlow
+    * @param nestedFlow   all actions inside of this flow will be associated with the mutated state
     * @tparam S
     * @return
     */
   def schedulingMeta[S <: DataFlow[C]](mutateState: SchedulingMetaState => SchedulingMetaState)(nestedFlow: this.type => S): this.type = {
     val previousState = schedulingMeta.state
     val nestedMeta = schedulingMeta.setState(mutateState(previousState))
-    val intermediateFlow = nestedFlow(createInstance(inputs, actions, tagState, nestedMeta).asInstanceOf[this.type])
-    createInstance(intermediateFlow.inputs, intermediateFlow.actions, intermediateFlow.tagState, intermediateFlow.schedulingMeta.setState(previousState)).asInstanceOf[this.type]
+    val intermediateFlow = nestedFlow(createInstance(inputs, actions, tagState, nestedMeta, commitMeta).asInstanceOf[this.type])
+    createInstance(intermediateFlow.inputs, intermediateFlow.actions, intermediateFlow.tagState, intermediateFlow.schedulingMeta.setState(previousState), commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -223,7 +226,7 @@ trait DataFlow[C] extends Logging {
     if (outputs.size != executed.outputLabels.size) throw new DataFlowException(s"Action produced different number of results. Expected ${executed.outputLabels.size}, but was ${outputs.size}. ${executed.logLabel}")
     val newActions = actions.filter(_.guid != executed.guid)
     val newInputs = executed.outputLabels.zip(outputs).foldLeft(inputs)((resInput, value) => resInput + value)
-    createInstance(newInputs, newActions, tagState, schedulingMeta.removeAction(executed))
+    createInstance(newInputs, newActions, tagState, schedulingMeta.removeAction(executed), commitMeta)
   }
 
   /**
@@ -250,6 +253,15 @@ trait DataFlow[C] extends Logging {
     withInputs
   }
 
+  def commit(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): this.type = {
+    val toRepartition = partitions.nonEmpty && repartition
+    createInstance(inputs, actions, tagState, schedulingMeta, commitMeta.addCommits(commitName, labels, partitions, toRepartition)).asInstanceOf[this.type]
+  }
+
+  def push(commitName: String)( committerFactory: () => DataCommitter[C, DataFlow[C]] ): this.type = {
+    createInstance(inputs, actions, tagState, schedulingMeta, commitMeta.addPush(commitName, committerFactory())).asInstanceOf[this.type]
+  }
+
   private def actionHasNoTagDependencies(action: DataFlowAction[C]): Boolean = {
     // All tags that this action depends on
     val actionTagDeps = tagState.taggedActions.get(action.guid).map(_.dependentOnTags).getOrElse(Set.empty)
@@ -274,7 +286,11 @@ trait DataFlow[C] extends Logging {
     * @param ac - actions for the next state
     * @return - new instance of the implementing class
     */
-  protected def createInstance(in: DataFlowEntities, ac: Seq[DataFlowAction[C]], tags: DataFlowTagState, schMeta: SchedulingMeta[C]): DataFlow[C]
+  protected def createInstance(in: DataFlowEntities
+                               , ac: Seq[DataFlowAction[C]]
+                               , tags: DataFlowTagState
+                               , schMeta: SchedulingMeta[C]
+                               , commitMeta: CommitMeta[C, DataFlow[C]]): DataFlow[C]
 
   /**
     * A function called just before the flow is executed.
@@ -418,7 +434,7 @@ case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[
   */
 case class SchedulingMeta[C](state: SchedulingMetaState, actionState: Map[String, SchedulingMetaState]) {
 
-  def this() = this(SchedulingMetaState(DEFAULT_POOL_NAME), Map.empty)
+  def this() = this(SchedulingMetaState(DEFAULT_POOL_NAME, None), Map.empty)
 
   /**
     * Adds action to the scheduling meta, action aquires all of the relevant context attributes (like currentExecutionPoolName)
@@ -463,10 +479,45 @@ case class SchedulingMeta[C](state: SchedulingMetaState, actionState: Map[String
   *
   * @param executionPoolName  name of the execution pool
   */
-case class SchedulingMetaState(executionPoolName: String) {
+case class SchedulingMetaState(executionPoolName: String, context: Option[Any] = None) {
 
   //TODO: May be add tags into here to have a common place to accumulate extra scheduling info about actions and tags
 
   def setExecutionPoolName(poolName: String): SchedulingMetaState = SchedulingMetaState(poolName)
 
+  def setContext(cntx: Option[Any]): SchedulingMetaState = SchedulingMetaState(executionPoolName, cntx)
+
 }
+
+/**
+  *
+  * @param commits  Map[ COMMIT_NAME, Seq[CommitEntry] ]
+  * @param pushes   Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
+  *                 lazy definitions of the data flows, validation will have to catch it.
+  */
+case class CommitMeta[C, F <: DataFlow[C]](commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter[C, F]]]) {
+
+  def addCommits(commitName: String, labels: Seq[String], partitions: Seq[String] = Seq.empty, repartition: Boolean = true): CommitMeta[C, F] = {
+    val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition))
+    CommitMeta(commits + (commitName -> nextCommits), pushes)
+  }
+
+  def labelsUsedInMultipleCommits(): Option[Map[String, Seq[String]]] = {
+    val labelCommits: Map[String, Seq[String]] = commits.toSeq.flatMap(kv => kv._2.map(c => (c.label, c.commitName))).groupBy(_._1).filter(_._2.size > 1).mapValues(_.map(_._2))
+    Option(labelCommits).filter(_.nonEmpty)
+  }
+
+  def addPush(commitName: String, committer: DataCommitter[C, F]): CommitMeta[C, F] = {
+    val nextPushes = pushes.getOrElse(commitName, Seq.empty) :+ committer
+    CommitMeta(commits, pushes + (commitName -> nextPushes))
+  }
+
+}
+
+object CommitMeta {
+
+  def empty[C](): CommitMeta[C, DataFlow[C]] = new CommitMeta(Map.empty, Map.empty)
+
+}
+
+case class CommitEntry(label: String, commitName: String, partitions: Seq[String], repartition: Boolean)
