@@ -610,6 +610,89 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       }
 
+      it("interceptor on tagged action, should replace action in tag state") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .tag("tag_1") {
+            _.openCSV(basePath)("csv_1", "csv_2")
+              .alias("csv_1", "items")
+              .alias("csv_2", "person")
+          }.tagDependency("tag_1") {
+          _.transform("items")("one_item") { _.filter("id = 1")}
+        }.show("one_item")
+
+        val flowWithCache = flowNoCache.cacheAsParquet("items")
+
+        flowNoCache.actions.size should be(flowWithCache.actions.size)
+        flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
+
+        val noCacheActionGUIDs = flowNoCache.actions.map(_.guid).toSet
+        val cacheAction = flowWithCache.actions.filter(a => !noCacheActionGUIDs.contains(a.guid)).head
+        cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
+
+        flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
+        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("tag_1")))
+      }
+
+      it("tagged interceptor on tagged action") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .tag("tag_1") {
+            _.openCSV(basePath)("csv_1", "csv_2")
+              .alias("csv_1", "items")
+              .alias("csv_2", "person")
+          }.tagDependency("tag_1") {
+          _.transform("items")("one_item") { _.filter("id = 1")}
+        }.show("one_item")
+
+        val flowWithCache = flowNoCache
+            .tag("cache_tag_1") {
+              _.cacheAsParquet("items")
+            }
+
+        flowWithCache.actions.foreach(a => println("DEBUG a " + a.logLabel))
+
+        flowNoCache.actions.size should be(flowWithCache.actions.size)
+        flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
+
+        val noCacheActionGUIDs = flowNoCache.actions.map(_.guid).toSet
+        val cacheAction = flowWithCache.actions.filter(a => !noCacheActionGUIDs.contains(a.guid)).head
+        cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
+
+        flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
+        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("tag_1", "cache_tag_1")))
+      }
+
+      it("tagged interceptor on non tagged action") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .openCSV(basePath)("csv_1", "csv_2")
+          .alias("csv_1", "items")
+          .alias("csv_2", "person")
+          .transform("items")("one_item") { _.filter("id = 1") }
+          .show("one_item")
+
+        val flowWithCache = flowNoCache
+          .tag("cache_tag_1") {
+            _.cacheAsParquet("items")
+          }
+
+        flowNoCache.actions.size should be(flowWithCache.actions.size)
+        flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
+
+        val noCacheActionGUIDs = flowNoCache.actions.map(_.guid).toSet
+        val cacheAction = flowWithCache.actions.filter(a => !noCacheActionGUIDs.contains(a.guid)).head
+        cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
+
+        flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
+        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("cache_tag_1")))
+      }
     }
 
   }

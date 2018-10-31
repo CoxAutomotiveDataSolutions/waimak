@@ -111,11 +111,12 @@ trait DataFlow[C] extends Logging {
       if (action.guid == guidToIntercept) res :+ interceptor else res :+ action
     }
     val newTagState = {
-      tagState.copy(taggedActions = tagState.taggedActions.map {
-        kv =>
-          if (kv._1 == guidToIntercept) interceptor.guid -> kv._2
-          else kv
-      })
+      val newInterceptorTags = tagState.taggedActions
+        .get(guidToIntercept)
+        .map(actionTags => actionTags.copy(tags = actionTags.tags union tagState.activeTags, dependentOnTags = actionTags.dependentOnTags union tagState.activeDependentOnTags))
+        .getOrElse(DataFlowActionTags(tagState.activeTags, tagState.activeDependentOnTags))
+
+      tagState.copy(taggedActions = tagState.taggedActions - guidToIntercept + (interceptor.guid -> newInterceptorTags))
     }
     //interceptors are not added to the execution pools
     createInstance(inputs, newActions, newTagState, schedulingMeta, commitMeta).asInstanceOf[this.type]
@@ -133,6 +134,7 @@ trait DataFlow[C] extends Logging {
   def tag[S <: DataFlow[C]](tags: String*)(taggedFlow: this.type => S): this.type = {
     val (alreadyActiveTags, newTags) = tags.toSet.partition(tagState.activeTags.contains)
     logInfo(s"The following tags are already active, therefore the outer (wider) tagging scope will take precedence: ${alreadyActiveTags.mkString(", ")}")
+    println("DEBUG NEWTAGS " + newTags.mkString("[", ", ", "]"))
     val newTagState = tagState.copy(activeTags = tagState.activeTags union newTags)
     val intermediateFlow = taggedFlow(createInstance(inputs, actions, newTagState, schedulingMeta, commitMeta).asInstanceOf[this.type])
     val finalTagState = intermediateFlow.tagState.copy(activeTags = intermediateFlow.tagState.activeTags diff newTags)
@@ -258,8 +260,25 @@ trait DataFlow[C] extends Logging {
     createInstance(inputs, actions, tagState, schedulingMeta, commitMeta.addCommits(commitName, labels, partitions, toRepartition)).asInstanceOf[this.type]
   }
 
-  def push(commitName: String)( committerFactory: () => DataCommitter[C, DataFlow[C]] ): this.type = {
-    createInstance(inputs, actions, tagState, schedulingMeta, commitMeta.addPush(commitName, committerFactory())).asInstanceOf[this.type]
+  def push(commitName: String)( committer: DataCommitter[C, DataFlow[C]] ): this.type = {
+    createInstance(inputs, actions, tagState, schedulingMeta, commitMeta.addPush(commitName, committer)).asInstanceOf[this.type]
+  }
+
+  def buildCommits(): this.type = {
+    commitMeta.pushes.foldLeft(this) { (resFlow, pushCommitter) =>
+      val commitName = pushCommitter._1
+      val committer = pushCommitter._2.head
+      val labels = commitMeta.commits(commitName)
+      resFlow.tag(commitName) {
+        committer.cacheToTempFlow(commitName, labels, _)
+      }.tagDependency(commitName) {
+        _.tag(commitName + "_AFTER_COMMIT") {
+          committer.moveToPermanentStorageFlow(commitName, labels, _)
+        }
+      }.tagDependency(commitName + "_AFTER_COMMIT") {
+        committer.finish(commitName, labels, _)
+      }
+    }.asInstanceOf[this.type]
   }
 
   private def actionHasNoTagDependencies(action: DataFlowAction[C]): Boolean = {

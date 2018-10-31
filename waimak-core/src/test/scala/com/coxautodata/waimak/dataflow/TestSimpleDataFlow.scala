@@ -2,7 +2,7 @@ package com.coxautodata.waimak.dataflow
 
 import org.scalatest.{FunSpec, Matchers}
 
-import scala.util.Try
+import scala.util.{Success, Try}
 
 class TestSimpleDataFlow extends FunSpec with Matchers {
 
@@ -682,6 +682,7 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
         "Action uses input labels that itself, a sub-action or tag-dependent sub-action outputs.")
     }
 
+
   }
 
   describe("executed actions") {
@@ -1036,6 +1037,8 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     val emptyFlow: SimpleDataFlow[EmptyFlowContext] = SimpleDataFlow.empty()
 
+    val dataCommitter = new TestDataCommitter()
+
     val flow = emptyFlow
       .addAction(action_1)
       .addAction(action_2)
@@ -1045,27 +1048,136 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 
     it("no commits") {
       flow.commitMeta.commits.isEmpty should be(true)
+      flow.commitMeta.pushes.isEmpty should be(true)
     }
 
-    describe("one commit") {
+    describe("one commit, no push") {
 
       it("one label, no partitions") {
         val testFlow = flow.commit("commit_1")("com_1")
         testFlow.commitMeta.commits.size should be(1)
         testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq.empty, false))))
-//        testFlow.tagState.
+        testFlow.commitMeta.pushes.isEmpty should be(true)
+        testFlow.tagState.activeTags.isEmpty should be(true)
       }
 
       it("one label, partitions, no repartition") {
         val testFlow = flow.commit("commit_1", Seq("id", "cntry"), false)("com_1")
         testFlow.commitMeta.commits.size should be(1)
         testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), false))))
+        testFlow.commitMeta.pushes.isEmpty should be(true)
+        testFlow.tagState.activeTags.isEmpty should be(true)
       }
 
       it("one label, partitions, repartition") {
         val testFlow = flow.commit("commit_1", Seq("id", "cntry"))("com_1")
         testFlow.commitMeta.commits.size should be(1)
         testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), true))))
+        testFlow.commitMeta.pushes.isEmpty should be(true)
+        testFlow.tagState.activeTags.isEmpty should be(true)
+      }
+    }
+
+    describe("pushes, no commits") {
+
+      it("one push") {
+        val testFlow = flow.push("commit_1")(dataCommitter)
+        testFlow.commitMeta.commits.isEmpty should be(true)
+        testFlow.tagState.activeTags.isEmpty should be(true)
+        testFlow.commitMeta.pushes.keySet should be(Set("commit_1"))
+        testFlow.commitMeta.pushes("commit_1").size should be(1)
+      }
+
+      it("one push, accept multiple committers") { //it should accept, but it will fail validation
+        val testFlow = flow
+          .push("commit_1")(dataCommitter)
+          .push("commit_1")(dataCommitter)
+        testFlow.commitMeta.commits.isEmpty should be(true)
+        testFlow.tagState.activeTags.isEmpty should be(true)
+        testFlow.commitMeta.pushes.keySet should be(Set("commit_1"))
+        testFlow.commitMeta.pushes("commit_1").size should be(2)
+      }
+
+      it("2 pushes") {
+        val testFlow = flow
+          .push("commit_1")(dataCommitter)
+          .push("commit_2")(dataCommitter)
+        testFlow.commitMeta.commits.isEmpty should be(true)
+        testFlow.tagState.activeTags.isEmpty should be(true)
+        testFlow.commitMeta.pushes.keySet should be(Set("commit_1", "commit_2"))
+        testFlow.commitMeta.pushes("commit_1").size should be(1)
+        testFlow.commitMeta.pushes("commit_2").size should be(1)
+      }
+
+    }
+
+    describe("build committers, no validations") {
+
+      it("single commit, single label") {
+        val testFlow = emptyFlow
+          .commit("commit_1")("label_1")
+          .push("commit_1")(dataCommitter)
+          .buildCommits()
+
+        testFlow.actions.size should be(3)
+        testFlow.tagState.taggedActions.keySet should be(testFlow.actions.map(_.guid).toSet)
+
+        val cacheActions = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_1")).values.toList
+        cacheActions.size should be(1)
+        cacheActions(0).tags should be(Set("commit_1"))
+        cacheActions(0).dependentOnTags should be(Set.empty)
+
+        val moveActions = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_1_AFTER_COMMIT")).values.toList
+        moveActions.size should be(1)
+        moveActions(0).tags should be(Set("commit_1_AFTER_COMMIT"))
+        moveActions(0).dependentOnTags should be(Set("commit_1"))
+
+        val finishActions = testFlow.tagState.taggedActions.filter(_._2.dependentOnTags.contains("commit_1_AFTER_COMMIT")).values.toList
+        finishActions.size should be(1)
+        finishActions(0).tags should be(Set.empty)
+        finishActions(0).dependentOnTags should be(Set("commit_1_AFTER_COMMIT"))
+      }
+
+      it("multiple commits, single label") {
+        val testFlow = emptyFlow
+          .commit("commit_1")("label_1")
+          .push("commit_1")(dataCommitter)
+          .push("commit_2")(dataCommitter)
+          .commit("commit_2")("label_2")
+          .buildCommits()
+
+        testFlow.actions.size should be(6)
+        testFlow.tagState.taggedActions.keySet should be(testFlow.actions.map(_.guid).toSet)
+
+        val cacheActions_1 = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_1")).values.toList
+        cacheActions_1.size should be(1)
+        cacheActions_1(0).tags should be(Set("commit_1"))
+        cacheActions_1(0).dependentOnTags should be(Set.empty)
+
+        val moveActions_1 = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_1_AFTER_COMMIT")).values.toList
+        moveActions_1.size should be(1)
+        moveActions_1(0).tags should be(Set("commit_1_AFTER_COMMIT"))
+        moveActions_1(0).dependentOnTags should be(Set("commit_1"))
+
+        val finishActions_1 = testFlow.tagState.taggedActions.filter(_._2.dependentOnTags.contains("commit_1_AFTER_COMMIT")).values.toList
+        finishActions_1.size should be(1)
+        finishActions_1(0).tags should be(Set.empty)
+        finishActions_1(0).dependentOnTags should be(Set("commit_1_AFTER_COMMIT"))
+
+        val cacheActions_2 = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_2")).values.toList
+        cacheActions_2.size should be(1)
+        cacheActions_2(0).tags should be(Set("commit_2"))
+        cacheActions_2(0).dependentOnTags should be(Set.empty)
+
+        val moveActions_2 = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_2_AFTER_COMMIT")).values.toList
+        moveActions_2.size should be(1)
+        moveActions_2(0).tags should be(Set("commit_2_AFTER_COMMIT"))
+        moveActions_2(0).dependentOnTags should be(Set("commit_2"))
+
+        val finishActions_2 = testFlow.tagState.taggedActions.filter(_._2.dependentOnTags.contains("commit_2_AFTER_COMMIT")).values.toList
+        finishActions_2.size should be(1)
+        finishActions_2(0).tags should be(Set.empty)
+        finishActions_2(0).dependentOnTags should be(Set("commit_2_AFTER_COMMIT"))
       }
     }
 
@@ -1075,5 +1187,23 @@ class TestSimpleDataFlow extends FunSpec with Matchers {
 class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[String]) extends DataFlowAction[EmptyFlowContext] {
 
   override def performAction(inputs: DataFlowEntities, flowContext: EmptyFlowContext): Try[ActionResult] = Try(List.empty)
+
+}
+
+class TestDataCommitter extends DataCommitter[EmptyFlowContext, DataFlow[EmptyFlowContext]] {
+
+  override def cacheToTempFlow(commitName: String, labels: Seq[CommitEntry], flow: DataFlow[EmptyFlowContext]): DataFlow[EmptyFlowContext] = {
+    labels.map(_.label).foldLeft(flow) { (res, label) => res.addAction(new TestEmptyAction(List(label + "_input"), List(label + "_output"))) }
+  }
+
+  override def moveToPermanentStorageFlow(commitName: String, labels: Seq[CommitEntry], flow: DataFlow[EmptyFlowContext]): DataFlow[EmptyFlowContext] = {
+    flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
+  }
+
+  override def finish(commitName: String, labels: Seq[CommitEntry], flow: DataFlow[EmptyFlowContext]): DataFlow[EmptyFlowContext] = {
+    flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
+  }
+
+  override protected[dataflow] def validate(): Try[Unit] = Success(Unit)
 
 }

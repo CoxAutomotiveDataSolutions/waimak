@@ -67,25 +67,6 @@ trait SparkDataFlow extends DataFlow[SparkFlowContext] with Logging {
 
   val commitLabels: Map[String, LabelCommitDefinition]
 
-//  def commitAsParquet(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): this.type =
-//    toCommit(commitName, Some((commitName, LabelCommitDefinition("", None, partitions, None))))(labels:_*) {
-//      (commitLabels, flow) =>
-//        commitLabels.foldLeft(flow){ (tmpFlow, label) =>
-//          tmpFlow.schedulingMeta(_.setContext(Some((commitName, la))))
-//          SparkInterceptors.addCacheAsParquet(tmpFlow, label, partitions, repartition)
-//        }
-//    }
-//
-//  protected def toCommit(commitName: String, context: Option[Any])(labels: String*)(commit: (Seq[String], this.type) => this.type): this.type = {
-//      tag(commitName) {
-//        commit(labels, _)
-//      }
-//
-//  }
-//
-//  def toPush(commitName: String)
-
-
 }
 
 case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
