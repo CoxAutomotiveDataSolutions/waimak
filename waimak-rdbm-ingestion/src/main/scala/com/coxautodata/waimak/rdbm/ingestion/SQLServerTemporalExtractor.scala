@@ -20,7 +20,7 @@ import scala.util.{Failure, Success, Try}
   */
 class SQLServerTemporalExtractor(override val sparkSession: SparkSession
                                  , sqlServerConnectionDetails: SQLServerConnectionDetails
-                                 , extraConnectionProperties: Properties = new Properties()) extends SQLServerExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
+                                 , extraConnectionProperties: Properties = new Properties()) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
 
   val metadataQuery: String =
     s"""(
