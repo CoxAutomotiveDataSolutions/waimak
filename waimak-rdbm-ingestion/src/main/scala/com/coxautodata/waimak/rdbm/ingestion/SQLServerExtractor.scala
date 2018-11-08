@@ -15,11 +15,12 @@ import scala.util.{Failure, Success, Try}
 
 class SQLServerExtractor(override val sparkSession: SparkSession
                          , sqlServerConnectionDetails: SQLServerConnectionDetails
-                         , extraConnectionProperties: Properties = new Properties()) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
+                         , extraConnectionProperties: Properties = new Properties()
+                         , override val transformTableNameForRead: String => String = identity) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
 
 
   val pkQuery: String =
-    s"""(
+    s"""
        |WITH CTE_PKAggregate AS (
        |SELECT SCHEMA_NAME(main.schema_id) as schemaName,
        | main.name AS tableName,
@@ -39,15 +40,14 @@ class SQLServerExtractor(override val sparkSession: SparkSession
        |               FROM CTE_PKAggregate p2
        |               WHERE p2.tablename = p1.tablename
        |               ORDER BY primaryKeys
-       |               FOR XML PATH(''), TYPE).value('.', 'varchar(max)')
-       |            ,1,1,'')
-       |       AS primaryKeys
+       |               FOR XML PATH('')), 1, LEN(','), '') AS primaryKeys
        |      FROM CTE_PKAggregate p1
        |      GROUP BY schemaName,
-       |	  tableName
-  ) m""".stripMargin
+       |	  tableName; m""".stripMargin
 
-  lazy val allTablePKs: Map[String, Seq[String]] = {
+println(pkQuery)
+
+  lazy val allTablePKs: Map[String, String] = {
     import sparkSession.implicits._
     RDBMIngestionUtils.lowerCaseAll(
       sparkSession.read
@@ -56,8 +56,9 @@ class SQLServerExtractor(override val sparkSession: SparkSession
     )
       .as[SQLServerTableMetadata]
       .collect()
-      .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata.pkCols).toMap
+      .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata.primaryKeys).toMap
   }
+
 
   override def getTableMetadata(dbSchemaName: String
                                 , tableName: String
@@ -74,17 +75,15 @@ class SQLServerExtractor(override val sparkSession: SparkSession
 
   def getTablePKs(dbSchemaName: String
                   , tableName: String): Option[Seq[String]] = {
-    allTablePKs.get(s"$dbSchemaName.$tableName")
+    allTablePKs.get(s"$dbSchemaName.$tableName").map(_.split(";").toSeq)
+  }
 
   }
 
   case class SQLServerTableMetadata(schemaName: String
                                     , tableName: String
-                                    , primaryKeys: String) {
+                                    , primaryKeys: String)
 
-    def pkCols: Seq[String] = primaryKeys.split(";").toSeq
 
-    def mainTableMetadata: TableExtractionMetadata = TableExtractionMetadata(schemaName, tableName, pkCols)
-  }
 
-}
+

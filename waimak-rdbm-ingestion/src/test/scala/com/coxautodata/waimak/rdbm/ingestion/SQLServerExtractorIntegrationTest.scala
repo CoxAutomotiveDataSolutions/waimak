@@ -34,7 +34,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
   }
 
   def setupTables(): Unit = {
-    
+
     val testTableCreate =
       """CREATE TABLE testtable
         |(
@@ -70,79 +70,74 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
   describe("getTableMetadata") {
 
-    it("should read the metadata for a test table") {
-      val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+      it("should return the metadata from the database (no user metadata provided)") {
+        val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+        sqlServerExtractor.getTableMetadata("dbo", "testtable", None, None) should be(Success(
+          AuditTableInfo("testtable", Seq("testtableid1", "testtableid2"), Map(
+            "schemaName" -> "dbo"
+            , "tableName" -> "testtable"
+            , "primaryKeys" -> "testtableid1;testtableid2")
+          )))
+      }
 
-      sqlServerExtractor.allTablePKs("dbo.testtable") should be(
-        sqlServerExtractor.SQLServerTableMetadata("dbo", "testtable", "testtableid1;testtableid2")
-      )
-
-      sqlServerExtractor.getTableMetadata("dbo", "testtable") should be(
-        Success(AuditTableInfo("testtable", Seq("testtableid1", "testtableid2"), Map(
-          "schemaName" -> "dbo"
-          , "tableName" -> "testtable"
-          , "primaryKeys" -> "testtableid1;testtableid2")))
-      )
-    }
   }
 
-  describe("extractToStorageFromRDBM") {
+    describe("extractToStorageFromRDBM") {
 
-    it("should extract from the db to the storage layer") {
-      val spark = sparkSession
-      import spark.implicits._
-      val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-      val flow = Waimak.sparkFlow(sparkSession)
-      val executor = Waimak.sparkExecutor()
-      val tableConfig = Map("testtable" -> RDBMExtractionTableConfig("testtable"))
-      val writeFlow = flow.extractToStorageFromRDBM(sqlServerExtractor, "dbo", s"$testingBaseDir/output", tableConfig, insertDateTime)("testtable")
+      it("should extract from the db to the storage layer") {
+        val spark = sparkSession
+        import spark.implicits._
+        val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+        val flow = Waimak.sparkFlow(sparkSession)
+        val executor = Waimak.sparkExecutor()
+        val tableConfig = Map("testtable" -> RDBMExtractionTableConfig("testtable"))
+        val writeFlow = flow.extractToStorageFromRDBM(sqlServerExtractor, "dbo", s"$testingBaseDir/output", tableConfig, insertDateTime)("testtable")
 
-      val res1 = executor.execute(writeFlow)
-      res1._2.inputs.get[Dataset[_]]("testtable").sort("testtableid1", "testtableid2")
-        .as[TestTable].collect() should be(Seq(
-        TestTable(1, 1, "V1")
-        , TestTable(2, 1, "V2")
-        , TestTable(2, 2, "V3")
-        , TestTable(4, 3, "V4")
-        , TestTable(5, 3, "V5")
-      ))
+        val res1 = executor.execute(writeFlow)
+        res1._2.inputs.get[Dataset[_]]("testtable").sort("testtableid1", "testtableid2")
+          .as[TestTable].collect() should be(Seq(
+          TestTable(1, 1, "V1")
+          , TestTable(2, 1, "V2")
+          , TestTable(2, 2, "V3")
+          , TestTable(4, 3, "V4")
+          , TestTable(5, 3, "V5")
+        ))
+      }
+
+      it("should extract from the db with a limited number of rows per partition") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+        val flow = Waimak.sparkFlow(sparkSession)
+        val executor = Waimak.sparkExecutor()
+        val tableConfig: Map[String, RDBMExtractionTableConfig] = Map("testtable" -> RDBMExtractionTableConfig("testtable", maxRowsPerPartition = Some(3)))
+
+        val writeFlow = flow.extractToStorageFromRDBM(sqlServerExtractor
+          , "dbo"
+          , s"$testingBaseDir/output"
+          , tableConfig
+          , insertDateTime)("testtable")
+
+        val res = executor.execute(writeFlow)
+
+        val testTable = res._2.inputs.get[Dataset[_]]("testtable")
+
+        testTable.sort("testtableid1", "testtableid2")
+          .as[TestTable].collect() should be(Seq(
+          TestTable(1, 1, "V1")
+          , TestTable(2, 1, "V2")
+          , TestTable(2, 2, "V3")
+          , TestTable(4, 3, "V4")
+          , TestTable(5, 3, "V5")
+        ))
+
+        //Should create two partitions (max rows per partition is 3)
+        testTable.rdd.getNumPartitions should be(2)
+
+      }
     }
 
-    it("should extract from the db with a limited number of rows per partition") {
-      val spark = sparkSession
-      import spark.implicits._
-
-      val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-      val flow = Waimak.sparkFlow(sparkSession)
-      val executor = Waimak.sparkExecutor()
-      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map("testtable" -> RDBMExtractionTableConfig("testtable", maxRowsPerPartition = Some(3)))
-
-      val writeFlow = flow.extractToStorageFromRDBM(sqlServerExtractor
-        , "dbo"
-        , s"$testingBaseDir/output"
-        , tableConfig
-        , insertDateTime)("testtable")
-
-      val res = executor.execute(writeFlow)
-
-      val testTable = res._2.inputs.get[Dataset[_]]("testtable")
-
-      testTable.sort("testtableid1", "testtableid2")
-        .as[TestTable].collect() should be(Seq(
-        TestTable(1, 1, "V1")
-        , TestTable(2, 1, "V2")
-        , TestTable(2, 2, "V3")
-        , TestTable(4, 3, "V4")
-        , TestTable(5, 3, "V5")
-      ))
-
-      //Should create two partitions (max rows per partition is 3)
-      testTable.rdd.getNumPartitions should be(2)
-
-    }
   }
-
-}
 
 case class TestTable(testtableid1: Int, testtableid2: Int, testtablevalue: String)
-
