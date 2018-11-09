@@ -25,11 +25,11 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
 
   describe("With single thread") {
 
-    val emptySchedulerOneThread = ParallelActionScheduler()(ParallelActionScheduler.noPool)
+    val emptySchedulerOneThread = ParallelActionScheduler()
 
     val dummyBusySchedulerOneThread = {
       val poolDesc = emptySchedulerOneThread.pools(DEFAULT_POOL_NAME).addActionGUID(action1.guid)
-      new ParallelActionScheduler(emptySchedulerOneThread.pools + (DEFAULT_POOL_NAME -> poolDesc), emptySchedulerOneThread.actionFinishedNotificationQueue, ParallelActionScheduler.noPool)
+      new ParallelActionScheduler(emptySchedulerOneThread.pools + (DEFAULT_POOL_NAME -> poolDesc), emptySchedulerOneThread.actionFinishedNotificationQueue)
     }
 
     describe("availableExecutionPool") {

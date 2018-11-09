@@ -18,10 +18,10 @@ class ParallelDataFlowExecutor(val scheduler: ParallelActionScheduler
 
 object ParallelDataFlowExecutor {
 
-  def apply(flowReporter: FlowReporter)(poolIntoContext: (String, FlowContext) => Unit) = new ParallelDataFlowExecutor(ParallelActionScheduler()(poolIntoContext), flowReporter, defaultPriorityStrategy)
+  def apply(flowReporter: FlowReporter) = new ParallelDataFlowExecutor(ParallelActionScheduler(), flowReporter, defaultPriorityStrategy)
 
-  def apply(flowReporter: FlowReporter, maxJobs: Int, priorityStrategy: priorityStrategy)(poolIntoContext: (String, FlowContext) => Unit) = new ParallelDataFlowExecutor(ParallelActionScheduler(maxJobs)(poolIntoContext), flowReporter, priorityStrategy)
+  def apply(flowReporter: FlowReporter, maxJobs: Int, priorityStrategy: priorityStrategy) = new ParallelDataFlowExecutor(ParallelActionScheduler(maxJobs), flowReporter, priorityStrategy)
 
-  def apply(flowReporter: FlowReporter, poolsSpec: Map[String, Int], priorityStrategy: priorityStrategy)(poolIntoContext: (String, FlowContext) => Unit) = new ParallelDataFlowExecutor(ParallelActionScheduler(poolsSpec)(poolIntoContext), flowReporter, priorityStrategy)
+  def apply(flowReporter: FlowReporter, poolsSpec: Map[String, Int], priorityStrategy: priorityStrategy) = new ParallelDataFlowExecutor(ParallelActionScheduler(poolsSpec), flowReporter, priorityStrategy)
 
 }

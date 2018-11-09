@@ -45,7 +45,7 @@ class SimpleSparkDataFlow(info: SimpleSparkDataFlowInfo) extends SparkDataFlow w
     */
   override def sqlTables: Set[String] = info.sqlTables
 
-  override def addCommitLabel(label: String, definition: LabelCommitDefinition): SparkDataFlow = ???
+  override def addCommitLabel(label: String, definition: LabelCommitDefinition): SparkDataFlow = new SimpleSparkDataFlow(info.copy(commitLabels = info.commitLabels + (label -> definition)))
 
   override val commitLabels: Map[String, LabelCommitDefinition] = info.commitLabels
 

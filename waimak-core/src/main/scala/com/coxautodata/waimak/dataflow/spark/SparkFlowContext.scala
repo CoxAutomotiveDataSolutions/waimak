@@ -2,7 +2,7 @@ package com.coxautodata.waimak.dataflow.spark
 
 import java.net.URI
 
-import com.coxautodata.waimak.dataflow.FlowContext
+import com.coxautodata.waimak.dataflow.{DataFlowAction, FlowContext}
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
@@ -19,12 +19,9 @@ case class SparkFlowContext(spark: SparkSession) extends FlowContext {
 
   lazy val fileSystem: FileSystem = FileSystem.get(new URI(uriToUse), spark.sparkContext.hadoopConfiguration)
 
-}
+  override def setPoolIntoContext(poolName: String): Unit = spark.sparkContext.setLocalProperty("spark.scheduler.pool", poolName)
 
-object SparkFlowContext {
+  override def reportActionStarted(action: DataFlowAction): Unit = spark.sparkContext.setJobGroup(action.guid, action.description)
 
-  def setPoolIntoContext(poolName: String, context: FlowContext): Unit = {
-    context.asInstanceOf[SparkFlowContext].spark.sparkContext.setLocalProperty("spark.scheduler.pool", poolName)
-  }
-
+  override def reportActionFinished(action: DataFlowAction): Unit = spark.sparkContext.clearJobGroup()
 }

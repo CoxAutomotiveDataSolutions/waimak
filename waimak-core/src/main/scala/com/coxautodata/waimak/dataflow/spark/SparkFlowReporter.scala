@@ -5,11 +5,12 @@ import com.coxautodata.waimak.dataflow.{DataFlowAction, FlowContext, FlowReporte
 object SparkFlowReporter extends FlowReporter {
 
   override def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit = {
-    flowContext.asInstanceOf[SparkFlowContext].spark.sparkContext.setJobGroup(action.guid, action.description)
+    flowContext.reportActionStarted(action)
 
   }
 
   override def reportActionFinished(action: DataFlowAction, flowContext: FlowContext): Unit = {
-    flowContext.asInstanceOf[SparkFlowContext].spark.sparkContext.clearJobGroup()
+    flowContext.reportActionFinished(action)
   }
+
 }

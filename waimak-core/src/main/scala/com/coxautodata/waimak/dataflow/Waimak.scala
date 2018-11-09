@@ -53,6 +53,6 @@ object Waimak {
     * @return
     */
   def sparkExecutor(maxParallelActions: Int = 20, priorityStrategy: priorityStrategy = DFExecutorPriorityStrategies.defaultPriorityStrategy): DataFlowExecutor =
-    ParallelDataFlowExecutor(SparkFlowReporter, maxParallelActions, priorityStrategy)(SparkFlowContext.setPoolIntoContext)
+    ParallelDataFlowExecutor(SparkFlowReporter, maxParallelActions, priorityStrategy)
 
 }
