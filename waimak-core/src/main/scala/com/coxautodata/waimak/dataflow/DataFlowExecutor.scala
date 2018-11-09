@@ -8,7 +8,7 @@ import scala.util.{Failure, Success, Try}
 /**
   * Created by Alexei Perelighin on 11/01/18.
   */
-trait DataFlowExecutor[C] extends Logging {
+trait DataFlowExecutor extends Logging {
 
   /**
     * Executes as many actions as possible with the given DAG, stops when no more actions can be executed.
@@ -17,7 +17,7 @@ trait DataFlowExecutor[C] extends Logging {
     * @return (Seq[EXECUTED ACTIONS], FINAL STATE). Final state does not contain the executed actions and the outputs
     *         of the executed actions are now in the inputs
     */
-  def execute(dataFlow: DataFlow[C]): (Seq[DataFlowAction[C]], DataFlow[C]) = {
+  def execute(dataFlow: DataFlow): (Seq[DataFlowAction], DataFlow) = {
     val preparedDataFlow = dataFlow.prepareForExecution()
 
     val actionScheduler = initActionScheduler()
@@ -34,7 +34,7 @@ trait DataFlowExecutor[C] extends Logging {
   /**
     * Used to report events on the flow.
     */
-  def flowReporter: FlowReporter[C]
+  def flowReporter: FlowReporter
 
   /**
     * A complex data flow has lots of parallel, diverging and converging actions, lots of the actions could be started
@@ -44,20 +44,20 @@ trait DataFlowExecutor[C] extends Logging {
     *
     * @return
     */
-  def priorityStrategy: DFExecutorPriorityStrategies.priorityStrategy[C]
+  def priorityStrategy: DFExecutorPriorityStrategies.priorityStrategy
 
   /**
     * Action scheduler used to run actions
     *
     * @return
     */
-  def initActionScheduler(): ActionScheduler[C]
+  def initActionScheduler(): ActionScheduler
 
   @tailrec
-  private def loopExecution(currentFlow: DataFlow[C]
-                            , actionScheduler: ActionScheduler[C]
-                            , successfulActions: Seq[DataFlowAction[C]]
-                           ): (ActionScheduler[C], Try[(Seq[DataFlowAction[C]], DataFlow[C])]) = {
+  private def loopExecution(currentFlow: DataFlow
+                            , actionScheduler: ActionScheduler
+                            , successfulActions: Seq[DataFlowAction]
+                           ): (ActionScheduler, Try[(Seq[DataFlowAction], DataFlow)]) = {
     toSchedule(currentFlow, actionScheduler) match {
       case None if !actionScheduler.hasRunningActions => //No more actions to schedule and none are running => finish data flow execution
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
@@ -94,8 +94,8 @@ trait DataFlowExecutor[C] extends Logging {
     * @param actionScheduler
     * @return (Pool into which to schedule, Action to schedule)
     */
-  protected[dataflow] def toSchedule(currentFlow: DataFlow[C], actionScheduler: ActionScheduler[C]): Option[(String, DataFlowAction[C])] = {
-    val toSchedule: Option[(String, DataFlowAction[C])] = actionScheduler
+  protected[dataflow] def toSchedule(currentFlow: DataFlow, actionScheduler: ActionScheduler): Option[(String, DataFlowAction)] = {
+    val toSchedule: Option[(String, DataFlowAction)] = actionScheduler
       .availableExecutionPools()
       .flatMap(executionPoolNames => priorityStrategy(actionScheduler.dropRunning(executionPoolNames, currentFlow.nextRunnable(executionPoolNames)))
         .headOption.map(actionToSchedule => (currentFlow.schedulingMeta.executionPoolName(actionToSchedule), actionToSchedule))
@@ -112,9 +112,9 @@ trait DataFlowExecutor[C] extends Logging {
     * @return Success((new state of the flow, appended list of successful actions)), Failure will be returned
     *         if at least one action in the actionResults has failed
     */
-  private[dataflow] def processActionResults(actionResults: Seq[(DataFlowAction[C], Try[ActionResult])]
-                                             , currentFlow: DataFlow[C]
-                                             , successfulActionsUntilNow: Seq[DataFlowAction[C]]): Try[(DataFlow[C], Seq[DataFlowAction[C]])] = {
+  private[dataflow] def processActionResults(actionResults: Seq[(DataFlowAction, Try[ActionResult])]
+                                             , currentFlow: DataFlow
+                                             , successfulActionsUntilNow: Seq[DataFlowAction]): Try[(DataFlow, Seq[DataFlowAction])] = {
     val (success, failed) = actionResults.partition(_._2.isSuccess)
     val res = success.foldLeft((currentFlow, successfulActionsUntilNow)) { (res, actionRes) =>
       val action = actionRes._1
@@ -128,7 +128,7 @@ trait DataFlowExecutor[C] extends Logging {
         // TODO: maybe add to flowReporter info about failed actions
         logError("Failed Action " + t._1.logLabel + " " + t._2.failed)
       }
-      failed.head._2.asInstanceOf[Try[(DataFlow[C], Seq[DataFlowAction[C]])]]
+      failed.head._2.asInstanceOf[Try[(DataFlow, Seq[DataFlowAction])]]
       Failure(new DataFlowException(s"Exception performing action: ${failed.head._1.logLabel}", failed.head._2.failed.get))
     }
   }

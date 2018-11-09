@@ -2,6 +2,6 @@ package com.coxautodata.waimak.dataflow
 
 package object spark {
 
-  type CleanUpStrategy[T] = (Seq[T]) => Seq[T]
+  type CleanUpStrategy[T] = (String, Seq[T]) => Seq[T]
 
 }

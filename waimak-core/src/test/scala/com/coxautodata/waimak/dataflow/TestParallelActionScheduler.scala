@@ -21,15 +21,15 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
 
   val flowContext = new EmptyFlowContext
 
-  val reporter = NoReportingFlowReporter[EmptyFlowContext]
+  val reporter = NoReportingFlowReporter()
 
   describe("With single thread") {
 
-    val emptySchedulerOneThread = ParallelActionScheduler[EmptyFlowContext]()(ParallelActionScheduler.noPool[EmptyFlowContext])
+    val emptySchedulerOneThread = ParallelActionScheduler()(ParallelActionScheduler.noPool)
 
     val dummyBusySchedulerOneThread = {
       val poolDesc = emptySchedulerOneThread.pools(DEFAULT_POOL_NAME).addActionGUID(action1.guid)
-      new ParallelActionScheduler(emptySchedulerOneThread.pools + (DEFAULT_POOL_NAME -> poolDesc), emptySchedulerOneThread.actionFinishedNotificationQueue, ParallelActionScheduler.noPool[EmptyFlowContext])
+      new ParallelActionScheduler(emptySchedulerOneThread.pools + (DEFAULT_POOL_NAME -> poolDesc), emptySchedulerOneThread.actionFinishedNotificationQueue, ParallelActionScheduler.noPool)
     }
 
     describe("availableExecutionPool") {
@@ -88,7 +88,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
       it("an input only one action is running") {
         val withAction = emptySchedulerOneThread.schedule(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, flowContext, reporter)
         val res = withAction.waitToFinish(flowContext, reporter)
-        val scheduler = res.get._1.asInstanceOf[ParallelActionScheduler[EmptyFlowContext]]
+        val scheduler = res.get._1.asInstanceOf[ParallelActionScheduler]
         scheduler.pools.get(DEFAULT_POOL_NAME).map(_.running.isEmpty) should be(Some(true))
         res.get._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
       }
@@ -104,7 +104,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
     describe("submitAction") {
 
       it("nothing is running before submitting") {
-        val nextScheduler: ParallelActionScheduler[EmptyFlowContext] = emptySchedulerOneThread.schedule(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, new EmptyFlowContext, reporter).asInstanceOf[ParallelActionScheduler[EmptyFlowContext]]
+        val nextScheduler: ParallelActionScheduler = emptySchedulerOneThread.schedule(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, new EmptyFlowContext, reporter).asInstanceOf[ParallelActionScheduler]
         nextScheduler.pools.size should be(1)
         nextScheduler.pools.get(DEFAULT_POOL_NAME).map(_.running) should be(Some(Set(action1.guid)))
         nextScheduler.hasRunningActions should be(true)

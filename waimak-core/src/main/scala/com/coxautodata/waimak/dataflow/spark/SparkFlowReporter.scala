@@ -1,14 +1,15 @@
 package com.coxautodata.waimak.dataflow.spark
 
-import com.coxautodata.waimak.dataflow.{DataFlowAction, FlowReporter}
-import org.apache.spark.sql.Dataset
+import com.coxautodata.waimak.dataflow.{DataFlowAction, FlowContext, FlowReporter}
 
-object SparkFlowReporter extends FlowReporter[SparkFlowContext] {
-  override def reportActionStarted(action: DataFlowAction[SparkFlowContext], flowContext: SparkFlowContext): Unit = {
-    flowContext.spark.sparkContext.setJobGroup(action.guid, action.description)
+object SparkFlowReporter extends FlowReporter {
+
+  override def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit = {
+    flowContext.asInstanceOf[SparkFlowContext].spark.sparkContext.setJobGroup(action.guid, action.description)
+
   }
 
-  override def reportActionFinished(action: DataFlowAction[SparkFlowContext], flowContext: SparkFlowContext): Unit = {
-    flowContext.spark.sparkContext.clearJobGroup()
+  override def reportActionFinished(action: DataFlowAction, flowContext: FlowContext): Unit = {
+    flowContext.asInstanceOf[SparkFlowContext].spark.sparkContext.clearJobGroup()
   }
 }

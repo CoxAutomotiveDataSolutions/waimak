@@ -7,9 +7,9 @@ package com.coxautodata.waimak.dataflow
   */
 object DFExecutorPriorityStrategies {
 
-  type actionQueue[C] = Seq[DataFlowAction[C]]
+  type actionQueue = Seq[DataFlowAction]
 
-  type priorityStrategy[C] = actionQueue[C] => actionQueue[C]
+  type priorityStrategy = actionQueue => actionQueue
 
   /**
     * Default strategy, at the moment it will not do anything.
@@ -17,7 +17,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def defaultPriorityStrategy[C]: PartialFunction[actionQueue[C], actionQueue[C]] = raceToOutputs[C]
+  def defaultPriorityStrategy[C]: PartialFunction[actionQueue, actionQueue] = raceToOutputs[C]
 
   /**
     * Preserves the order of the actions in which they are defined, but at first will give preference to loaders. If
@@ -26,7 +26,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def preferLoaders[C]: PartialFunction[actionQueue[C], actionQueue[C]] = takeLoaders[C] orElse asInTheFlow[C]
+  def preferLoaders: PartialFunction[actionQueue, actionQueue] = takeLoaders orElse asInTheFlow
 
   /**
     * With Spark, waimak writers would usually force execution of the DAG and will produce outputs, while other waimak actions
@@ -37,7 +37,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def raceToOutputs[C]: PartialFunction[actionQueue[C], actionQueue[C]] = takeWriters[C] orElse takeWithInputs[C] orElse asInTheFlow[C]
+  def raceToOutputs[C]: PartialFunction[actionQueue, actionQueue] = takeWriters orElse takeWithInputs orElse asInTheFlow
 
   /**
     * In order to race to actions that execute Spark DAG faster, it is needed to schedule certain actions earlier, regardless
@@ -49,7 +49,7 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return
     */
-  def raceToOutputsAndThanSort[C](orderedLabels: Seq[String]): PartialFunction[actionQueue[C], actionQueue[C]] = raceToOutputs[C] andThen sortByOutputLabel[C](orderedLabels)
+  def raceToOutputsAndThanSort(orderedLabels: Seq[String]): PartialFunction[actionQueue, actionQueue] = raceToOutputs andThen sortByOutputLabel(orderedLabels)
 
   /**
     * Preserves the order in which actions are defined in the flow.
@@ -57,45 +57,45 @@ object DFExecutorPriorityStrategies {
     * @tparam C
     * @return   same as input, no modifications
     */
-  def asInTheFlow[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
+  def asInTheFlow: PartialFunction[actionQueue, actionQueue] = new PartialFunction[actionQueue, actionQueue] {
 
-    override def isDefinedAt(x: actionQueue[C]): Boolean = true
+    override def isDefinedAt(x: actionQueue): Boolean = true
 
-    override def apply(v1: actionQueue[C]): actionQueue[C] = v1
-
-  }
-
-  private def takeWriters[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
-
-    override def isDefinedAt(x: actionQueue[C]): Boolean = x.exists(_.outputLabels.isEmpty)
-
-    override def apply(v1: actionQueue[C]): actionQueue[C] = v1.filter(_.outputLabels.isEmpty)
+    override def apply(v1: actionQueue): actionQueue = v1
 
   }
 
-  private def takeLoaders[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
+  private def takeWriters: PartialFunction[actionQueue, actionQueue] = new PartialFunction[actionQueue, actionQueue] {
 
-    override def isDefinedAt(x: actionQueue[C]): Boolean = x.exists(_.inputLabels.isEmpty)
+    override def isDefinedAt(x: actionQueue): Boolean = x.exists(_.outputLabels.isEmpty)
 
-    override def apply(v1: actionQueue[C]): actionQueue[C] = v1.filter(_.inputLabels.isEmpty)
-
-  }
-
-  private def takeWithInputs[C]: PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
-
-    override def isDefinedAt(x: actionQueue[C]): Boolean = x.exists(_.inputLabels.nonEmpty)
-
-    override def apply(v1: actionQueue[C]): actionQueue[C] = v1.filter(_.inputLabels.nonEmpty)
+    override def apply(v1: actionQueue): actionQueue = v1.filter(_.outputLabels.isEmpty)
 
   }
 
-  private def sortByOutputLabel[C](orderedLabels: Seq[String]): PartialFunction[actionQueue[C], actionQueue[C]] = new PartialFunction[actionQueue[C], actionQueue[C]] {
+  private def takeLoaders: PartialFunction[actionQueue, actionQueue] = new PartialFunction[actionQueue, actionQueue] {
+
+    override def isDefinedAt(x: actionQueue): Boolean = x.exists(_.inputLabels.isEmpty)
+
+    override def apply(v1: actionQueue): actionQueue = v1.filter(_.inputLabels.isEmpty)
+
+  }
+
+  private def takeWithInputs: PartialFunction[actionQueue, actionQueue] = new PartialFunction[actionQueue, actionQueue] {
+
+    override def isDefinedAt(x: actionQueue): Boolean = x.exists(_.inputLabels.nonEmpty)
+
+    override def apply(v1: actionQueue): actionQueue = v1.filter(_.inputLabels.nonEmpty)
+
+  }
+
+  private def sortByOutputLabel(orderedLabels: Seq[String]): PartialFunction[actionQueue, actionQueue] = new PartialFunction[actionQueue, actionQueue] {
 
     val labelsPos: Map[String, Int] = orderedLabels.zipWithIndex.toMap
 
-    override def isDefinedAt(x: actionQueue[C]): Boolean = orderedLabels.nonEmpty && !x.exists(_.outputLabels.isEmpty)
+    override def isDefinedAt(x: actionQueue): Boolean = orderedLabels.nonEmpty && !x.exists(_.outputLabels.isEmpty)
 
-    override def apply(v1: actionQueue[C]): actionQueue[C] = if (v1.isEmpty) v1 else {
+    override def apply(v1: actionQueue): actionQueue = if (v1.isEmpty) v1 else {
       val parts = v1.partition(a => a.outputLabels.exists(labelsPos.contains))
       val sortedPart = parts._1.map(a => (a, a.outputLabels.filter(labelsPos.contains).map(labelsPos(_)).min)).sortWith(_._2 < _._2).map(_._1)
       sortedPart ++ parts._2

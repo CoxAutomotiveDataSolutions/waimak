@@ -13,9 +13,9 @@ import scala.util.Try
 /**
   * Introduces spark session into the data flows
   */
-trait SparkDataFlow extends DataFlow[SparkFlowContext] with Logging {
+trait SparkDataFlow extends DataFlow with Logging {
 
-  val spark: SparkSession
+  def spark: SparkSession
 
   override val flowContext: SparkFlowContext = SparkFlowContext(spark)
 
@@ -37,7 +37,7 @@ trait SparkDataFlow extends DataFlow[SparkFlowContext] with Logging {
     */
   def sqlTables: Set[String]
 
-  override def executed(executed: DataFlowAction[SparkFlowContext], outputs: Seq[Option[Any]]): DataFlow[SparkFlowContext] = {
+  override def executed(executed: DataFlowAction, outputs: Seq[Option[Any]]): this.type = {
     val res = super.executed(executed, outputs)
     // multiple sql actions might request same table, the simplest way of avoiding the race conditions of multiple actions
     // trying to register same dataset as an SQL table. To solve it, dataset will be reentered by the producing execution,

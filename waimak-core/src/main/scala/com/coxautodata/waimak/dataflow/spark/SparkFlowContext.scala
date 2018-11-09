@@ -1,6 +1,8 @@
 package com.coxautodata.waimak.dataflow.spark
 
 import java.net.URI
+
+import com.coxautodata.waimak.dataflow.FlowContext
 import org.apache.hadoop.fs.FileSystem
 import org.apache.spark.sql.SparkSession
 
@@ -11,7 +13,7 @@ import org.apache.spark.sql.SparkSession
   *
   * @param spark the SparkSession
   */
-case class SparkFlowContext(spark: SparkSession) {
+case class SparkFlowContext(spark: SparkSession) extends FlowContext {
 
   private val uriToUse = spark.conf.get("spark.waimak.fs.defaultFS", spark.sparkContext.hadoopConfiguration.get("fs.defaultFS"))
 
@@ -21,8 +23,8 @@ case class SparkFlowContext(spark: SparkSession) {
 
 object SparkFlowContext {
 
-  def setPoolIntoContext(poolName: String, context: SparkFlowContext): Unit = {
-    context.spark.sparkContext.setLocalProperty("spark.scheduler.pool", poolName)
+  def setPoolIntoContext(poolName: String, context: FlowContext): Unit = {
+    context.asInstanceOf[SparkFlowContext].spark.sparkContext.setLocalProperty("spark.scheduler.pool", poolName)
   }
 
 }

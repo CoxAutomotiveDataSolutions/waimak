@@ -164,13 +164,13 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
 
       // Check all post actions made it through
-      val interceptorAction = flow.actions.filter(_.outputLabels.contains("parquet_1")).head.asInstanceOf[PostActionInterceptor[Dataset[_], SparkFlowContext]]
+      val interceptorAction = flow.actions.filter(_.outputLabels.contains("parquet_1")).head.asInstanceOf[PostActionInterceptor[Dataset[_]]]
       interceptorAction.postActions.length should be(3)
 
       // Check they are in the right order
-      interceptorAction.postActions.head.isInstanceOf[TransformPostAction[Dataset[_], SparkFlowContext]] should be(true)
-      interceptorAction.postActions.tail.head.isInstanceOf[TransformPostAction[Dataset[_], SparkFlowContext]] should be(true)
-      interceptorAction.postActions.tail.tail.head.isInstanceOf[CachePostAction[Dataset[_], SparkFlowContext]] should be(true)
+      interceptorAction.postActions.head.isInstanceOf[TransformPostAction[Dataset[_]]] should be(true)
+      interceptorAction.postActions.tail.head.isInstanceOf[TransformPostAction[Dataset[_]]] should be(true)
+      interceptorAction.postActions.tail.tail.head.isInstanceOf[CachePostAction[Dataset[_]]] should be(true)
 
       executor.execute(flow)
 

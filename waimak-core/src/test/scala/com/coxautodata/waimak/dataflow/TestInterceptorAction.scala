@@ -35,11 +35,11 @@ class TestInterceptorAction extends FunSpec with Matchers {
 
     val emptyInputs = DataFlowEntities.empty
 
-    val appendFunc = (in: Option[String], fl: EmptyFlowContext) => in.map(_ + "_6789")
+    val appendFunc = (in: Option[String], fl: FlowContext) => in.map(_ + "_6789")
 
     it("post first output") {
       val action = new TestPresetAction(List.empty, List("o1", "o2"), func2)
-      val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "o1")))
+      val post = new PostActionInterceptor[String](action, Seq(TransformPostAction(appendFunc, "o1")))
       val res = post.performAction(emptyInputs, new EmptyFlowContext)
 
       res should be(Success(Seq(Some("v1_6789"), Some("v2"))))
@@ -47,7 +47,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
 
     it("post second output") {
       val action = new TestPresetAction(List.empty, List("o1", "o2"), func2)
-      val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "o2")))
+      val post = new PostActionInterceptor[String](action, Seq(TransformPostAction(appendFunc, "o2")))
       val res = post.performAction(emptyInputs, new EmptyFlowContext)
 
       res should be(Success(Seq(Some("v1"), Some("v2_6789"))))
@@ -55,7 +55,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
 
     it("post None output") {
       val action = new TestPresetAction(List.empty, List("o1", "o2"), func2None)
-      val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "o2")))
+      val post = new PostActionInterceptor[String](action, Seq(TransformPostAction(appendFunc, "o2")))
       val res = post.performAction(emptyInputs, new EmptyFlowContext)
 
       res should be(Success(Seq(Some("v1"), None)))
@@ -63,7 +63,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
 
     it("post non existing name") {
       val action = new TestPresetAction(List.empty, List("o1", "o2"), func2)
-      val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "doesnotexist")))
+      val post = new PostActionInterceptor[String](action, Seq(TransformPostAction(appendFunc, "doesnotexist")))
 
       val res = intercept[DataFlowException] {
         post.performAction(emptyInputs, new EmptyFlowContext)
@@ -74,7 +74,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
 
     it("description test") {
       val action = new TestPresetAction(List.empty, List("o1", "o2"), func2None)
-      val post = new PostActionInterceptor[String, EmptyFlowContext](action, Seq(TransformPostAction(appendFunc, "o2"), CachePostAction(null, "o1")))
+      val post = new PostActionInterceptor[String](action, Seq(TransformPostAction(appendFunc, "o2"), CachePostAction(null, "o1")))
 
       post.description should be("Action: PostActionInterceptor Inputs: [] Outputs: [o1,o2]"
         + "\nIntercepted Action: TestPresetAction Inputs: [] Outputs: [o1,o2]"

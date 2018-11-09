@@ -1,6 +1,6 @@
 package com.coxautodata.waimak.dataflow
 
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 /**
   * Defines functions that are specific to scheduling tasks, evaluating which execution pools are available and
@@ -8,7 +8,7 @@ import scala.util.{Failure, Success, Try}
   *
   * Created by Alexei Perelighin on 2018/07/06
   */
-trait ActionScheduler[C] {
+trait ActionScheduler {
 
   /**
     * finds execution pools that have slots to run actions.
@@ -25,7 +25,7 @@ trait ActionScheduler[C] {
     * @param from       list of actions from poolNames that DataFlow knows have not been marked as executed and can be scheduled
     * @return           list of actions that are not currently running
     */
-  def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction[C]]): Seq[DataFlowAction[C]]
+  def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction]): Seq[DataFlowAction]
 
   /**
     * Checks if there are actions running at all, regardless of the execution pool.
@@ -42,7 +42,7 @@ trait ActionScheduler[C] {
     * @param flowReporter  object that is used to signal start and end of the action execution
     * @return
     */
-  def waitToFinish(flowContext: C, flowReporter: FlowReporter[C]): Try[(ActionScheduler[C], Seq[(DataFlowAction[C], Try[ActionResult])])]
+  def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): Try[(ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])])]
 
   /**
     * Submits action into the specified execution pool.
@@ -54,13 +54,13 @@ trait ActionScheduler[C] {
     * @param flowReporter object that is used to signal start and end of the action execution
     * @return
     */
-  def schedule(poolName: String, action: DataFlowAction[C], entities: DataFlowEntities, flowContext: C, flowReporter: FlowReporter[C]): ActionScheduler[C]
+  def schedule(poolName: String, action: DataFlowAction, entities: DataFlowEntities, flowContext: FlowContext, flowReporter: FlowReporter): ActionScheduler
 
   /**
     * Executors must call it before exiting the execution of the flow to release resources.
     *
     * @return
     */
-  def shutDown(): Try[ActionScheduler[C]]
+  def shutDown(): Try[ActionScheduler]
 
 }
