@@ -84,11 +84,13 @@ Artifact ID | Purpose | Maven Release
 
 Waimak is tested against the following versions of Spark:
 
-Package Maintainer | Spark Version
------------------- | -------------
-Apache Spark | [2.2.0](https://spark.apache.org/releases/spark-release-2-2-0.html)
-Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.html)
-Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html)
+Package Maintainer | Spark Version | Scala Version
+------------------ | ------------- | -------------
+Apache Spark | [2.2.0](https://spark.apache.org/releases/spark-release-2-2-0.html) | 2.11
+Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.11
+Apache Spark | [2.4.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.11
+Apache Spark | [2.4.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.12
+Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html) | 2.11
 
 Other versions of Spark >= 2.2 are also likely to work and can be added to the list of tested versions if there is sufficient need.
 
@@ -151,7 +153,7 @@ We welcome all users to contribute to the development of Waimak by raising pull-
 
 ### Testing
 
-Waimak is tested against different versions of Spark 2.x to ensure uniform compatibility. The versions of Spark tested by Waimak are given in the `<profiles>` section of the POM. You can activate a given profile in the POM by using the `-P` flag: `mvn clean package -P apache-2.3.0`
+Waimak is tested against different versions of Spark 2.x to ensure uniform compatibility. The versions of Spark tested by Waimak are given in the `<profiles>` section of the POM. You can activate a given profile in the POM by using the `-P` flag: `mvn clean package -P apache-2.3.0_2.11`
 
 The integration tests of the RDBM ingestion module require Docker therefore you must have the Docker service running and the current user must be able to access the Docker service.
 
