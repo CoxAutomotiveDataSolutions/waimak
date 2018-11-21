@@ -13,15 +13,96 @@ import scala.util.{Failure, Success, Try}
 /**
   * Created by Ian Baynham on 06/11/18.
   **
-  * @param transformTableNameForRead How to transform the target table name into the table name in the database if the two are different.
-  *                                  Useful if you have multiple tables representing the same thing but with different names, and you wish them to
-  *                                  be written to the same target table
-  */
+  * /
+//  * @param transformTableNameForRead How to transform the target table name into the table name in the database if the two are different.
+//  *                                  Useful if you have multiple tables representing the same thing but with different names, and you wish them to
+//  *                                  be written to the same target table
+//  */
+//
+//class SQLServerExtractor(override val sparkSession: SparkSession
+//                         , sqlServerConnectionDetails: SQLServerConnectionDetails
+//                         , extraConnectionProperties: Properties = new Properties()
+//                         , override val transformTableNameForRead: String => String = identity) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
+//
+//  override val sourceDBSystemTimestampFunction = "convert(varchar, getdate(), 121)"
+//
+//  val pkQuery: String =
+//    s"""(
+//       |SELECT p1.schemaName, p1.tableName,
+//       |stuff( (SELECT ';'+primaryKeys
+//       |	FROM (
+//       |		SELECT SCHEMA_NAME(main.schema_id) as schemaName,
+//       |		main.name AS tableName,
+//       |		tc.name as primarykeys
+//       |		FROM sys.tables main
+//       |		inner join sys.indexes i on main.object_id = i.object_id
+//       |		inner join sys.index_columns ic on i.object_id = ic.object_id and i.index_id = ic.index_id
+//       |		inner join sys.columns tc on ic.object_id = tc.object_id and ic.column_id = tc.column_id
+//       |		where i.is_primary_key = 1
+//       |		group by main.schema_id,
+//       |		main.name,
+//       |		tc.name) p2
+//       |	WHERE p2.tablename = p1.tablename
+//       |	ORDER BY primaryKeys
+//       | FOR XML PATH(''), TYPE).value('.', 'varchar(max)') ,1,1,'') AS primaryKeys
+//       |FROM (
+//       |	SELECT SCHEMA_NAME(main.schema_id) as schemaName,
+//       |	main.name AS tableName,
+//       |	tc.name as primarykeys
+//       |	FROM sys.tables main
+//       |	inner join sys.indexes i on main.object_id = i.object_id
+//       |	inner join sys.index_columns ic on i.object_id = ic.object_id and i.index_id = ic.index_id
+//       |	inner join sys.columns tc on ic.object_id = tc.object_id and ic.column_id = tc.column_id
+//       |	where i.is_primary_key = 1
+//       |	group by main.schema_id,
+//       |	main.name,
+//       |	tc.name) p1
+//       |GROUP BY schemaName,
+//       |tableName) m""".stripMargin
+//
+//println(pkQuery)
+//
+//  lazy val allTablePKs: Map[String, String] = {
+//    import sparkSession.implicits._
+//    RDBMIngestionUtils.lowerCaseAll(
+//      sparkSession.read
+//        .option("driver", driverClass)
+//        .jdbc(connectionDetails.jdbcString, pkQuery, connectionProperties)
+//    )
+//      .as[SQLServerTableMetadata]
+//      .collect()
+//      .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata.primaryKeys).toMap
+//  }
+//
+//
+//  override def getTableMetadata(dbSchemaName: String
+//                                , tableName: String
+//                                , primaryKeys: Option[Seq[String]] = None
+//                                , lastUpdatedColumn: Option[String] = None): Try[AuditTableInfo] = {
+//    ((primaryKeys, getTablePKs(dbSchemaName, transformTableNameForRead(tableName))) match {
+//      case (Some(userPKs), Some(pksFromDB)) if userPKs.sorted != pksFromDB.sorted =>
+//        Failure(IncorrectUserPKException(userPKs, pksFromDB))
+//      case (Some(userPKs), None) => Success(TableExtractionMetadata(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
+//      case (_, Some(pksFromDB)) => Success(TableExtractionMetadata(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
+//      case _ => Failure(PKsNotFoundOrProvidedException)
+//    }).map(meta => AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString)))
+//  }
+//
+//  def getTablePKs(dbSchemaName: String
+//                  , tableName: String): Option[Seq[String]] = {
+//    allTablePKs.get(s"$dbSchemaName.$tableName").map(_.split(";").toSeq)
+//  }
+//
+//  }
+//
+//  case class SQLServerTableMetadata(schemaName: String
+//                                    , tableName: String
+//                                    , primaryKeys: String)
+//
 
 class SQLServerExtractor(override val sparkSession: SparkSession
                          , sqlServerConnectionDetails: SQLServerConnectionDetails
-                         , extraConnectionProperties: Properties = new Properties()
-                         , override val transformTableNameForRead: String => String = identity) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
+                         , extraConnectionProperties: Properties = new Properties()) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
 
 
   val pkQuery: String =
@@ -58,9 +139,9 @@ class SQLServerExtractor(override val sparkSession: SparkSession
        |GROUP BY schemaName,
        |tableName) m""".stripMargin
 
-println(pkQuery)
+  println(pkQuery)
 
-  lazy val allTablePKs: Map[String, String] = {
+  lazy val allTableMetadata: Map[String, SQLServerTableMetadata] = {
     import sparkSession.implicits._
     RDBMIngestionUtils.lowerCaseAll(
       sparkSession.read
@@ -69,124 +150,46 @@ println(pkQuery)
     )
       .as[SQLServerTableMetadata]
       .collect()
-      .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata.primaryKeys).toMap
+      .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata).toMap
   }
-
 
   override def getTableMetadata(dbSchemaName: String
                                 , tableName: String
                                 , primaryKeys: Option[Seq[String]] = None
                                 , lastUpdatedColumn: Option[String] = None): Try[AuditTableInfo] = {
-    ((primaryKeys, getTablePKs(dbSchemaName, transformTableNameForRead(tableName))) match {
-      case (Some(userPKs), Some(pksFromDB)) if userPKs.sorted != pksFromDB.sorted =>
-        Failure(IncorrectUserPKException(userPKs, pksFromDB))
-      case (Some(userPKs), None) => Success(TableExtractionMetadata(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
-      case (_, Some(pksFromDB)) => Success(TableExtractionMetadata(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
-      case _ => Failure(PKsNotFoundOrProvidedException)
-    }).map(meta => AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString)))
+    lastUpdatedColumn.foreach(col => logWarning(
+      s"Ignoring user-passed value for last updated ($col) " +
+        s"as we can get this information from the database"))
+
+    Try(allTableMetadata(s"$dbSchemaName.$tableName"))
+      .flatMap(m => {
+        val metaMap = RDBMIngestionUtils.caseClassToMap(m).mapValues(_.toString)
+        val pkCols = m.primaryKeys.split(",").toSeq
+        primaryKeys match {
+          case Some(userPks) if userPks.sorted != pkCols.sorted =>
+            Failure(IncorrectUserPKException(userPks, pkCols))
+          case _ => Success(AuditTableInfo(m.tableName, pkCols, metaMap))
+        }
+      })
   }
 
-  def getTablePKs(dbSchemaName: String
-                  , tableName: String): Option[Seq[String]] = {
-    allTablePKs.get(s"$dbSchemaName.$tableName").map(_.split(",").toSeq)
+  override def loadDataset(meta: Map[String, String]
+                           , lastUpdated: Option[Timestamp]
+                           , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
+    val sqlServerTableMetadata: SQLServerTableMetadata = CaseClassConfigParser.fromMap[SQLServerTableMetadata](meta)
+    val mainTable = sparkLoad(sqlServerTableMetadata.mainTableMetadata, lastUpdated, maxRowsPerPartition)
+      .toDF
+    (mainTable, resolveLastUpdatedColumn(sqlServerTableMetadata.mainTableMetadata, sparkSession))
   }
 
-  }
+}
 
-  case class SQLServerTableMetadata(schemaName: String
-                                    , tableName: String
-                                    , primaryKeys: String)
+case class SQLServerTableMetadata(schemaName: String
+                                  , tableName: String
+                                  , primaryKeys: String) {
 
+  def pkCols: Seq[String] = primaryKeys.split(";").toSeq
 
-//class SQLServerExtractor(override val sparkSession: SparkSession
-//                         , sqlServerConnectionDetails: SQLServerConnectionDetails
-//                         , extraConnectionProperties: Properties = new Properties()) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
-//
-//
-//  val pkQuery: String =
-//    s"""(
-//       |SELECT p1.schemaName, p1.tableName,
-//       |stuff( (SELECT ';'+primaryKeys
-//       |	FROM (
-//       |		SELECT SCHEMA_NAME(main.schema_id) as schemaName,
-//       |		main.name AS tableName,
-//       |		tc.name as primarykeys
-//       |		FROM sys.tables main
-//       |		inner join sys.indexes i on main.object_id = i.object_id
-//       |		inner join sys.index_columns ic on i.object_id = ic.object_id and i.index_id = ic.index_id
-//       |		inner join sys.columns tc on ic.object_id = tc.object_id and ic.column_id = tc.column_id
-//       |		where i.is_primary_key = 1
-//       |		group by main.schema_id,
-//       |		main.name,
-//       |		tc.name) p2
-//       |	WHERE p2.tablename = p1.tablename
-//       |	ORDER BY primaryKeys
-//       | FOR XML PATH(''), TYPE).value('.', 'varchar(max)') ,1,1,'') AS primaryKeys
-//       |FROM (
-//       |	SELECT SCHEMA_NAME(main.schema_id) as schemaName,
-//       |	main.name AS tableName,
-//       |	tc.name as primarykeys
-//       |	FROM sys.tables main
-//       |	inner join sys.indexes i on main.object_id = i.object_id
-//       |	inner join sys.index_columns ic on i.object_id = ic.object_id and i.index_id = ic.index_id
-//       |	inner join sys.columns tc on ic.object_id = tc.object_id and ic.column_id = tc.column_id
-//       |	where i.is_primary_key = 1
-//       |	group by main.schema_id,
-//       |	main.name,
-//       |	tc.name) p1
-//       |GROUP BY schemaName,
-//       |tableName) m""".stripMargin
-//
-//  println(pkQuery)
-//
-//  lazy val allTableMetadata: Map[String, SQLServerTableMetadata] = {
-//    import sparkSession.implicits._
-//    RDBMIngestionUtils.lowerCaseAll(
-//      sparkSession.read
-//        .option("driver", driverClass)
-//        .jdbc(connectionDetails.jdbcString, pkQuery, connectionProperties)
-//    )
-//      .as[SQLServerTableMetadata]
-//      .collect()
-//      .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata).toMap
-//  }
-//
-//  override def getTableMetadata(dbSchemaName: String
-//                                , tableName: String
-//                                , primaryKeys: Option[Seq[String]] = None
-//                                , lastUpdatedColumn: Option[String] = None): Try[AuditTableInfo] = {
-//    lastUpdatedColumn.foreach(col => logWarning(
-//      s"Ignoring user-passed value for last updated ($col) " +
-//        s"as we can get this information from the database"))
-//
-//    Try(allTableMetadata(s"$dbSchemaName.$tableName"))
-//      .flatMap(m => {
-//        val metaMap = RDBMIngestionUtils.caseClassToMap(m).mapValues(_.toString)
-//        val pkCols = m.primaryKeys.split(",").toSeq
-//        primaryKeys match {
-//          case Some(userPks) if userPks.sorted != pkCols.sorted =>
-//            Failure(IncorrectUserPKException(userPks, pkCols))
-//          case _ => Success(AuditTableInfo(m.tableName, pkCols, metaMap))
-//        }
-//      })
-//  }
-//
-//  override def loadDataset(meta: Map[String, String]
-//                           , lastUpdated: Option[Timestamp]
-//                           , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
-//    val sqlServerTableMetadata: SQLServerTableMetadata = CaseClassConfigParser.fromMap[SQLServerTableMetadata](meta)
-//    val mainTable = sparkLoad(sqlServerTableMetadata.mainTableMetadata, lastUpdated, maxRowsPerPartition)
-//      .toDF
-//    (mainTable, resolveLastUpdatedColumn(sqlServerTableMetadata.mainTableMetadata, sparkSession))
-//  }
-//
-//}
-//
-//case class SQLServerTableMetadata(schemaName: String
-//                                  , tableName: String
-//                                  , primaryKeys: String) {
-//
-//  def pkCols: Seq[String] = primaryKeys.split(";").toSeq
-//
-//  def mainTableMetadata: TableExtractionMetadata = TableExtractionMetadata(schemaName, tableName, pkCols)
+  def mainTableMetadata: TableExtractionMetadata = TableExtractionMetadata(schemaName, tableName, pkCols)
 
+}
