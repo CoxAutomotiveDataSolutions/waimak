@@ -7,7 +7,7 @@ import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.metastore.HadoopDBConnector
 import org.apache.hadoop.fs.permission.FsAction
 
-import scala.util.{Success, Try}
+import scala.util.{Failure, Success, Try}
 
 /**
   * Created by Alexei Perelighin on 2018/11/05
@@ -48,7 +48,14 @@ class ParquetDataCommitter(destFolder: String
     }
   }
 
-  override protected[dataflow] def validate(): Try[Unit] = Success(Unit)
+  override protected[dataflow] def validate(flow: DataFlow): Try[Unit] = {
+    Try {
+      if (!classOf[SparkDataFlow].isAssignableFrom(flow.getClass)) throw new DataFlowException(s"""ParquetDataCommitter can only work with data flows derived from ${classOf[SparkDataFlow].getName}""")
+      val sparkDataFlow = flow.asInstanceOf[SparkDataFlow]
+      if (!sparkDataFlow.tempFolder.isDefined) throw new DataFlowException(s"""ParquetDataCommitter, temp folder is not defined""")
+      Unit
+    }
+  }
 
 }
 

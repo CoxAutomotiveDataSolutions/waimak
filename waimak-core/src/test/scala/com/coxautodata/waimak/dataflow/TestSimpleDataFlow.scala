@@ -53,7 +53,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
       val res = emptyFlow
         .addAction(new TestEmptyAction(List("table_1"), List("table_2")))
         .addAction(new TestEmptyAction(List.empty, List("table_1")))
-        .prepareForExecution()
+        .prepareForExecution().get
       res.inputs.size should be(0)
       res.actions.size should be(2)
     }
@@ -370,7 +370,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
     it("add action with non existing input") {
       val emptyFlow = MockDataFlow.empty
       val res = intercept[DataFlowException] {
-        emptyFlow.addAction(new TestEmptyAction(List("table_1"), List.empty)).prepareForExecution()
+        emptyFlow.addAction(new TestEmptyAction(List("table_1"), List.empty)).prepareForExecution().get
       }
       res.text should be(s"Input label [table_1] is not produced by any previous actions")
     }
@@ -380,7 +380,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
       val res = intercept[DataFlowException] {
         emptyFlow
           .addInput("test_1", Some("value_1"))
-          .addAction(new TestEmptyAction(List("test_2"), List.empty)).prepareForExecution()
+          .addAction(new TestEmptyAction(List("test_2"), List.empty)).prepareForExecution().get
       }
       res.text should be(s"Input label [test_2] is not produced by any previous actions")
     }
@@ -394,7 +394,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
           })
           .addAction(new TestEmptyAction(List("test_1"), List("test_2")) {
             override val guid = "action2"
-          }).prepareForExecution()
+          }).prepareForExecution().get
       }
       res.text should be("Circular reference for input label(s) [test_1] when resolving action [action2]. " +
         "Action uses input labels that itself, a sub-action or tag-dependent sub-action outputs.")
@@ -405,7 +405,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
       val res = intercept[DataFlowException] {
         emptyFlow
           .addInput("test_1", Some("value_1"))
-          .addInput("test_1", Some("value_1")).prepareForExecution()
+          .addInput("test_1", Some("value_1")).prepareForExecution().get
       }
       res.text should be(s"Input label [test_1] already exists")
     }
@@ -416,7 +416,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
         emptyFlow
           .addAction(new TestEmptyAction(List("test_1"), List("test_3")))
           .addInput("test_1", Some("value_1"))
-          .addInput("test_3", Some("value_3")).prepareForExecution()
+          .addInput("test_3", Some("value_3")).prepareForExecution().get
       }
       res.text should be(s"Duplicate output labels found: The following labels were found as outputs to multiple actions and/or were in existing flow inputs: test_3")
     }
@@ -429,7 +429,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_2"), List.empty))
         }
 
-      flow.prepareForExecution()
+      flow.prepareForExecution().get
 
     }
 
@@ -444,7 +444,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
         }
 
       val res = intercept[DataFlowException] {
-        flow.prepareForExecution()
+        flow.prepareForExecution().get
       }
       res.text should be("Could not find any actions tagged with label [tag1] when resolving dependent actions for action [action1]")
 
@@ -463,7 +463,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
         }
 
       val res = intercept[DataFlowException] {
-        flow.prepareForExecution()
+        flow.prepareForExecution().get
       }
       res.text should be("Circular reference for action [action1] as a result of cyclic tag dependency. " +
         "Action has the following tag dependencies [tag1] and depends on the following input labels [test_2]")
@@ -474,11 +474,11 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
       val emptyFlow = MockDataFlow.empty
 
       val res = intercept[DataFlowException] {
-        emptyFlow
+        val f = emptyFlow
           .addInput("test_2", Some("value_2"))
           .tag("tag1") {
             _.addAction(new TestEmptyAction(List("test_2"), List.empty))
-              .prepareForExecution()
+              .prepareForExecution().get
           }
       }
       res.text should be("Attempted to execute a flow whilst inside the following tag blocks: [tag1]")
@@ -493,7 +493,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
           .addInput("test_2", Some("value_2"))
           .tagDependency("tag1") {
             _.addAction(new TestEmptyAction(List("test_2"), List.empty))
-              .prepareForExecution()
+              .prepareForExecution().get
           }
       }
       res.text should be("Attempted to execute a flow whilst inside the following tag dependency blocks: [tag1]")
@@ -518,7 +518,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
           _.addAction(new TestEmptyAction(List("test_3"), List.empty))
         }
 
-      flow.prepareForExecution() shouldBe a[flow.type]
+      flow.prepareForExecution().get shouldBe a[flow.type]
 
     }
 
@@ -541,7 +541,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
 
       flow.tagState.taggedActions.count(_._2.tags.contains("tag1")) should be(2)
       flow.tagState.taggedActions.count(_._2.dependentOnTags.contains("tag1")) should be(2)
-      flow.prepareForExecution() shouldBe a[flow.type]
+      flow.prepareForExecution().get shouldBe a[flow.type]
 
     }
 
@@ -563,7 +563,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
         .tagDependency("tag3") {
           _.addAction(new TestEmptyAction(List("test_1"), List.empty))
         }
-      flow.prepareForExecution() shouldBe a[flow.type]
+      flow.prepareForExecution().get shouldBe a[flow.type]
     }
 
     it("four actions, two initial, a third that depends on the first two, and a final one that depends all the given tags") {
@@ -584,7 +584,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
         .tagDependency("tag1", "tag2", "tag3") {
           _.addAction(new TestEmptyAction(List("test_1"), List.empty))
         }
-      flow.prepareForExecution() shouldBe a[flow.type]
+      flow.prepareForExecution().get shouldBe a[flow.type]
     }
 
     it("three actions with circular dependency") {
@@ -616,7 +616,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
         }
 
       val res = intercept[DataFlowException] {
-        flow.prepareForExecution()
+        flow.prepareForExecution().get
       }
       res.text should be("Circular reference for action [action2] as a result of cyclic tag dependency. " +
         "Action has the following tag dependencies [tag1] and depends on the following input labels [test_2]")
@@ -651,7 +651,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
         }
 
       val res = intercept[DataFlowException] {
-        flow.prepareForExecution() shouldBe a[flow.type]
+        flow.prepareForExecution().get shouldBe a[flow.type]
       }
       res.text should be("Circular reference for action [action3] as a result of cyclic tag dependency. " +
         "Action has the following tag dependencies [tag1, tag2] and depends on the following input labels [test_1]")
@@ -676,7 +676,7 @@ class TestSimpleSparkDataFlow extends FunSpec with Matchers {
         }
 
       val res = intercept[DataFlowException] {
-        flow.prepareForExecution()
+        flow.prepareForExecution().get
       }
       res.text should be("Circular reference for input label(s) [test_2] when resolving action [action2]. " +
         "Action uses input labels that itself, a sub-action or tag-dependent sub-action outputs.")
@@ -1205,6 +1205,6 @@ class TestDataCommitter extends DataCommitter {
     flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
   }
 
-  override protected[dataflow] def validate(): Try[Unit] = Success(Unit)
+  override protected[dataflow] def validate(flow: DataFlow): Try[Unit] = Success(Unit)
 
 }

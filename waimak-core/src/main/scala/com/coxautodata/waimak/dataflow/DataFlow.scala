@@ -104,7 +104,6 @@ trait DataFlow extends Logging {
   def addInput(label: String, value: Option[Any]): this.type = {
     if (inputs.labels.contains(label)) throw new DataFlowException(s"Input label [$label] already exists")
     inputs(inputs + (label -> value))
-//    createInstance(newInputs, actions, tagState, schedulingMeta, commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -130,7 +129,6 @@ trait DataFlow extends Logging {
     }
     //interceptors are not added to the execution pools
     actions(newActions).tagState(newTagState)
-//    createInstance(inputs, newActions, newTagState, schedulingMeta, commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -149,7 +147,6 @@ trait DataFlow extends Logging {
     val intermediateFlow = taggedFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeTags = intermediateFlow.tagState.activeTags diff newTags)
     intermediateFlow.tagState(finalTagState).asInstanceOf[this.type]
-//    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState, intermediateFlow.schedulingMeta, commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -167,7 +164,6 @@ trait DataFlow extends Logging {
     val intermediateFlow = tagDependentFlow(tagState(newTagState))// createInstance(inputs, actions, newTagState, schedulingMeta, commitMeta).asInstanceOf[this.type])
     val finalTagState = intermediateFlow.tagState.copy(activeDependentOnTags = intermediateFlow.tagState.activeDependentOnTags diff newDeps)
     intermediateFlow.tagState(finalTagState).asInstanceOf[this.type]
-//    createInstance(intermediateFlow.inputs, intermediateFlow.actions, finalTagState, intermediateFlow.schedulingMeta, commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -206,7 +202,6 @@ trait DataFlow extends Logging {
     val nestedMeta = schedulingMeta.setState(mutateState(previousState))
     val intermediateFlow = nestedFlow(schedulingMeta(nestedMeta))// createInstance(inputs, actions, tagState, nestedMeta, commitMeta).asInstanceOf[this.type])
     intermediateFlow.schedulingMeta(intermediateFlow.schedulingMeta.setState(previousState))
-//    createInstance(intermediateFlow.inputs, intermediateFlow.actions, intermediateFlow.tagState, intermediateFlow.schedulingMeta.setState(previousState), commitMeta).asInstanceOf[this.type]
   }
 
   /**
@@ -242,7 +237,6 @@ trait DataFlow extends Logging {
     val newActions = actions.filter(_.guid != executed.guid)
     val newInputs = executed.outputLabels.zip(outputs).foldLeft(inputs)((resInput, value) => resInput + value)
     actions(newActions).inputs(newInputs).schedulingMeta(schedulingMeta.removeAction(executed))
-//    createInstance(newInputs, newActions, tagState, schedulingMeta.removeAction(executed), commitMeta)
   }
 
   /**
@@ -272,15 +266,11 @@ trait DataFlow extends Logging {
   def commit(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): this.type = {
     val toRepartition = partitions.nonEmpty && repartition
     commitMeta(commitMeta.addCommits(commitName, labels, partitions, toRepartition))
-//    createInstance(inputs, actions, tagState, schedulingMeta, commitMeta.addCommits(commitName, labels, partitions, toRepartition)).asInstanceOf[this.type]
   }
 
   def push(commitName: String)(committer: DataCommitter): this.type = commitMeta(commitMeta.addPush(commitName, committer))
-//  {
-//    createInstance(inputs, actions, tagState, schedulingMeta, commitMeta.addPush(commitName, committer)).asInstanceOf[this.type]
-//  }
 
-  def buildCommits(): this.type = commitMeta.pushes.foldLeft(this) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
+  protected[dataflow] def buildCommits(): this.type = commitMeta.pushes.foldLeft(this) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
     val commitName = pushCommitter._1
     val committer = pushCommitter._2.head
     val labels = commitMeta.commits(commitName)
@@ -294,6 +284,11 @@ trait DataFlow extends Logging {
       committer.finish(commitName, labels, _)
     }
   }.asInstanceOf[this.type]
+
+  protected [dataflow] def validateDataCommitters(): Try[Unit] ={
+
+    ???
+  }
 
   private def actionHasNoTagDependencies(action: DataFlowAction): Boolean = {
     // All tags that this action depends on
@@ -318,12 +313,11 @@ trait DataFlow extends Logging {
     * It would be responsible for preparing an execution environment such as cleaning temporary directories.
     *
     */
-  def prepareForExecution(): this.type = {
-    isValidFlowDAG match {
-      case Success(_) =>
-      case Failure(e) => throw e
-    }
-    this
+  def prepareForExecution(): Try[this.type] = {
+    commitMeta.validate(inputs.keySet ++ actions.flatMap(_.outputLabels).toSet, actions.flatMap(_.inputLabels).toSet)
+      .map(_ => buildCommits())
+      .flatMap(_.isValidFlowDAG)
+      .asInstanceOf[Try[this.type]]
   }
 
   /**
@@ -338,24 +332,28 @@ trait DataFlow extends Logging {
     *
     * @return
     */
-  def isValidFlowDAG: Try[Unit] = {
+  def isValidFlowDAG: Try[this.type] = {
 
-    // Condition 1
-    val duplicateLabels = findDuplicateOutputLabels
-    // Condition 2
-    val checkInputDependencies = Try(actions.foreach(a => a.inputLabels.foreach(l => if (!labelIsInputOrProduced(l)) throw new DataFlowException(s"Input label [$l] is not produced by any previous actions"))))
+    Try {
+      // Condition 1
+      val duplicateLabels = findDuplicateOutputLabels
+      if (duplicateLabels.nonEmpty) throw new DataFlowException(s"Duplicate output labels found: The following labels were found as outputs to multiple actions and/or were in existing flow inputs: ${duplicateLabels.mkString(", ")}")
 
-    if (duplicateLabels.nonEmpty) Failure(new DataFlowException(s"Duplicate output labels found: The following labels were found as outputs to multiple actions and/or were in existing flow inputs: ${duplicateLabels.mkString(", ")}"))
-    else if (checkInputDependencies.isFailure) checkInputDependencies
+      // Condition 2
+      actions.foreach { a =>
+        a.inputLabels.foreach(l => if (!labelIsInputOrProduced(l)) throw new DataFlowException(s"Input label [$l] is not produced by any previous actions"))
+      }
 
-    //Condition 3
-    else if (tagState.activeTags.nonEmpty) Failure(new DataFlowException(s"Attempted to execute a flow whilst inside the following tag blocks: [${tagState.activeTags.mkString(", ")}]"))
+      //Condition 3
+      if (tagState.activeTags.nonEmpty) throw new DataFlowException(s"Attempted to execute a flow whilst inside the following tag blocks: [${tagState.activeTags.mkString(", ")}]")
 
-    // Condition 4
-    else if (tagState.activeDependentOnTags.nonEmpty) Failure(new DataFlowException(s"Attempted to execute a flow whilst inside the following tag dependency blocks: [${tagState.activeDependentOnTags.mkString(", ")}]"))
+      // Condition 4
+      if (tagState.activeDependentOnTags.nonEmpty) throw new DataFlowException(s"Attempted to execute a flow whilst inside the following tag dependency blocks: [${tagState.activeDependentOnTags.mkString(", ")}]")
 
-    // Conditions 5, 6 and 7
-    else isValidDependencyState
+    }.flatMap {_ =>
+      // Conditions 5, 6 and 7
+      isValidDependencyState
+    }.map(_ => this)
   }
 
   /**
@@ -531,6 +529,36 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
     this.copy(pushes = pushes + (commitName -> nextPushes))
   }
 
+  def pushesWithoutCommits(): Set[String] = pushes.keySet.diff(commits.keySet)
+
+  def commitsWithoutPushes(): Set[String] = commits.keySet.diff(pushes.keySet)
+
+  /**
+    * @param presentLabels
+    * @return Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
+    */
+  def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty)
+
+  def validate(outputLabels: Set[String], inputLabels: Set[String]): Try[Unit] = {
+    Try(this)
+      .map { cm =>
+        val commits = cm.commitsWithoutPushes()
+        if (commits.nonEmpty) throw new DataFlowException(s"There no push definitions for commits: ${commits.mkString("[", ", ", "]")}")
+        cm
+      }.map { cm =>
+      val pushes = cm.pushesWithoutCommits()
+      if (pushes.nonEmpty) throw new DataFlowException(s"There are no commit definitions for pushes: ${pushes.mkString("[", ", ", "]")}")
+      cm
+    }.map { cm =>
+      val notPresent = cm.phantomLabels(outputLabels).mapValues(_.mkString("{", ", ", "}"))
+      if (notPresent.nonEmpty) throw new DataFlowException(s"Commit definitions with lables that are produced by any action: ${pushes.mkString("[", ", ", "]")}")
+      cm
+    }.map { cm =>
+      val usedForInputs = commits.mapValues(_.map(_.label).filter(inputLabels.contains)).filter(_._2.nonEmpty).mapValues(_.mkString("{", ", ", "}"))
+      if (usedForInputs.nonEmpty) throw new DataFlowException(s"Labels used in commits can not be used as inputs to other actions: [${usedForInputs.mkString("[", ", ", "]")}]")
+      cm
+    }.map(_ => Unit)
+  }
 }
 
 object CommitMeta {

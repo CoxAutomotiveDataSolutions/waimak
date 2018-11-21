@@ -25,7 +25,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
 
         val baseDest = testingBaseDir + "/dest"
 
-        val flow: SparkDataFlow = Waimak.sparkFlow(spark)
+        val flow: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
           .openCSV(basePath)("csv_1")
           .alias("csv_1", "purchases")
           .commit("comm_1")("purchases")

@@ -18,16 +18,17 @@ trait DataFlowExecutor extends Logging {
     *         of the executed actions are now in the inputs
     */
   def execute(dataFlow: DataFlow): (Seq[DataFlowAction], DataFlow) = {
-    val preparedDataFlow = dataFlow.prepareForExecution()
 
-    val actionScheduler = initActionScheduler()
-    val executionResults = loopExecution(preparedDataFlow, actionScheduler, Seq.empty)
-
-    executionResults._1.shutDown() match {
-      case Failure(e) => logError("Problem shutting down execution pools", e)
-      case _ => logInfo("Execution pools were shutdown ok.")
-    }
-    executionResults._2.get
+    dataFlow
+      .prepareForExecution()
+      .map(loopExecution(_, initActionScheduler(), Seq.empty))
+        .flatMap { executionResults: (ActionScheduler, Try[(Seq[DataFlowAction], DataFlow)]) =>
+          executionResults._1.shutDown() match {
+            case Failure(e) => logError("Problem shutting down execution pools", e)
+            case _ => logInfo("Execution pools were shutdown ok.")
+          }
+          executionResults._2
+        }.get
   }
 
   
