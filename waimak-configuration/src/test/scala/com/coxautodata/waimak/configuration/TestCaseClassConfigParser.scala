@@ -187,7 +187,6 @@ class TestCaseClassConfigParser extends FunSpec with Matchers {
     }
 
     it("parsing a case class nested in a class should throw an exception with a helpful error") {
-      case class ParseNestedClassTest(string: String = "")
       val conf: SparkConf = new SparkConf()
       intercept[UnsupportedOperationException] {
         CaseClassConfigParser[ParseNestedClassTest](conf, "")
@@ -203,5 +202,7 @@ class TestCaseClassConfigParser extends FunSpec with Matchers {
     }
 
   }
+
+  case class ParseNestedClassTest(string: String = "")
 
 }
