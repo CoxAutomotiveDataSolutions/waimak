@@ -105,7 +105,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("cleanup without snapshot folder") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBaseSnapshotCleanup("snap", "YYYY", 1)
+        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snap", "YYYY", 1)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         val res = committer.validate(flow, "f1", Seq.empty)
         res shouldBe a[Failure[_]]
@@ -116,7 +116,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)
           .snapshotFolder("snap=2001")
-          .dateBaseSnapshotCleanup("snap", "YYYY", 1)
+          .dateBasedSnapshotCleanup("snap", "YYYY", 1)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
 
         initSnapshotFolders(new File(baseDest, "label_fail_1"), Seq("snap=2000", "snap=2001"))
@@ -153,7 +153,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)
           .snapshotFolder("snap=2003")
-          .dateBaseSnapshotCleanup("snap", "YYYY", 1)
+          .dateBasedSnapshotCleanup("snap", "YYYY", 1)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
 
         initSnapshotFolders(new File(baseDest, "label_not_committed"), Seq("snap=2000", "snap=2003"))
@@ -180,7 +180,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("empty, table folder does not exist") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBaseSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer.toRemove.get
           , List("table"))
@@ -192,7 +192,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("empty, table folder exists") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBaseSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer.toRemove.get
           , List("table"))
@@ -209,7 +209,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("one snapshot folder") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBaseSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer.toRemove.get
           , List("table"))
@@ -227,7 +227,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("all snapshot folders") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBaseSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer.toRemove.get
           , List("table"))
@@ -250,7 +250,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("all empty, no folders exist") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBaseSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer.toRemove.get
           , List("table_1", "table_2", "table_3"))
@@ -261,7 +261,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("1 empty, 1 has 2 snapshots, 1 has 5 snapshots") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBaseSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer.toRemove.get
           , List("table_empty", "table_with_one", "table_with_five"))

@@ -45,7 +45,7 @@ class ParquetDataCommitter(val baseFolder: String
     * @param numberOfFoldersToKeep
     * @return
     */
-  def dateBaseSnapshotCleanup(folderPrefix: String, dateFormat: String, numberOfFoldersToKeep: Int) =
+  def dateBasedSnapshotCleanup(folderPrefix: String, dateFormat: String, numberOfFoldersToKeep: Int) =
     new ParquetDataCommitter(baseFolder, snapFolder, Some(ParquetDataCommitter.dateBasedSnapshotCleanupStrategy[FileStatus](folderPrefix, dateFormat, numberOfFoldersToKeep)(_.getPath.getName)), conn)
 
   /**

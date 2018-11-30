@@ -249,7 +249,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
           executor.execute(flowPrePush.push("comm_1")(
             ParquetDataCommitter(baseDest)
               .snapshotFolder("snapshot=20181105_123001_569")
-              .dateBaseSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3))
+              .dateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3))
           )
 
           flowPrePush.flowContext.fileSystem.listStatus(new Path(baseDest + "/purchases")).map(_.getPath.getName).sorted should be(Array("snapshot=20181105_123001_567", "snapshot=20181105_123001_568", "snapshot=20181105_123001_569"))
@@ -284,7 +284,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
           executor.execute(flowPrePush.push("comm_1")(
             ParquetDataCommitter(baseDest)
               .snapshotFolder("snapshot=20181105_123001_569")
-              .dateBaseSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3))
+              .dateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3))
           )
 
           flowPrePush.flowContext.fileSystem.listStatus(new Path(baseDest + "/purchases")).map(_.getPath.getName).sorted should be(Array("snapshot=20181105_123001_567", "snapshot=20181105_123001_568", "snapshot=20181105_123001_569"))

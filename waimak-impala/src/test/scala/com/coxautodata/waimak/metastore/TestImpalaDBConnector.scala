@@ -148,7 +148,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
       executor.execute(flowPrePush.push("comm_1")(
         ParquetDataCommitter(baseDest)
           .snapshotFolder("snapshot=20181105_123001_569")
-          .dateBaseSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3)
+          .dateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3)
           .connection(connectorRecreate)
       )
       )
