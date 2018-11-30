@@ -2,6 +2,7 @@ package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.log.Logging
 
+import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -285,11 +286,6 @@ trait DataFlow extends Logging {
     }
   }.asInstanceOf[this.type]
 
-  protected [dataflow] def validateDataCommitters(): Try[Unit] ={
-
-    ???
-  }
-
   private def actionHasNoTagDependencies(action: DataFlowAction): Boolean = {
     // All tags that this action depends on
     val actionTagDeps = tagState.taggedActions.get(action.guid).map(_.dependentOnTags).getOrElse(Set.empty)
@@ -314,7 +310,7 @@ trait DataFlow extends Logging {
     *
     */
   def prepareForExecution(): Try[this.type] = {
-    commitMeta.validate(inputs.keySet ++ actions.flatMap(_.outputLabels).toSet, actions.flatMap(_.inputLabels).toSet)
+    commitMeta.validate(this, inputs.keySet ++ actions.flatMap(_.outputLabels).toSet, actions.flatMap(_.inputLabels).toSet)
       .map(_ => buildCommits())
       .flatMap(_.isValidFlowDAG)
       .asInstanceOf[Try[this.type]]
@@ -507,7 +503,7 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
 }
 
 /**
-  *
+  * Contains configurations for
   * @param commits  Map[ COMMIT_NAME, Seq[CommitEntry] ]
   * @param pushes   Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
   *                 lazy definitions of the data flows, validation will have to catch it.
@@ -533,31 +529,45 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
 
   def commitsWithoutPushes(): Set[String] = commits.keySet.diff(pushes.keySet)
 
+  def validateCommitters(dataFlow: DataFlow): Try[Unit] = {
+
+    @tailrec
+    def loopTest(pushesToValidate: Set[String], result: Try[Unit]): Try[Unit] = {
+      if (pushesToValidate.isEmpty || result.isFailure) result
+      else {
+        val commit = pushesToValidate.head
+        val committers = pushes(commit)
+        if (committers.size != 1) Failure(new DataFlowException(s"Commit with name [${commit}] has ${committers.size} instead of 1"))
+        else loopTest(pushesToValidate.tail, committers.head.validate(dataFlow, commit, commits(commit)))
+      }
+    }
+
+    loopTest(pushes.keySet.intersect(commits.keySet), Success())
+  }
+
   /**
     * @param presentLabels
     * @return Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
     */
   def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty)
 
-  def validate(outputLabels: Set[String], inputLabels: Set[String]): Try[Unit] = {
-    Try(this)
-      .map { cm =>
-        val commits = cm.commitsWithoutPushes()
-        if (commits.nonEmpty) throw new DataFlowException(s"There no push definitions for commits: ${commits.mkString("[", ", ", "]")}")
-        cm
-      }.map { cm =>
-      val pushes = cm.pushesWithoutCommits()
-      if (pushes.nonEmpty) throw new DataFlowException(s"There are no commit definitions for pushes: ${pushes.mkString("[", ", ", "]")}")
-      cm
-    }.map { cm =>
-      val notPresent = cm.phantomLabels(outputLabels).mapValues(_.mkString("{", ", ", "}"))
-      if (notPresent.nonEmpty) throw new DataFlowException(s"Commit definitions with lables that are produced by any action: ${pushes.mkString("[", ", ", "]")}")
-      cm
-    }.map { cm =>
+  def validate(dataFlow: DataFlow, outputLabels: Set[String], inputLabels: Set[String]): Try[Unit] = {
+    Try {
+      val c = commitsWithoutPushes().toArray
+      if (c.nonEmpty) throw new DataFlowException(s"There are no push definitions for commits: ${c.sorted.mkString("[", ", ", "]")}")
+
+      val pushes = pushesWithoutCommits().toArray
+      if (pushes.nonEmpty) throw new DataFlowException(s"There are no commits definitions for pushes: ${pushes.sorted.mkString("[", ", ", "]")}")
+
+      val notPresent = phantomLabels(outputLabels).mapValues(_.mkString("{", ", ", "}"))
+      if (notPresent.nonEmpty) throw new DataFlowException(s"Commit definitions with labels that are produced by any action: ${pushes.mkString("[", ", ", "]")}")
+
       val usedForInputs = commits.mapValues(_.map(_.label).filter(inputLabels.contains)).filter(_._2.nonEmpty).mapValues(_.mkString("{", ", ", "}"))
       if (usedForInputs.nonEmpty) throw new DataFlowException(s"Labels used in commits can not be used as inputs to other actions: [${usedForInputs.mkString("[", ", ", "]")}]")
-      cm
-    }.map(_ => Unit)
+
+      val usedInMultipleCommits = labelsUsedInMultipleCommits().map(_.map(kv => kv._1 + " -> " + kv._2.mkString("[", ", ", "]")).mkString("(", ", ", ")"))
+      if (usedInMultipleCommits.isDefined) throw new DataFlowException(s"Same label can not be used in more than one commit. (Label -> [Commit Names]): ${usedInMultipleCommits.get}")
+    }.flatMap(_ => validateCommitters(dataFlow))
   }
 }
 

@@ -10,49 +10,100 @@ import org.apache.hadoop.fs.permission.FsAction
 import scala.util.{Failure, Success, Try}
 
 /**
+  * Adds actions necessary to commit labels as parquet parquet, supports snapshot folders and interaction with a DB
+  * connector.
+  *
   * Created by Alexei Perelighin on 2018/11/05
   *
-  * @param destFolder
-  * @param snapFolder
-  * @param clnUpStrategy
-  * @param conn
+  * @param baseFolder folder under which final labels will store its data. Ex: baseFolder/label_1/
+  * @param snapFolder optional name of the snapshot folder that will be used by all of the labels committed via this committer.
+  *                   It needs to be a full name and must not be the same as in any of the previous snapshots for any of
+  *                   the commit managed labels.
+  *                   Ex:
+  *                   baseFolder/label_1/snapshot_folder=20181128
+  *                   baseFolder/label_1/snapshot_folder=20181129
+  *                   baseFolder/label_2/snapshot_folder=20181128
+  *                   baseFolder/label_2/snapshot_folder=20181129
+  * @param toRemove   optional function that takes the list of available snapshots and returns list of snapshots to remove
+  * @param conn       optional connector to the DB.
   */
-class ParquetDataCommitter(destFolder: String
-                           , snapFolder: Option[String]
-                           , clnUpStrategy: Option[CleanUpStrategy[FileStatus]]
-                           , conn: Option[HadoopDBConnector])
-      extends DataCommitter {
+class ParquetDataCommitter(val baseFolder: String
+                           , val snapFolder: Option[String]
+                           , val toRemove: Option[CleanUpStrategy[FileStatus]]
+                           , val conn: Option[HadoopDBConnector])
+      extends DataCommitter with Logging {
 
-  def snapshotFolder(folder: String) = new ParquetDataCommitter(destFolder, Some(folder), clnUpStrategy, conn)
+  def snapshotFolder(folder: String) = new ParquetDataCommitter(baseFolder, Some(folder), toRemove, conn)
 
-  def cleanUpStrategy(strg: CleanUpStrategy[FileStatus]) = new ParquetDataCommitter(destFolder, snapFolder, Some(strg), conn)
+  def toRemove(strg: CleanUpStrategy[FileStatus]) = new ParquetDataCommitter(baseFolder, snapFolder, Some(strg), conn)
 
-  def connection(con: HadoopDBConnector) = new ParquetDataCommitter(destFolder, snapFolder, clnUpStrategy, Some(con))
+  /**
+    * Configures a default implementation of a cleanup strategy based on dates encoded into snapshot folder name.
+    *
+    * @param folderPrefix
+    * @param dateFormat
+    * @param numberOfFoldersToKeep
+    * @return
+    */
+  def dateBaseSnapshotCleanup(folderPrefix: String, dateFormat: String, numberOfFoldersToKeep: Int) =
+    new ParquetDataCommitter(baseFolder, snapFolder, Some(ParquetDataCommitter.dateBasedSnapshotCleanupStrategy[FileStatus](folderPrefix, dateFormat, numberOfFoldersToKeep)(_.getPath.getName)), conn)
+
+  /**
+    * Sets new DB connector
+    * @param con
+    * @return
+    */
+  def connection(con: HadoopDBConnector) = new ParquetDataCommitter(baseFolder, snapFolder, toRemove, Some(con))
 
   override protected[dataflow] def cacheToTempFlow(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
-    labels.foldLeft(flow) { (resFlow, labelCommitEntry) =>
-      sparkFlow.cacheAsPartitionedParquet(labelCommitEntry.partitions, labelCommitEntry.repartition)(labelCommitEntry.label)
+    labels.foldLeft(sparkFlow) { (resFlow, labelCommitEntry) =>
+      logInfo(s"Commit: ${commitName}, label: ${labelCommitEntry.label}, adding to parquet cache.")
+      resFlow.cacheAsPartitionedParquet(labelCommitEntry.partitions, labelCommitEntry.repartition)(labelCommitEntry.label)
     }
   }
 
   override protected[dataflow] def moveToPermanentStorageFlow(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
-    val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(destFolder, snapFolder, ce.partitions, conn))).toMap
+    val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(baseFolder, snapFolder, ce.partitions, conn))).toMap
     sparkFlow.addAction(CommitAction(commitLabels, sparkFlow.tempFolder.get, labels.map(_.label).toList))
   }
 
-  override protected[dataflow] def finish(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = clnUpStrategy.fold(flow) { strategy =>
+  override protected[dataflow] def finish(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = toRemove.fold(flow) { strategy =>
     labels.foldLeft(flow) { (resFlow, labelCommitEntry) =>
-      resFlow.addAction(new FSCleanUp(destFolder, strategy, List(labelCommitEntry.label)))
+      resFlow.addAction(new FSCleanUp(baseFolder, strategy, List(labelCommitEntry.label)))
     }
   }
 
-  override protected[dataflow] def validate(flow: DataFlow): Try[Unit] = {
+  /**
+    * Validates that:
+    * 1) data flow is a decedent of the SparkDataFlow
+    * 2) data flow has temp folder
+    * 3) no committed label has an existing snapshot folder same as new one
+    * 4) cleanup can only take place when snapshot folder is defined
+    *
+    * @param flow data flow to validate
+    * @param commitName
+    * @param entries
+    * @return
+    */
+  override protected[dataflow] def validate(flow: DataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = {
     Try {
-      if (!classOf[SparkDataFlow].isAssignableFrom(flow.getClass)) throw new DataFlowException(s"""ParquetDataCommitter can only work with data flows derived from ${classOf[SparkDataFlow].getName}""")
+      if (!classOf[SparkDataFlow].isAssignableFrom(flow.getClass)) throw new DataFlowException(s"""ParquetDataCommitter [${commitName}] can only work with data flows derived from ${classOf[SparkDataFlow].getName}""")
       val sparkDataFlow = flow.asInstanceOf[SparkDataFlow]
-      if (!sparkDataFlow.tempFolder.isDefined) throw new DataFlowException(s"""ParquetDataCommitter, temp folder is not defined""")
+      if (!sparkDataFlow.tempFolder.isDefined) throw new DataFlowException(s"ParquetDataCommitter [${commitName}], temp folder is not defined")
+      snapFolder
+        .map(snp => s"${baseFolder}/*/${snp}")
+        .map(pattern => sparkDataFlow.flowContext.fileSystem.globStatus(new Path(pattern)))
+        .map{ matched =>
+          val labels = entries.map(_.label).toSet
+          matched.map(_.getPath.getParent.getName).filter(labels.contains(_)).sorted
+        }.filter(_.nonEmpty)
+        .foreach(existing => throw new DataFlowException(s"ParquetDataCommitter [${commitName}], snapshot folder [${snapFolder.get}] is already present for labels: ${existing.mkString("[", ", ", "]")}"))
+      (snapFolder, toRemove) match {
+        case (None, Some(_)) => throw new DataFlowException(s"ParquetDataCommitter [${commitName}], cleanup will only work when snapshot folder is defined")
+        case _ =>
+      }
       Unit
     }
   }
@@ -63,18 +114,48 @@ object ParquetDataCommitter {
 
   def apply(destinationFolder: String): ParquetDataCommitter = new ParquetDataCommitter(destinationFolder, None, None, None)
 
+  /**
+    * Implements a cleanup strategy that sorts input list of snapshots by timestamp extracted from the folder names
+    * and ensures that there is at most numberOfFoldersToKeep of folders with latest timestamp left.
+    * Folder names must be of same pattern as hive partition columns. Example: COLUMNNAME=TIMESTAMP
+    *
+    * @param columnName             column name part of the snapshot folder
+    * @param timeStampFormat        Java format of the TIMESTAMP. Ex: yyyyMMddHHmmss
+    * @param numberOfFoldersToKeep  maximum number of snapshots to keep
+    * @param getName                returns name of the snapshot
+    * @tparam P                     type that identifies snapshot
+    * @return                       configured cleanup strategy that returns list of snapshots to remove
+    */
+  def dateBasedSnapshotCleanupStrategy[P](columnName: String, timeStampFormat: String, numberOfFoldersToKeep: Int)(getName: P => String): CleanUpStrategy[P] = {
+    import java.time._
+    import java.time.format._
+
+    val folderPrefix = columnName + "="
+    val formatter = DateTimeFormatter.ofPattern(timeStampFormat)
+
+    def res(table: String, snapshotFolders: Seq[P]): Seq[P] = {
+      snapshotFolders
+        .filter(getName(_).startsWith(folderPrefix))
+        .map(snapFolder => (LocalDateTime.parse(getName(snapFolder).substring(folderPrefix.length), formatter), snapFolder))
+        .sortWith((d1, d2) => d1._1.isAfter(d2._1))
+        .map(_._2)
+        .drop(numberOfFoldersToKeep)
+    }
+    res
+  }
+
 }
 
 /**
+  * Action that deletes snapshots based on the cleanup strategy. It can cleanup one or more labels.
   *
-  * @param destFolder
-  * @param clnUpStrategy  returns list of folders that can be removed
-  * @param inputLabels
-  * @param outputLabels
+  * @param baseFolder     root folder that contains label folders
+  * @param toRemove       returns list of snapshot/folder to remove
+  * @param inputLabels    list of labels, whose snapshots need to be cleaned up
   * @param actionName
   */
-class FSCleanUp(destFolder: String
-                , clnUpStrategy: CleanUpStrategy[FileStatus]
+class FSCleanUp(baseFolder: String
+                , toRemove: CleanUpStrategy[FileStatus]
                 , val inputLabels: List[String]
                 , override val actionName: String = "FSCleanUp") extends SparkDataFlowAction with Logging {
 
@@ -86,11 +167,12 @@ class FSCleanUp(destFolder: String
     * @return the action outputs (these must be declared in the same order as their labels in [[outputLabels]])
     */
   override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = {
-    val baseFolder = new Path(destFolder)
+    val basePath = new Path(baseFolder)
     val foldersToRemove = inputLabels
-      .map(l => (l, new Path(baseFolder, l)))
+      .map(l => (l, new Path(basePath, l)))
+      .filter(lp => flowContext.fileSystem.exists(lp._2))
       .map(lp => (lp._1, flowContext.fileSystem.listStatus(lp._2).filter(_.isDirectory)))
-      .map(labelSnapshots => (labelSnapshots._1, clnUpStrategy(labelSnapshots._1, labelSnapshots._2)))
+      .map(labelSnapshots => (labelSnapshots._1, toRemove(labelSnapshots._1, labelSnapshots._2)))
 
     Try {
       foldersToRemove.foreach { toRemove =>

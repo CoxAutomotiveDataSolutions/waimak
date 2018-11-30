@@ -66,19 +66,6 @@ trait SparkDataFlow extends DataFlow with Logging {
           superPreparedFlow.addAction(CommitAction(superPreparedFlow.commitLabels, superPreparedFlow.tempFolder.get, allLabels))
         } else superPreparedFlow
       }.asInstanceOf[Try[this.type]]
-
-    //    val superPreparedFlow = super.prepareForExecution()
-    //    superPreparedFlow.tempFolder match {
-    //      case Some(p) => logInfo(s"Cleaning up temporary folder: ${p.toString}")
-    //        superPreparedFlow.flowContext.fileSystem.delete(p, true)
-    //        superPreparedFlow.flowContext.fileSystem.mkdirs(p)
-    //      case None if superPreparedFlow.commitLabels.nonEmpty => throw new DataFlowException("Cannot add commit actions as no temporary folder is defined")
-    //      case None => logInfo(s"Not cleaning up temporary folder as it is not defined")
-    //    }
-    //    // Add commit action
-    //    val allLabels = (superPreparedFlow.inputs.keySet ++ superPreparedFlow.actions.flatMap(_.outputLabels)).toList
-    //    if (superPreparedFlow.commitLabels.nonEmpty) superPreparedFlow.addAction(CommitAction(superPreparedFlow.commitLabels, superPreparedFlow.tempFolder.get, allLabels))
-    //    else this
   }
 
   def addCommitLabel(label: String, definition: LabelCommitDefinition): SparkDataFlow
