@@ -264,13 +264,40 @@ trait DataFlow extends Logging {
     withInputs
   }
 
+  /**
+    * Groups labels to commit under a commit name.
+    * Can be called multiple times with same same commit name, thus adding labels to it.
+    * There can be multiple commit names defined in a single data flow.
+    *
+    * @param commitName   name of the commit, which will be used to define its push implementation
+    * @param partitions   list of partition columns for the labels specified in this commit invocation. It will not
+    *                     impact labels from previous or following invocations of the commit with same commit name.
+    * @param repartition  to repartition the data
+    * @param labels       labels added to the commit name with partitions config
+    * @return
+    */
   def commit(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): this.type = {
     val toRepartition = partitions.nonEmpty && repartition
     commitMeta(commitMeta.addCommits(commitName, labels, partitions, toRepartition))
   }
 
+  /**
+    * Associates commit name with an implementation of a data committer. There must be only one data committer per one commit name.
+    *
+    * @param commitName
+    * @param committer
+    * @return
+    */
   def push(commitName: String)(committer: DataCommitter): this.type = commitMeta(commitMeta.addPush(commitName, committer))
 
+  /**
+    * During data flow preparation for execution stage, it interacts with data committer to add actions that implement
+    * stages of the data committer.
+    *
+    * This build uses tags to separate the stages of the data committer: cache, move, finish.
+    *
+    * @return
+    */
   protected[dataflow] def buildCommits(): this.type = commitMeta.pushes.foldLeft(this) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
     val commitName = pushCommitter._1
     val committer = pushCommitter._2.head
@@ -503,7 +530,9 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
 }
 
 /**
-  * Contains configurations for
+  * Contains configurations for commits and pushes, while configs are added, there are no modifications to the
+  * dataflow, as it waits for a validation before execution.
+  *
   * @param commits  Map[ COMMIT_NAME, Seq[CommitEntry] ]
   * @param pushes   Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
   *                 lazy definitions of the data flows, validation will have to catch it.
@@ -560,10 +589,10 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
       if (pushes.nonEmpty) throw new DataFlowException(s"There are no commits definitions for pushes: ${pushes.sorted.mkString("[", ", ", "]")}")
 
       val notPresent = phantomLabels(outputLabels).mapValues(_.mkString("{", ", ", "}"))
-      if (notPresent.nonEmpty) throw new DataFlowException(s"Commit definitions with labels that are produced by any action: ${pushes.mkString("[", ", ", "]")}")
+      if (notPresent.nonEmpty) throw new DataFlowException(s"Commit definitions with labels that are not produced by any action: ${notPresent.mkString("[", ", ", "]")}")
 
       val usedForInputs = commits.mapValues(_.map(_.label).filter(inputLabels.contains)).filter(_._2.nonEmpty).mapValues(_.mkString("{", ", ", "}"))
-      if (usedForInputs.nonEmpty) throw new DataFlowException(s"Labels used in commits can not be used as inputs to other actions: [${usedForInputs.mkString("[", ", ", "]")}]")
+      if (usedForInputs.nonEmpty) throw new DataFlowException(s"Labels used in commits can not be used as inputs to other actions: [${usedForInputs.mkString("[", ", ", "]")}]. To commit this label use alias.")
 
       val usedInMultipleCommits = labelsUsedInMultipleCommits().map(_.map(kv => kv._1 + " -> " + kv._2.mkString("[", ", ", "]")).mkString("(", ", ", ")"))
       if (usedInMultipleCommits.isDefined) throw new DataFlowException(s"Same label can not be used in more than one commit. (Label -> [Commit Names]): ${usedInMultipleCommits.get}")

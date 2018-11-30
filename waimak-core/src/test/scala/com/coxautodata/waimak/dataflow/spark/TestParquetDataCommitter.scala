@@ -90,7 +90,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val emptyFlow = MockDataFlow.empty
         val committer = ParquetDataCommitter(baseDest)
         val res = committer.validate(emptyFlow, "f1", Seq.empty)
-        res shouldBe a[Failure[Unit]]
+        res shouldBe a[Failure[_]]
         res.failed.get.getMessage should be(s"""ParquetDataCommitter [f1] can only work with data flows derived from ${classOf[SparkDataFlow].getName}""")
       }
 
@@ -99,7 +99,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val committer = ParquetDataCommitter(baseDest)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession)
         val res = committer.validate(flow, "f1", Seq.empty)
-        res shouldBe a[Failure[Unit]]
+        res shouldBe a[Failure[_]]
         res.failed.get.getMessage should be("ParquetDataCommitter [f1], temp folder is not defined")
       }
 
@@ -108,7 +108,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val committer = ParquetDataCommitter(baseDest).dateBaseSnapshotCleanup("snap", "YYYY", 1)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         val res = committer.validate(flow, "f1", Seq.empty)
-        res shouldBe a[Failure[Unit]]
+        res shouldBe a[Failure[_]]
         res.failed.get.getMessage should be("ParquetDataCommitter [f1], cleanup will only work when snapshot folder is defined")
       }
 
@@ -128,7 +128,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
           , CommitEntry("label_fail_2", "f1", Seq.empty, false)
           , CommitEntry("label_ok", "f1", Seq.empty, false))
         )
-        res shouldBe a[Failure[Unit]]
+        res shouldBe a[Failure[_]]
         res.failed.get.getMessage should be("ParquetDataCommitter [f1], snapshot folder [snap=2001] is already present for labels: [label_fail_1, label_fail_2]")
       }
     }

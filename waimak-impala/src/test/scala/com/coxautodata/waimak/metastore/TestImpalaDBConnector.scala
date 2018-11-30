@@ -2,12 +2,13 @@ package com.coxautodata.waimak.metastore
 
 import java.io.File
 
-import com.coxautodata.waimak.dataflow.Waimak
-import com.coxautodata.waimak.dataflow.spark.TestSparkData.basePath
-import com.coxautodata.waimak.dataflow.spark.{SimpleSparkDataFlow, SparkAndTmpDirSpec, SparkFlowContext}
+import com.coxautodata.waimak.dataflow.{DFExecutorPriorityStrategies, Waimak}
+import com.coxautodata.waimak.dataflow.spark.TestSparkData.{basePath, persons, purchases}
+import com.coxautodata.waimak.dataflow.spark._
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.SparkSession
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
+import org.apache.hadoop.fs.Path
 
 class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
@@ -117,4 +118,47 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
     }
   }
 
+  describe("with snapshots, with DB commits") {
+
+    it("multiple tables, multiple snapshots, with cleaning and DB commit") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val executor = Waimak.sparkExecutor(1, DFExecutorPriorityStrategies.preferLoaders)
+
+      val baseDest = testingBaseDir + "/dest"
+
+      val connectorRecreate = ImpalaDummyConnector(spark, forceRecreateTables = true)
+
+      val flowPrePush: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .alias("csv_1", "purchases")
+        .alias("csv_2", "buyers")
+        .commit("comm_1")("purchases", "buyers")
+
+      flowPrePush.flowContext.fileSystem.exists(new Path(baseDest)) should be(false)
+
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_568")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_568")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_568")))
+
+      executor.execute(flowPrePush.push("comm_1")(
+        ParquetDataCommitter(baseDest)
+          .snapshotFolder("snapshot=20181105_123001_569")
+          .dateBaseSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3)
+          .connection(connectorRecreate)
+      )
+      )
+
+      flowPrePush.flowContext.fileSystem.listStatus(new Path(baseDest + "/purchases")).map(_.getPath.getName).sorted should be(Array("snapshot=20181105_123001_567", "snapshot=20181105_123001_568", "snapshot=20181105_123001_569"))
+      flowPrePush.flowContext.fileSystem.listStatus(new Path(baseDest + "/buyers")).map(_.getPath.getName).sorted should be(Array("snapshot=20181105_123001_567", "snapshot=20181105_123001_568", "snapshot=20181105_123001_569"))
+
+      connectorRecreate.ranDDLs.size should be(1)
+      connectorRecreate.ranDDLs(0).size should be(4)
+    }
+
+  }
 }
