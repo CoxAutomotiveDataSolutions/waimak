@@ -21,10 +21,6 @@ case class SimpleSparkDataFlowInfo(
   */
 class SimpleSparkDataFlow(info: SimpleSparkDataFlowInfo) extends SparkDataFlow with Logging {
 
-//  override def addCommitLabel(label: String, definition: LabelCommitDefinition): SparkDataFlow = {
-//    new SimpleSparkDataFlow(spark, inputs, actions, sqlTables, tempFolder, schedulingMeta, commitLabels + (label -> definition), tagState)
-//  }
-
   override def spark: SparkSession = info.spark
 
   /**

@@ -15,7 +15,6 @@ import scala.util.{Failure, Success, Try}
   *
   * Also inputs are useful for unit testing, as they give access to all intermediate outputs of actions.
   *
-  * @tparam C the type of context which we pass to the actions
   */
 trait DataFlow extends Logging {
 
@@ -575,8 +574,10 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
   }
 
   /**
-    * @param presentLabels
-    * @return Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
+    * Checks if commits refer to labels that are not produced in the flow.
+    *
+    * @param presentLabels  labels that are produced in the data flow
+    * @return               Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
     */
   def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty)
 

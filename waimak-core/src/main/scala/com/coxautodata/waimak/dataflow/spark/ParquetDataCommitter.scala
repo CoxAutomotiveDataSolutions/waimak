@@ -126,14 +126,14 @@ object ParquetDataCommitter {
     * @tparam P                     type that identifies snapshot
     * @return                       configured cleanup strategy that returns list of snapshots to remove
     */
-  def dateBasedSnapshotCleanupStrategy[P](columnName: String, timeStampFormat: String, numberOfFoldersToKeep: Int)(getName: P => String): CleanUpStrategy[P] = {
+  def dateBasedSnapshotCleanupStrategy[P](columnName: String, timeStampFormat: String, numberOfFoldersToKeep: Int)(getName: P => TableName): CleanUpStrategy[P] = {
     import java.time._
     import java.time.format._
 
     val folderPrefix = columnName + "="
     val formatter = DateTimeFormatter.ofPattern(timeStampFormat)
 
-    def res(table: String, snapshotFolders: Seq[P]): Seq[P] = {
+    def res(table: TableName, snapshotFolders: InputSnapshots[P]): SnapshotsToDelete[P] = {
       snapshotFolders
         .filter(getName(_).startsWith(folderPrefix))
         .map(snapFolder => (LocalDateTime.parse(getName(snapFolder).substring(folderPrefix.length), formatter), snapFolder))
