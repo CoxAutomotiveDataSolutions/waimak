@@ -116,7 +116,7 @@ object StorageActions extends Logging {
       * @param tables            the tables we want to snapshot
       * @return a new SparkDataFlow with the snapshot actions added
       */
-    def snapshotFromStorage(storageBasePath: String, snapshotTimestamp: Timestamp, includeHot: Boolean = true)(tables: String*): SparkDataFlow = {
+    def snapshotFromStorage(storageBasePath: String, snapshotTimestamp: Timestamp, includeHot: Boolean = true, outputPrefix: Option[String] = None)(tables: String*): SparkDataFlow = {
       val basePath = new Path(storageBasePath)
 
       val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq, includeHot)
@@ -125,7 +125,8 @@ object StorageActions extends Logging {
       handleTableErrors(existingTables, "Unable to perform read")
 
       existingTables.values.map(_.get).foldLeft(sparkDataFlow)((flow, table) => {
-        flow.addAction(new SimpleAction(List.empty, List(table.tableName), _ => List(table.snapshot(snapshotTimestamp))))
+        val outputLabel = outputPrefix.map(p => s"${p}_${table.tableName}").getOrElse(table.tableName)
+        flow.addAction(new SimpleAction(List.empty, List(outputLabel), _ => List(table.snapshot(snapshotTimestamp))))
       })
     }
 
@@ -141,7 +142,7 @@ object StorageActions extends Logging {
       * @param tables          the tables to load
       * @return a new SparkDataFlow with the read actions added
       */
-    def loadFromStorage(storageBasePath: String, from: Option[Timestamp] = None, to: Option[Timestamp] = None)(tables: String*): SparkDataFlow = {
+    def loadFromStorage(storageBasePath: String, from: Option[Timestamp] = None, to: Option[Timestamp] = None, outputPrefix: Option[String] = None)(tables: String*): SparkDataFlow = {
       val basePath = new Path(storageBasePath)
 
       val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq)
@@ -150,7 +151,8 @@ object StorageActions extends Logging {
       handleTableErrors(existingTables, "Unable to perform read")
 
       existingTables.values.map(_.get).foldLeft(sparkDataFlow)((flow, table) => {
-        flow.addAction(new SimpleAction(List.empty, List(table.tableName), _ => List(table.allBetween(from, to))))
+        val outputLabel = outputPrefix.map(p => s"${p}_${table.tableName}").getOrElse(table.tableName)
+        flow.addAction(new SimpleAction(List.empty, List(outputLabel), _ => List(table.allBetween(from, to))))
       })
     }
 
