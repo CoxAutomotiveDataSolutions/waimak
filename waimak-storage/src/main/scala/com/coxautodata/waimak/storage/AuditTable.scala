@@ -93,7 +93,10 @@ trait AuditTable {
     *                    after a compaction has happened.
     * @return new state of the AuditTable
     */
-  def compact(compactTS: Timestamp, trashMaxAge: Duration): Try[AuditTable]
+  def compact(compactTS: Timestamp, trashMaxAge: Duration
+              , hotCellsPerPartition: Int = 1000000
+              , rowsPerRegion: Int = 50000000
+              , coldCellsPerPartition: Int = 2500000): Try[AuditTable]
 
   /**
     * Returns latest timestamp of records stored in the audit table.
