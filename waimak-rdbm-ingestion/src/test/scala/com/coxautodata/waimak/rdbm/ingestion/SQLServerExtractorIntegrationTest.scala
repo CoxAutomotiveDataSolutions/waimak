@@ -86,41 +86,27 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
     it("should return the metadata from the database (no user metadata provided)") {
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
       sqlServerExtractor.getTableMetadata("dbo", "testtable", None, None) should be(Success(
-        AuditTableInfo("testtable", Array("testtableid1;testtableid2"), Map(
+        AuditTableInfo("testtable", Seq("testtableid1", "testtableid2"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testtable"
-          , "primaryKeys" -> "testtableid1;testtableid2")
-        )))
+          , "primaryKeys" -> "testtableid1,testtableid2"
+        ))))
     }
 
     it("should fail if the user-provided pks differ from the ones found in the database") {
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
       sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("incorrect_pk")), None) should be(Failure(
-        IncorrectUserPKException(Seq("incorrect_pk"), Array("testtableid1;testtableid2"))
+        IncorrectUserPKException(Seq("incorrect_pk"), Seq("testtableid1", "testtableid2"))
       ))
     }
     it("should return the metadata if the user-provided pks match the ones from the database") {
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-      sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("testtableid1;testtableid2"))) should be(Success(
-        AuditTableInfo("testtable", Array("testtableid1;testtableid2"), Map(
+      sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("testtableid1", "testtableid2"))) should be(Success(
+        AuditTableInfo("testtable", Seq("testtableid1", "testtableid2"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testtable"
-          , "primaryKeys" -> "testtableid1;testtableid2"
+          , "primaryKeys" -> "testtableid1,testtableid2"
         ))))
-    }
-    it("should read the metadata for a test table") {
-      val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-
-      sqlServerExtractor.allTableMetadata("dbo.testtable") should be(
-        SQLServerTableMetadata("dbo", "testtable", "testtableid1;testtableid2")
-      )
-
-      sqlServerExtractor.getTableMetadata("dbo", "testtable") should be(
-        Success(AuditTableInfo("testtable", Array("testtableid1;testtableid2"), Map(
-          "schemaName" -> "dbo"
-          , "tableName" -> "testtable"
-          , "primaryKeys" -> "testtableid1;testtableid2")))
-      )
     }
 
   }
@@ -129,23 +115,19 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
     it("should extract from the db to the storage layer") {
       val spark = sparkSession
       import spark.implicits._
-      val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+      val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
       val flow = Waimak.sparkFlow(sparkSession)
       val executor = Waimak.sparkExecutor()
-      val tableConfig = Map("testtable" -> RDBMExtractionTableConfig("testtable"))
-      val writeFlow = flow.extractToStorageFromRDBM(sqlServerExtractor, "dbo", s"$testingBaseDir/output", tableConfig, insertDateTime)("testtable")
 
-      val res1 = executor.execute(writeFlow)
-      res1._2.inputs.get[Dataset[_]]("testtable").sort("testtableid1", "testtableid2")
-        .as[TestTable].collect() should be(Array(
-        TestTable(1, 1, "V1")
-        , TestTable(2, 1, "V2")
-        , TestTable(2, 2, "V3")
-        , TestTable(4, 3, "V4")
-        , TestTable(5, 3, "V5")
-      ))
+      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map("testtable" -> RDBMExtractionTableConfig("testtable"))
+
+      val writeFlow = flow.extractToStorageFromRDBM(sqlExtractor
+        , "dbo"
+        , s"$testingBaseDir/output"
+        , tableConfig
+        , insertDateTime
+      )("testtable")
     }
-
   }
 }
       case class TestTable(testtableid1: Int, testtableid2: Int, testtablevalue: String)
