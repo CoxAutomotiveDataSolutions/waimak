@@ -13,9 +13,9 @@ import scala.util.Try
 /**
   * Introduces spark session into the data flows
   */
-trait SparkDataFlow extends DataFlow[SparkFlowContext] with Logging {
+trait SparkDataFlow extends DataFlow with Logging {
 
-  val spark: SparkSession
+  def spark: SparkSession
 
   override val flowContext: SparkFlowContext = SparkFlowContext(spark)
 
@@ -37,7 +37,7 @@ trait SparkDataFlow extends DataFlow[SparkFlowContext] with Logging {
     */
   def sqlTables: Set[String]
 
-  override def executed(executed: DataFlowAction[SparkFlowContext], outputs: Seq[Option[Any]]): DataFlow[SparkFlowContext] = {
+  override def executed(executed: DataFlowAction, outputs: Seq[Option[Any]]): this.type = {
     val res = super.executed(executed, outputs)
     // multiple sql actions might request same table, the simplest way of avoiding the race conditions of multiple actions
     // trying to register same dataset as an SQL table. To solve it, dataset will be reentered by the producing execution,
@@ -48,19 +48,24 @@ trait SparkDataFlow extends DataFlow[SparkFlowContext] with Logging {
     res
   }
 
-  override def prepareForExecution(): this.type = {
-    val superPreparedFlow = super.prepareForExecution()
-    superPreparedFlow.tempFolder match {
-      case Some(p) => logInfo(s"Cleaning up temporary folder: ${p.toString}")
-        superPreparedFlow.flowContext.fileSystem.delete(p, true)
-        superPreparedFlow.flowContext.fileSystem.mkdirs(p)
-      case None if superPreparedFlow.commitLabels.nonEmpty => throw new DataFlowException("Cannot add commit actions as no temporary folder is defined")
-      case None => logInfo(s"Not cleaning up temporary folder as it is not defined")
-    }
-    // Add commit action
-    val allLabels = (superPreparedFlow.inputs.keySet ++ superPreparedFlow.actions.flatMap(_.outputLabels)).toList
-    if (superPreparedFlow.commitLabels.nonEmpty) superPreparedFlow.addAction(CommitAction(superPreparedFlow.commitLabels, superPreparedFlow.tempFolder.get, allLabels))
-    else this
+  override def prepareForExecution(): Try[this.type] = {
+    super.prepareForExecution()
+      .map { superPreparedFlow =>
+        superPreparedFlow.tempFolder match {
+          case Some(p) => logInfo(s"Cleaning up temporary folder: ${p.toString}")
+            superPreparedFlow.flowContext.fileSystem.delete(p, true)
+            superPreparedFlow.flowContext.fileSystem.mkdirs(p)
+          case None if superPreparedFlow.commitLabels.nonEmpty => throw new DataFlowException("Cannot add commit actions as no temporary folder is defined")
+          case None => logInfo(s"Not cleaning up temporary folder as it is not defined")
+        }
+        superPreparedFlow
+      }.map { superPreparedFlow =>
+        if (superPreparedFlow.commitLabels.nonEmpty) {
+          // Add commit action
+          val allLabels = (superPreparedFlow.inputs.keySet ++ superPreparedFlow.actions.flatMap(_.outputLabels)).toList
+          superPreparedFlow.addAction(CommitAction(superPreparedFlow.commitLabels, superPreparedFlow.tempFolder.get, allLabels))
+        } else superPreparedFlow
+      }.asInstanceOf[Try[this.type]]
   }
 
   def addCommitLabel(label: String, definition: LabelCommitDefinition): SparkDataFlow

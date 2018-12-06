@@ -7,8 +7,8 @@ import scala.util.Try
   */
 class TestInputAction(val inputLabels: List[String], val outputLabels: List[String]
                       , output: DataFlowEntities => ActionResult
-                      , override val requiresAllInputs: Boolean = true) extends DataFlowAction[EmptyFlowContext] {
+                      , override val requiresAllInputs: Boolean = true) extends DataFlowAction {
 
-  override def performAction(inputs: DataFlowEntities, flowContext: EmptyFlowContext): Try[ActionResult] = Try(output(inputs))
+  override def performAction[C <: FlowContext](inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = Try(output(inputs))
 
 }

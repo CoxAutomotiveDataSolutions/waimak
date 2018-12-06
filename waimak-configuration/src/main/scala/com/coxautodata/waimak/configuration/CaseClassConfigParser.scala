@@ -13,6 +13,7 @@ object CaseClassConfigParser {
 
   import reflect.runtime.{currentMirror => cm, universe => ru}
   import ru.typeOf
+  import scala.reflect.runtime.universe.{TypeTag, symbolOf}
 
   /**
     * Cast a String to a particular type representation
@@ -134,34 +135,35 @@ object CaseClassConfigParser {
   @throws(classOf[UnsupportedOperationException])
   @throws(classOf[NumberFormatException])
   @throws(classOf[IllegalArgumentException])
-  def apply[A](conf: SparkConf, prefix: String, properties: Option[Properties] = None)(implicit t: reflect.ClassTag[A]): A = {
+  def apply[A: TypeTag](conf: SparkConf, prefix: String, properties: Option[Properties] = None): A = {
     fromMap[A](conf.getAll.toMap, prefix, properties)
   }
 
-  def fromMap[A](conf: Map[String, String], prefix: String = "", properties: Option[Properties] = None)(implicit t: reflect.ClassTag[A]): A = {
-    val clazz = cm.classSymbol(t.runtimeClass)
-    val mod = clazz.companion.asModule
-    // We could possibly use something like weakType to get round this
-    val im = Try(cm.reflect(cm.reflectModule(mod).instance)).recover {
+  def fromMap[A: TypeTag](conf: Map[String, String], prefix: String = "", properties: Option[Properties] = None): A = {
+    val tag = implicitly[TypeTag[A]]
+    val runtimeClass = tag.mirror.runtimeClass(tag.tpe)
+    val classSymbol = symbolOf[A].asClass
+    val constructorParams = classSymbol.primaryConstructor.asMethod.paramLists.head
+    val companionSymbol = classSymbol.companion
+    val companionApply = companionSymbol.typeSignature.member(ru.TermName("apply")).asMethod
+    val im = Try(cm.reflect(cm.reflectModule(companionSymbol.asModule).instance)).recover {
       case e: ScalaReflectionException => throw new UnsupportedOperationException(s"ScalaReflectionException was thrown when " +
-        s"inspecting case class: ${t.runtimeClass.getSimpleName}. This was likely due to the case class being defined " +
+        s"inspecting case class: ${runtimeClass.getSimpleName}. This was likely due to the case class being defined " +
         s"within a class. Definition within a class is not supported.", e)
       case e => throw e
     }.get
-    val ts = im.symbol.typeSignature
-    val mApply = ts.member(ru.TermName("apply")).asMethod
-    val syms = mApply.paramLists.flatten
-    val args = syms.zipWithIndex.map { case (p, i) =>
+    val args = constructorParams.zipWithIndex.map { case (p, i) =>
       Try(getParam(conf, prefix, p, properties))
         .recover {
           case e: NoSuchElementException =>
-            val defarg = ts.member(ru.TermName(s"apply$$default$$${i + 1}"))
+            val defarg = companionSymbol.typeSignature.member(ru.TermName(s"apply$$default$$${i + 1}"))
             if (!defarg.isMethod) throw new NoSuchElementException(s"No SparkConf configuration value, Properties value or default " +
               s"value found for parameter $prefix${p.name.toString}")
             else im.reflectMethod(defarg.asMethod)()
           case e => throw e
         }.get
     }
-    im.reflectMethod(mApply)(args: _*).asInstanceOf[A]
+    im.reflectMethod(companionApply)(args: _*).asInstanceOf[A]
   }
+
 }

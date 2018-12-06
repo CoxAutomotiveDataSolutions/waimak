@@ -8,24 +8,22 @@ import scala.annotation.tailrec
   * Created by Alexei Perelighin 2017/12/27
   *
   * Executes one action at a time wihtout trying to parallelize them.
-  *
-  * @tparam C the type of context which we pass to the actions
   */
-class SequentialDataFlowExecutor[C](override val flowReporter: FlowReporter[C]
-                                       , override val priorityStrategy: Seq[DataFlowAction[C]] => Seq[DataFlowAction[C]])
-  extends DataFlowExecutor[C] with Logging {
+class SequentialDataFlowExecutor(override val flowReporter: FlowReporter
+                                       , override val priorityStrategy: Seq[DataFlowAction] => Seq[DataFlowAction])
+  extends DataFlowExecutor with Logging {
 
   /**
     * Action scheduler used to run actions
     *
     * @return
     */
-  override def initActionScheduler(): ActionScheduler[C] = new SequentialScheduler[C](None)
+  override def initActionScheduler(): ActionScheduler = new SequentialScheduler(None)
 }
 
 
 object SequentialDataFlowExecutor {
 
-  def apply[C](flowReporter: FlowReporter[C]) = new SequentialDataFlowExecutor(flowReporter, identity[Seq[DataFlowAction[C]]])
+  def apply(flowReporter: FlowReporter) = new SequentialDataFlowExecutor(flowReporter, identity[Seq[DataFlowAction]])
 
 }
