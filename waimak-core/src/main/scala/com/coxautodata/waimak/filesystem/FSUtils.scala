@@ -9,6 +9,12 @@ import org.apache.hadoop.fs._
   */
 object FSUtils extends Logging {
 
+  /**
+    * Implicit class to convert an Hadoop RemoteIterator object to a Scala Iterator
+    *
+    * @param underlying Underlying RemoteIterator object
+    * @tparam T Type of the elements in the iterator
+    */
   implicit class ScalaRemoteIterator[T](underlying: RemoteIterator[T]) extends Iterator[T] {
     override def hasNext: Boolean = underlying.hasNext
 
@@ -114,7 +120,7 @@ object FSUtils extends Logging {
     committed
   }
 
-  def mergeMoveFiles(fs: FileSystem, sourceFolder: Path, destinationFolder: Path): Unit = {
+  def mergeMoveFiles(fs: FileSystem, sourceFolder: Path, destinationFolder: Path, pathFilter: Path => Boolean): Unit = {
     if (!fs.exists(sourceFolder)) throw new PathNotFoundException(s"Source folder [$sourceFolder]")
     if (!fs.getFileStatus(sourceFolder).isDirectory) throw new PathIsNotDirectoryException(s"Source path is not a directory [$sourceFolder]")
     if (!fs.exists(destinationFolder)) {
@@ -122,12 +128,13 @@ object FSUtils extends Logging {
       if (!fs.mkdirs(destinationFolder)) throw new PathOperationException(s"Could not create folder [$destinationFolder]")
     }
     fs.listFiles(sourceFolder, false)
-      .filter(_.isFile)
+      .filter(f => f.isFile && pathFilter(f.getPath))
       .foreach{
         f =>
           val destPath = new Path(destinationFolder, f.getPath.getName)
           if (fs.exists(destPath)) throw new PathExistsException(s"Cannot move [${f.getPath}] to [$destPath] as a file already exists")
           if (!fs.rename(f.getPath, destPath)) throw new PathOperationException(s"Failed to rename [${f.getPath}] to [$destPath]")
+          logDebug(s"Moved file [${f.getPath}] to [$destPath]")
       }
   }
 
