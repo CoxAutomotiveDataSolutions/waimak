@@ -99,7 +99,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
     val mainTable = sparkLoad(sqlServerTableMetadata.mainTableMetadata, lastUpdated, maxRowsPerPartition, explicitColumnSelects)
       .toDF
     val fullTable = sqlServerTableMetadata.historyTableMetadata.foldLeft(mainTable)((df, historyMetadata) => {
-      val historyTable = sparkLoad(historyMetadata, lastUpdated, maxRowsPerPartition,  Seq("1 as source_type"))
+      val historyTable = sparkLoad(historyMetadata, lastUpdated, maxRowsPerPartition, Seq("1 as source_type"))
         .toDF
 
       df union historyTable.select(df.schema.fieldNames.map(historyTable(_)): _*)

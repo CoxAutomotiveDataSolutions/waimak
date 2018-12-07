@@ -45,7 +45,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
          |)
          |;
          |
-        |   insert into testtable (testtableID1, testtableID2, testtableValue) VALUES (1, 1, 'V1');
+         |   insert into testtable (testtableID1, testtableID2, testtableValue) VALUES (1, 1, 'V1');
          |   insert into testtable (testtableID1, testtableID2, testtableValue) VALUES (2, 1, 'V2');
          |   insert into testtable (testtableID1, testtableID2, testtableValue) VALUES (2, 2, 'V3');
          |   insert into testtable (testtableID1, testtableID2, testtableValue) VALUES (4, 3, 'V4');
@@ -60,7 +60,8 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
          | , testtable_last_updated datetime2 NOT NULL
          |   PRIMARY KEY CLUSTERED(testtableID1, testtableID2)
          |);
-         |        insert into testtable_suffix (testtableID1, testtableID2, testtableValue) VALUES (6, 4, 'V6', '$insertTimestamp');
+         |
+         |  insert into testtable_suffix (testtableID1, testtableID2, testtableValue) VALUES (6, 4, 'V6', '$insertTimestamp');
        """.stripMargin
 
     executeSQl(Seq(testTableCreate, testTableSuffixCreate))
@@ -130,7 +131,8 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
     }
   }
 }
-      case class TestTable(testtableid1: Int, testtableid2: Int, testtablevalue: String)
+
+case class TestTable(testtableid1: Int, testtableid2: Int, testtablevalue: String)
 
 
 

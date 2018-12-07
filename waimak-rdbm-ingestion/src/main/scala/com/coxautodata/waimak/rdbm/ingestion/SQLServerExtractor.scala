@@ -10,8 +10,9 @@ import scala.util.{Failure, Success, Try}
 
 /**
   * Created by Ian Baynham on 06/11/18.
-  **
+  * *
   * /
+  *
   * @param transformTableNameForRead How to transform the target table name into the table name in the database if the two are different.
   *                                  Useful if you have multiple tables representing the same thing but with different names, and you wish them to
   *                                  be written to the same target table
@@ -89,8 +90,8 @@ class SQLServerExtractor(override val sparkSession: SparkSession
     allTablePKs.get(s"$dbSchemaName.$tableName").map(_.split(";").toSeq)
   }
 
-  }
+}
 
-  case class SQLServerTableMetadata(schemaName: String
-                                    , tableName: String
-                                    , primaryKeys: String)
+case class SQLServerTableMetadata(schemaName: String
+                                  , tableName: String
+                                  , primaryKeys: String)
