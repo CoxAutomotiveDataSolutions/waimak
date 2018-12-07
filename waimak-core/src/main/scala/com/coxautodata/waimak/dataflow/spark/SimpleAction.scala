@@ -18,8 +18,8 @@ import scala.util.Try
   *                    is called, all inputs were validated and action is in runnable flow state.
   * @tparam C the type of the context of the flow in which this action runs
   */
-class SimpleAction[C](val inputLabels: List[String], val outputLabels: List[String]
-                      , exec: DataFlowEntities => ActionResult, override val actionName: String = "SimpleAction") extends DataFlowAction[C] {
+class SimpleAction(val inputLabels: List[String], val outputLabels: List[String]
+                      , exec: DataFlowEntities => ActionResult, override val actionName: String = "SimpleAction") extends SparkDataFlowAction {
 
   /**
     * Perform the action. Puts inputs into a map and invokes the exec function.
@@ -27,7 +27,7 @@ class SimpleAction[C](val inputLabels: List[String], val outputLabels: List[Stri
     * @param inputs the DataFlowEntities corresponding to the inputLabels
     * @return the action outputs (these must be declared in the same order as their labels in outputLabels)
     */
-  override def performAction(inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = Try {
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
     val params: DataFlowEntities = inputs.filterLabels(inputLabels)
     exec(params)
   }
@@ -45,7 +45,7 @@ class SimpleAction[C](val inputLabels: List[String], val outputLabels: List[Stri
   */
 class SparkSimpleAction(inputLabels: List[String], outputLabels: List[String]
                         , exec: DataFlowEntities => ActionResult
-                        , val sqlTables: Seq[String], override val actionName: String = "SparkSimpleAction") extends SimpleAction[SparkFlowContext](inputLabels, outputLabels, exec) {
+                        , val sqlTables: Seq[String], override val actionName: String = "SparkSimpleAction") extends SimpleAction(inputLabels, outputLabels, exec) {
 
 }
 
