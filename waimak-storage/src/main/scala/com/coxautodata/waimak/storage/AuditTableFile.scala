@@ -63,7 +63,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(regionPath).get)
       val region = AuditTableRegionInfo(tableInfo.table_name, HOT_PARTITION, regionID, appendTS, false, count, max_latest_ts)
       logInfo(s"Created region $region")
-      (setRegions(this, regions :+ region).asInstanceOf[this.type], count)
+      (setRegions(this, regions :+ region, overwriteExistingRegionInfo = false).asInstanceOf[this.type], count)
     }
     res
   }
@@ -98,7 +98,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       .flatMap(_ => if (storageOps.mkdirs(hotPath)) Success(true) else Failure(StorageException(s"Table [${tableInfo.table_name}] can not be initialised, can not create folder ${hotPath.toString}")))
       .flatMap(_ => if (storageOps.mkdirs(coldPath)) Success(true) else Failure(StorageException(s"Table [${tableInfo.table_name}] can not be initialised, can not create folder ${coldPath.toString}")))
       .flatMap(_ => storageOps.writeAuditTableInfo(baseFolder, tableInfo))
-      .map(_ => setRegions(this, Seq.empty).asInstanceOf[this.type])
+      .map(_ => setRegions(this, Seq.empty, overwriteExistingRegionInfo = true).asInstanceOf[this.type])
     res
   }
 
@@ -168,7 +168,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
           logInfo(s"Compacted region ${region.toString} was created.")
           remainingRegions :+ region
         }
-        newRegionSet.fold(this)(r => setRegions(this, r))
+        newRegionSet.fold(this)(r => setRegions(this, r, overwriteExistingRegionInfo = true))
       }
       res
     }
@@ -221,11 +221,16 @@ object AuditTableFile extends Logging {
     * @param regions
     * @return
     */
-  def setRegions(audit: AuditTableFile, regions: Seq[AuditTableRegionInfo]): AuditTableFile = {
+  def setRegions(audit: AuditTableFile, regions: Seq[AuditTableRegionInfo], overwriteExistingRegionInfo: Boolean): AuditTableFile = {
     val spark = audit.storageOps.sparkSession
     import spark.implicits._
     val regionInfoDS = audit.storageOps.sparkSession.createDataset(regions).coalesce(1)
-    audit.storageOps.writeParquet(audit.tableName, new Path(audit.regionInfoBasePath, audit.tableName), regionInfoDS)
+    audit.storageOps.writeParquet(
+      audit.tableName,
+      new Path(audit.regionInfoBasePath, audit.tableName),
+      regionInfoDS,
+      overwrite = overwriteExistingRegionInfo,
+      tempSubfolder = Some(REGION_INFO_DIRECTORY))
     new AuditTableFile(audit.tableInfo, regions, audit.storageOps, audit.baseFolder, audit.newRegionID)
   }
 
@@ -269,6 +274,7 @@ object AuditTableFile extends Logging {
         val cache = fileStorage.openParquet(h, tail: _*)
           .map(
             _.as[AuditTableRegionInfo]
+              .distinct
               .filter(includeHot || _.store_type != HOT_PARTITION)
               .collect()
               .toSeq

@@ -483,7 +483,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
     it("next out of one") {
       val table = createADTable("t1", createFops())
-      val withOne = AuditTableFile.setRegions(table, Seq(AuditTableRegionInfo("person", "hot", "r00000000000000000011", lowTimestamp, false, 5, lastTS_1)))
+      val withOne = AuditTableFile.setRegions(table, Seq(AuditTableRegionInfo("person", "hot", "r00000000000000000011", lowTimestamp, false, 5, lastTS_1)), true)
       AuditTableFile.nextLongRegion(withOne) should be("r00000000000000000012")
     }
 
@@ -491,7 +491,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val table = createADTable("t1", createFops())
       val withOne = AuditTableFile.setRegions(table, Seq(
         AuditTableRegionInfo("person", "hot", "r00000000000000000111", lowTimestamp, false, 5, lastTS_1)
-        , AuditTableRegionInfo("person", "hot", "r00000000000000000011", lowTimestamp, false, 5, lastTS_1)))
+        , AuditTableRegionInfo("person", "hot", "r00000000000000000011", lowTimestamp, false, 5, lastTS_1)), true)
       AuditTableFile.nextLongRegion(withOne) should be("r00000000000000000112")
     }
   }
