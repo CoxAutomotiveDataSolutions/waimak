@@ -18,9 +18,9 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
 
   val func1 = (w: Seq[Option[String]]) => () => w
 
-  val emptyFlow = SimpleDataFlow.empty()
+  val emptyFlow = MockDataFlow.empty
 
-  val executor = SequentialDataFlowExecutor[EmptyFlowContext](NoReportingFlowReporter.apply)
+  val executor = SequentialDataFlowExecutor(NoReportingFlowReporter.apply)
 
   describe("executeWave") {
 
@@ -163,7 +163,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val flow = emptyFlow.addAction(action_1).addAction(action_2)
 
         val reporter = new TestReporter()
-        val reportedExecutor = SequentialDataFlowExecutor[EmptyFlowContext](reporter)
+        val reportedExecutor = SequentialDataFlowExecutor(reporter)
 
         val res = reportedExecutor.execute(flow)
         res._1 should be(Seq(action_1, action_2))
@@ -182,11 +182,12 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
   }
 }
 
-class TestReporter extends FlowReporter[EmptyFlowContext] {
+class TestReporter extends FlowReporter {
 
   val reports: mutable.MutableList[String] = mutable.MutableList.empty[String]
 
-  override def reportActionStarted(action: DataFlowAction[EmptyFlowContext], flowContext: EmptyFlowContext): Unit = reports += s"Start: ${action.description}"
+  override def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit = reports += s"Start: ${action.description}"
 
-  override def reportActionFinished(action: DataFlowAction[EmptyFlowContext], flowContext: EmptyFlowContext): Unit = reports += s"Finish: ${action.description}"
+  override def reportActionFinished(action: DataFlowAction, flowContext: FlowContext): Unit = reports += s"Finish: ${action.description}"
+
 }

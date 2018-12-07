@@ -11,7 +11,7 @@ import scala.util.Try
   *
   * @tparam C the type of the context of the flow in which this action runs
   */
-trait DataFlowAction[C] {
+trait DataFlowAction {
 
   /**
     * This action can only be executed if all of the inputs are not empty. An input can be explicitly marked as empty.
@@ -61,7 +61,7 @@ trait DataFlowAction[C] {
     * @param flowContext context of the flow in which this action runs
     * @return the action outputs (these must be declared in the same order as their labels in [[outputLabels]])
     */
-  def performAction(inputs: DataFlowEntities, flowContext: C): Try[ActionResult]
+  def performAction[C <: FlowContext](inputs: DataFlowEntities, flowContext: C): Try[ActionResult]
 
   /**
     * Action has the responsibility of assessing itself and produce DataFlowActionState, that will be used by the
