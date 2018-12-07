@@ -120,8 +120,19 @@ object FSUtils extends Logging {
     committed
   }
 
+  /**
+    * Move all files from a source directory into a destination directory.
+    * Source folder must exist, and destination folder will be created if it does not exists.
+    * All files that match isFile and the given pathFilter will be moved.
+    * An exception is thrown if the file is already present in the destination directory.
+    *
+    * @param fs                - FileSystem object for the given paths
+    * @param sourceFolder      - Folder to move files from
+    * @param destinationFolder - Folder to move files to
+    * @param pathFilter        - Only move files that match the given filter
+    */
   def mergeMoveFiles(fs: FileSystem, sourceFolder: Path, destinationFolder: Path, pathFilter: Path => Boolean): Unit = {
-    if (!fs.exists(sourceFolder)) throw new PathNotFoundException(s"Source folder [$sourceFolder]")
+    if (!fs.exists(sourceFolder)) throw new PathNotFoundException(s"Source folder [$sourceFolder] not found")
     if (!fs.getFileStatus(sourceFolder).isDirectory) throw new PathIsNotDirectoryException(s"Source path is not a directory [$sourceFolder]")
     if (!fs.exists(destinationFolder)) {
       logInfo(s"Creating folder $destinationFolder")
@@ -129,7 +140,7 @@ object FSUtils extends Logging {
     }
     fs.listFiles(sourceFolder, false)
       .filter(f => f.isFile && pathFilter(f.getPath))
-      .foreach{
+      .foreach {
         f =>
           val destPath = new Path(destinationFolder, f.getPath.getName)
           if (fs.exists(destPath)) throw new PathExistsException(s"Cannot move [${f.getPath}] to [$destPath] as a file already exists")

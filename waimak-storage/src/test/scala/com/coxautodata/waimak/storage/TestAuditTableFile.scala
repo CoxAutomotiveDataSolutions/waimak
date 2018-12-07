@@ -6,11 +6,11 @@ import java.time.Duration
 
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPersonEvolved}
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.{Dataset, Row}
-import org.apache.spark.sql.functions._
 import com.coxautodata.waimak.storage.AuditTableFile._
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.TimestampType
+import org.apache.spark.sql.{Dataset, Row}
 
 import scala.util.{Failure, Success}
 
@@ -204,6 +204,10 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
         , AuditTableRegionInfo("person", "hot", "2", t2, false, 3, lastTS_2)
       )
       )
+      val infoPath = new Path(new Path(basePath, REGION_INFO_DIRECTORY), "person")
+      val allRegionInfo = spark.read.parquet(infoPath.toString)
+      allRegionInfo.count() should be(6)
+      allRegionInfo.distinct().as[AuditTableRegionInfo].collect() should contain theSameElementsAs inferredRegions
 
       val onlyColdRegion_empty = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
       onlyColdRegion_empty should be(Seq.empty)
@@ -212,6 +216,9 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
       val onlyColdRegion = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
       onlyColdRegion should be(Seq(AuditTableRegionInfo("person", "cold", "3", lastTS_3, false, 8, lastTS_2)))
+      val allRegionInfoPostCompaction = spark.read.parquet(infoPath.toString)
+      allRegionInfoPostCompaction.count() should be(1)
+      allRegionInfoPostCompaction.as[AuditTableRegionInfo].collect() should contain theSameElementsAs onlyColdRegion
 
       val (table_s31, cs3) = compactedTable.append(r3Data, lastUpdated(r3Data), lastTS_3).get
       val table_s3 = table_s31.asInstanceOf[AuditTableFile]

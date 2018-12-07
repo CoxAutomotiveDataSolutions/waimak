@@ -180,7 +180,7 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
     if (overwrite) {
       if (!FSUtils.moveOverwriteFolder(fs, writePath, path)) throw StorageException(s"Can not overwrite data for table [$tableName] into folder [${path.toString}]")
     } else {
-      Try(FSUtils.mergeMoveFiles(fs, writePath, path, f => f.getName.toLowerCase.contains("parq")))
+      Try(FSUtils.mergeMoveFiles(fs, writePath, path, f => f.getName.toLowerCase.startsWith("part-")))
         .recover { case e => throw StorageException(s"Failed to merge table files for table [$tableName] from [$writePath] to [$path]", e) }
         .get
       if (!fs.delete(writePath, true)) throw StorageException(s"Could not remove temp folder [$writePath] for table [$tableName]")
