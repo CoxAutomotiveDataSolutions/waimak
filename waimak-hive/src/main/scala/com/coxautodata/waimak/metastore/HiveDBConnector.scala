@@ -97,7 +97,6 @@ case class HiveSparkSQLConnector(sparkFlowContext: SparkFlowContext,
                                  createDatabaseIfNotExists: Boolean = false,
                                  forceRecreateTables: Boolean = false) extends HiveDBConnector {
 
-  //TODO Tidy this up, also double check if threadsafe with parallel scheduler, is hive session state isolated per spark session per thread?
   override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
     val ddlWithUse = s"use $database" +: ddls
     val allDdls = if (createDatabaseIfNotExists) s"create database if not exists $database" +: ddlWithUse else ddlWithUse
