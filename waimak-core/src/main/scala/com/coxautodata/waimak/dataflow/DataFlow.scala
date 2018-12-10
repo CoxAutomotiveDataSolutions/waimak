@@ -1,5 +1,7 @@
 package com.coxautodata.waimak.dataflow
 
+import java.util.UUID
+
 import com.coxautodata.waimak.log.Logging
 
 import scala.annotation.tailrec
@@ -299,16 +301,17 @@ trait DataFlow extends Logging {
     */
   protected[dataflow] def buildCommits(): this.type = commitMeta.pushes.foldLeft(this) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
     val commitName = pushCommitter._1
+    val commitUUID = UUID.randomUUID()
     val committer = pushCommitter._2.head
     val labels = commitMeta.commits(commitName)
     resFlow.tag(commitName) {
-      committer.cacheToTempFlow(commitName, labels, _)
+      committer.stageToTempFlow(commitName, commitUUID, labels, _)
     }.tagDependency(commitName) {
       _.tag(commitName + "_AFTER_COMMIT") {
-        committer.moveToPermanentStorageFlow(commitName, labels, _)
+        committer.moveToPermanentStorageFlow(commitName, commitUUID, labels, _)
       }
     }.tagDependency(commitName + "_AFTER_COMMIT") {
-      committer.finish(commitName, labels, _)
+      committer.finish(commitName, commitUUID, labels, _)
     }
   }.asInstanceOf[this.type]
 

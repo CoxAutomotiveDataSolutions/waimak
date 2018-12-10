@@ -46,7 +46,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
   describe("date based cleanup") {
 
-    val strategyToRemove = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy[String]("snapshotFolder", dateFormat, 5)(identity)
+    val strategyToRemove = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 5)
 
     it("empty") {
       strategyToRemove("table_1", Seq.empty) should be(Seq.empty[String])
@@ -180,9 +180,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("empty, table folder does not exist") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
-          , committer.toRemove.get
+          , committer
           , List("table"))
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
@@ -192,9 +192,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("empty, table folder exists") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
-          , committer.toRemove.get
+          , committer
           , List("table"))
 
         val tableFolder = new File(baseDest, "table")
@@ -209,9 +209,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("one snapshot folder") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
-          , committer.toRemove.get
+          , committer
           , List("table"))
 
         val tableFolder = new File(baseDest, "table")
@@ -227,9 +227,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("all snapshot folders") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
-          , committer.toRemove.get
+          , committer
           , List("table"))
 
         val tableFolder = new File(baseDest, "table")
@@ -250,9 +250,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("all empty, no folders exist") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
-          , committer.toRemove.get
+          , committer
           , List("table_1", "table_2", "table_3"))
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
 
@@ -261,9 +261,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("1 empty, 1 has 2 snapshots, 1 has 5 snapshots") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snapshotFolder", dateFormat, 3)
+        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
         val fsCleanupAction = new FSCleanUp(baseDest
-          , committer.toRemove.get
+          , committer
           , List("table_empty", "table_with_one", "table_with_five"))
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
 
@@ -278,7 +278,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
         table_empty.exists() should be(true)
         flow.flowContext.fileSystem.listStatus(new Path(baseDest + "/table_with_one")).map(_.getPath.getName) should be(snapshotFoldersSameDay.take(1))
-        flow.flowContext.fileSystem.listStatus(new Path(baseDest + "/table_with_five")).map(_.getPath.getName).sorted should be(snapshotFoldersSameDay.take(5).drop(2))
+        flow.flowContext.fileSystem.listStatus(new Path(baseDest + "/table_with_five")).map(_.getPath.getName).sorted should be(snapshotFoldersSameDay.slice(2, 5))
       }
     }
   }

@@ -1193,7 +1193,7 @@ class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[Stri
 
 class TestDataCommitter extends DataCommitter {
 
-  override def cacheToTempFlow(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def stageToTempFlow(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     labels.map(_.label).foldLeft(flow) { (res, label) => res.addAction(new TestEmptyAction(List(label + "_input"), List(label + "_output"))) }
   }
 
