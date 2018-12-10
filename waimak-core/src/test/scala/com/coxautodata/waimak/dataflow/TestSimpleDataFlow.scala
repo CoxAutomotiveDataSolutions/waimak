@@ -863,7 +863,7 @@ class TestSparkDataFlow extends FunSpec with Matchers {
     val action_4 = new TestEmptyAction(List("t_1", "t_2", "t_3"), List.empty)
     val action_5 = new TestEmptyAction(List("t_1"), List.empty)
 
-    val appendFunc = (in: Option[String], fl: FlowContext) => in.map(_ + "_6789")
+    val appendFunc = (in: Option[String]) => in.map(_ + "_6789")
 
     it("default execution pool") {
       val emptyFlow = MockDataFlow.empty
