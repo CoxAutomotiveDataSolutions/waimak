@@ -51,26 +51,24 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
          |   insert into testtable (testtableID1, testtableID2, testtableValue) VALUES (4, 3, 'V4');
          |   insert into testtable (testtableID1, testtableID2, testtableValue) VALUES (5, 3, 'V5');""".stripMargin
 
-    val testTableSuffixCreate =
+    val testTablePkCreate =
       s"""
-         |CREATE TABLE testtable_suffix(
+         |CREATE TABLE testtable_pk(
          |   testtableID1 int NOT NULL
          | , testtableID2 int NOT NULL
          | , testtableValue varchar(50) NOT NULL
-         | , testtable_last_updated datetime2 NOT NULL
-         |   PRIMARY KEY CLUSTERED(testtableID1, testtableID2)
          |);
          |
-         |  insert into testtable_suffix (testtableID1, testtableID2, testtableValue) VALUES (6, 4, 'V6', '$insertTimestamp');
+         |  insert into testtable_pk (testtableID1, testtableID2, testtableValue) VALUES (6, 4, 'V6');
        """.stripMargin
 
-    executeSQl(Seq(testTableCreate, testTableSuffixCreate))
+    executeSQl(Seq(testTableCreate, testTablePkCreate))
   }
 
   def cleanupTables(): Unit = {
     executeSQl(Seq(
       "drop table if exists testtable;"
-      , "drop table if exists testtable_suffix"
+      , "drop table if exists testtable_pk"
     ))
   }
 
@@ -98,6 +96,21 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
       sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("incorrect_pk")), None) should be(Failure(
         IncorrectUserPKException(Seq("incorrect_pk"), Seq("testtableid1", "testtableid2"))
+      ))
+    }
+    it("should return metadata if there are user-provided pks but table pk's not specified in the database") {
+      val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+      sqlServerExtractor.getTableMetadata("dbo", "testtable_pk", Some(Seq("testtableid1", "testtableid2")), None) should be(Success(
+        AuditTableInfo("testtable_pk", Seq("testtableid1", "testtableid2"), Map(
+          "schemaName" -> "dbo"
+          , "tableName" -> "testtable_pk"
+          , "primaryKeys" -> "testtableid1,testtableid2"
+      ))))
+    }
+    it("should fail if no user-provided pks and table pk's specified in the database") {
+      val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+      sqlServerExtractor.getTableMetadata("dbo", "testtable_pk", None, None) should be(Failure(
+        PKsNotFoundOrProvidedException
       ))
     }
     it("should return the metadata if the user-provided pks match the ones from the database") {
