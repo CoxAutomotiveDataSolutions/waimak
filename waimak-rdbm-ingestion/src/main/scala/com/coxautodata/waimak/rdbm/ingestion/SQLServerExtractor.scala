@@ -9,7 +9,9 @@ import org.apache.spark.sql.{SparkSession}
 import scala.util.{Failure, Success, Try}
 
 /**
-  * Created by Ian Baynham on 06/11/18.
+  * A mechanism for generating Waimak actions to extract data from a SQL Server instance
+  * where the Database Versioning doesn't allow for STRING_AGG Functionality to be used.
+  * Primarily this relates to pre SQL 2016 Databases or where STRING_AGG functionality is switched off.
   * *
   * /
   *
@@ -23,7 +25,6 @@ class SQLServerExtractor(override val sparkSession: SparkSession
                          , extraConnectionProperties: Properties = new Properties()
                          , override val transformTableNameForRead: String => String = identity) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
 
-  override val sourceDBSystemTimestampFunction = "CURRENT_TIMESTAMP"
 
   val pkQuery: String =
     s"""(
