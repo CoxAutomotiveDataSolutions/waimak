@@ -4,7 +4,7 @@ import org.scalatest.{FunSpec, Matchers}
 
 import scala.util.{Success, Try}
 
-class TestSimpleSparkDataFlow extends FunSpec with Matchers {
+class TestSparkDataFlow extends FunSpec with Matchers {
 
   val defaultPool = Set(DEFAULT_POOL_NAME)
 

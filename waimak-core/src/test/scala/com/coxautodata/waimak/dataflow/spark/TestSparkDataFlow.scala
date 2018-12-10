@@ -13,7 +13,7 @@ import scala.util.Try
 /**
   * Created by Alexei Perelighin on 22/12/17.
   */
-class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
+class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
   override val appName: String = "Simple Spark Data Flow"
 
@@ -126,59 +126,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val (executedActions, finalState) = executor.execute(flow2)
       finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
       finalState.inputs.getOption[Dataset[_]]("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
-
-    }
-
-    it("read two parquet folders with snapshot directory") {
-      val spark = sparkSession
-      import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
-      val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
-        .openCSV(basePath)("csv_1", "csv_2")
-        .alias("csv_1", "parquet_1")
-        .alias("csv_2", "parquet_2")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1", "parquet_2")
-
-      executor.execute(flow)
-
-      val flow2 = Waimak.sparkFlow(spark)
-        .openParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1", "parquet_2")
-
-      val (executedActions, finalState) = executor.execute(flow2)
-      finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
-      finalState.inputs.getOption[Dataset[_]]("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
-
-    }
-
-    it("stage and commit parquet, and force a cache as parquet") {
-      val spark = sparkSession
-      import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
-      val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
-        .openCSV(basePath)("csv_1")
-        .alias("csv_1", "parquet_1")
-        .cacheAsParquet("parquet_1")
-        .inPlaceTransform("parquet_1")(df => df)
-        .inPlaceTransform("parquet_1")(df => df)
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1")
-
-
-      // Check all post actions made it through
-      val interceptorAction = flow.actions.filter(_.outputLabels.contains("parquet_1")).head.asInstanceOf[PostActionInterceptor[Dataset[_]]]
-      interceptorAction.postActions.length should be(3)
-
-      // Check they are in the right order
-      interceptorAction.postActions.head.isInstanceOf[TransformPostAction[Dataset[_]]] should be(true)
-      interceptorAction.postActions.tail.head.isInstanceOf[TransformPostAction[Dataset[_]]] should be(true)
-      interceptorAction.postActions.tail.tail.head.isInstanceOf[CachePostAction[Dataset[_]]] should be(true)
-
-      executor.execute(flow)
-
-      val flow2 = Waimak.sparkFlow(spark)
-        .openParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1")
-
-      val (_, finalState) = executor.execute(flow2)
-      finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
 
     }
 
@@ -312,83 +259,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     }
   }
 
-  describe("stageAndCommitParquet") {
-
-    it("stage csv to parquet and commit") {
-      val spark = sparkSession
-      import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
-
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
-        .openCSV(basePath)("csv_1", "csv_2")
-        .alias("csv_1", "items")
-        .alias("csv_2", "person")
-        .stageAndCommitParquet(baseDest, partitions = Seq("amount"))("items")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-
-      val (executedActions, finalState) = executor.execute(flow)
-      finalState.inputs.size should be(4)
-      new File(s"$baseDest/items").list().toSeq.filter(_.startsWith("amount=")).sorted should be(Seq("amount=1", "amount=2", "amount=4"))
-      spark.read.parquet(s"$baseDest/items").as[TPurchase].sort("id", "item", "amount").collect() should be(purchases)
-      spark.read.parquet(s"$baseDest/person/generatedTimestamp=2018-03-13-16-19-00").as[TPerson].collect() should be(persons)
-    }
-
-    it("stage csv to parquet on an action that returns two labels and commit") {
-      val spark = sparkSession
-      import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
-
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
-        .openCSV(basePath)("csv_1", "csv_2")
-        .addAction(new TestTwoInputsAndOutputsAction(List("csv_1", "csv_2"), List("items", "person"), (_, _)))
-        .stageAndCommitParquet(baseDest, partitions = Seq("amount"))("items")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-
-      val (executedActions, finalState) = executor.execute(flow)
-      finalState.inputs.size should be(4)
-      new File(s"$baseDest/items").list().toSeq.filter(_.startsWith("amount=")).sorted should be(Seq("amount=1", "amount=2", "amount=4"))
-      spark.read.parquet(s"$baseDest/items").as[TPurchase].sort("id", "item", "amount").collect() should be(purchases)
-      spark.read.parquet(s"$baseDest/person/generatedTimestamp=2018-03-13-16-19-00").as[TPerson].collect() should be(persons)
-    }
-
-    it("stage csv to parquet and commit should throw exception when dest exists") {
-      val spark = sparkSession
-      val baseDest = testingBaseDir + "/dest"
-      val resultDest = testingBaseDir + "/dest/person/generatedTimestamp=2018-03-13-16-19-00"
-      FileUtils.forceMkdir(new File(resultDest))
-
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
-        .openCSV(basePath)("csv_2")
-        .alias("csv_2", "person")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-
-      val res = intercept[DataFlowException] {
-        executor.execute(flow)
-      }
-      res.text.split(": ", 3).zipWithIndex.collect { case (s, i) if i != 1 => s }.mkString(" ") should be("Exception performing action Action: CommitAction Inputs: [csv_2,person] Outputs: []")
-      res.cause shouldBe a[FileAlreadyExistsException]
-    }
-
-    it("stage csv to parquet and commit then use label afterwards") {
-      val spark = sparkSession
-      val baseDest = testingBaseDir + "/dest"
-
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
-        .openCSV(basePath)("csv_2")
-        .alias("csv_2", "person")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-        .transform("person")("person_1") {
-          df =>
-            df.sparkSession.catalog.clearCache()
-            df
-        }
-        .show("person_1")
-      executor.execute(flow)
-
-    }
-
-  }
-
   describe("write") {
 
     it("writeCSV") {
@@ -396,7 +266,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -421,7 +291,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       dummyPath.exists() should be(true)
       itemsPath.exists() should be(false)
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -441,7 +311,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -460,7 +330,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -721,7 +591,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
   describe("map/mapOption") {
     it("map should transform a sparkdataflow when using implicit classes") {
 
-      val emptyFlow: SimpleSparkDataFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val emptyFlow: SparkDataFlow = SparkDataFlow.empty(sparkSession, tmpDir)
       implicit class TestSparkImplicit1(dataFlow: SparkDataFlow) {
         def runTest1: SparkDataFlow = dataFlow.addAction(new TestEmptySparkAction(List.empty, List.empty) {
           override val guid: String = "abd22c36-4dd0-4fa5-9298-c494ede7f363"
@@ -746,7 +616,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       FileUtils.forceMkdir(testingDir)
       testingDir.getParentFile.list().toSeq should be(Seq("test1"))
 
-      val emptyFlow: SimpleSparkDataFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val emptyFlow: SparkDataFlow = SparkDataFlow.empty(sparkSession, tmpDir)
       executor.execute(emptyFlow)
       testingDir.getParentFile.list().toSeq should be(Seq())
 
@@ -757,7 +627,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val tmpDirFile = new File(tmpDir.toUri.getPath)
       tmpDirFile.getParentFile.list().toSeq should be(Seq())
 
-      val emptyFlow: SimpleSparkDataFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val emptyFlow: SparkDataFlow = SparkDataFlow.empty(sparkSession, tmpDir)
       executor.execute(emptyFlow)
       tmpDirFile.list().toSeq should be(Seq())
 
@@ -792,7 +662,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("should handle multiple types in the flow") {
 
-      val emptyFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val emptyFlow = SparkDataFlow.empty(sparkSession, tmpDir)
       val flow = emptyFlow.addInput("integer_1", Some(1))
         .addInput("dataset_1", Some(sparkSession.emptyDataFrame))
         .addAction(new TestOutputMultipleTypesAction(List("integer_1", "dataset_1"), List("integer_2", "dataset_2"),
