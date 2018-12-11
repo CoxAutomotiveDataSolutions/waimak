@@ -80,14 +80,26 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     }
   }
 
-  override def compact(compactTS: Timestamp
-                       , trashMaxAge: Duration
-                       , hotCellsPerPartition: Int = 10000000
-                       , rowsPerRegion: Int = 50000000
-                       , coldCellsPerPartition: Int = 25000000): Try[this.type] = {
+  /**
+    * Request optimisation of the storage layer.
+    *
+    * Fails when is called second time on same instance.
+    *
+    * @param compactTS               timestamp of when the compaction is requested, will not be used for any filtering of the data
+    * @param trashMaxAge             Maximum age of old region files kept in the .Trash folder
+    *                                after a compaction has happened.
+    * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted.
+    *                                Default is 50000000
+    * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
+    *                                Adjust this to control output file size. Default is 1000000
+    * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
+    *                                Adjust this to control output file size. Default is 2500000
+    * @return new state of the AuditTable
+    */
+  override def compact(compactTS: Timestamp, trashMaxAge: Duration, smallRegionRowThreshold: Int, hotCellsPerPartition: Int, coldCellsPerPartition: Int): Try[AuditTable] = {
     val res: Try[AuditTableFile] = Try(markToUpdate())
       .flatMap(_ => commitHotToCold(compactTS, hotCellsPerPartition))
-      .flatMap(_.compactCold(compactTS, rowsPerRegion, coldCellsPerPartition))
+      .flatMap(_.compactCold(compactTS, smallRegionRowThreshold, coldCellsPerPartition))
       .map { f =>
         f.storageOps.purgeTrash(f.tableName, compactTS, trashMaxAge)
         f
