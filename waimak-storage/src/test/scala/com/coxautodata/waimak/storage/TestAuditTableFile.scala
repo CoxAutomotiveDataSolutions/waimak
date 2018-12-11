@@ -512,11 +512,11 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
       val finalPurchase = purchasesTable
         .append(personData, lastUpdated(personData), lastTS_1)
-        .flatMap(_._1.compact(lastTS_2, d3d, cellsPerPartition, 10, cellsPerPartition))
+        .flatMap(_._1.compact(lastTS_2, d3d, hotCellsPerPartition = cellsPerPartition, coldCellsPerPartition = cellsPerPartition))
 
 
       val finalReport = reportTable.append(reportData, lastUpdated(reportData), lastTS_2)
-        .flatMap(_._1.compact(lastTS_2, d3d, cellsPerPartition, 10, cellsPerPartition))
+        .flatMap(_._1.compact(lastTS_2, d3d, hotCellsPerPartition = cellsPerPartition, coldCellsPerPartition = cellsPerPartition))
 
       val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
       fs.globStatus(new Path(basePath, "purchase/*/*/part-*")).length should be(2)

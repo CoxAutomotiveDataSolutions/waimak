@@ -165,7 +165,10 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     compactRegions(coldPath, if (smallerRegions.length < 2) Seq.empty else smallerRegions, compactTS, cellsPerPartition)
   }
 
-  protected def compactRegions(typePath: Path, toCompact: Seq[AuditTableRegionInfo], compactTS: Timestamp, cellsPerPartition: Int): Try[AuditTableFile] = {
+  protected def compactRegions(typePath: Path
+                               , toCompact: Seq[AuditTableRegionInfo]
+                               , compactTS: Timestamp
+                               , cellsPerPartition: Int): Try[AuditTableFile] = {
     Try {
       val res = if (toCompact.isEmpty) new AuditTableFile(this.tableInfo, this.regions, this.storageOps, this.baseFolder, this.newRegionID)
       else {
@@ -179,11 +182,11 @@ class AuditTableFile(val tableInfo: AuditTableInfo
         val newRegionSet = data.map { rows =>
           val currentNumPartitions = rows.rdd.getNumPartitions
           val newNumPartitions = calculateNumPartitions(rows.schema, toCompact.map(_.count).sum, cellsPerPartition)
-          val hotRows = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN)
-          val hotRowsRepartitioned = if (newNumPartitions > currentNumPartitions) {
-            hotRows.repartition(newNumPartitions)
-          } else hotRows.coalesce(newNumPartitions)
-          storageOps.atomicWriteAndCleanup(tableInfo.table_name, hotRowsRepartitioned, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"), compactTS)
+          val rowsToCompact = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN)
+          val rowsToCompactRepartitioned = if (newNumPartitions > currentNumPartitions) {
+            rowsToCompact.repartition(newNumPartitions)
+          } else rowsToCompact.coalesce(newNumPartitions)
+          storageOps.atomicWriteAndCleanup(tableInfo.table_name, rowsToCompactRepartitioned, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"), compactTS)
           val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(regionPath).get)
           val idSet = ids.toSet
           val remainingRegions = regions.filter(r => !idSet.contains(r.store_region))
