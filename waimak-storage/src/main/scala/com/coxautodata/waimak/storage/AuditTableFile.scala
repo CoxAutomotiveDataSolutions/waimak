@@ -217,8 +217,11 @@ object AuditTableFile extends Logging {
   /**
     * Creates a copy of the table with new list of regions.
     *
-    * @param audit
-    * @param regions
+    * @param audit           - Audit table with old regions
+    * @param allRegions      - Complete set of current regions
+    * @param appendedRegions - Optional list of regions that have been appended. If given, only new regions are written
+    *                        to cache. If None the current cached region information is completely rewritten.
+    *                        If the case of any region deletes, this should be None.
     * @return
     */
   def setRegions(audit: AuditTableFile, allRegions: Seq[AuditTableRegionInfo], appendedRegions: Option[Seq[AuditTableRegionInfo]]): AuditTableFile = {
