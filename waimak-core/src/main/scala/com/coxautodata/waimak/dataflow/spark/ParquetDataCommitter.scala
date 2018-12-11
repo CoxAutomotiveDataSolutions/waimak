@@ -45,7 +45,7 @@ class ParquetDataCommitter(private val baseFolder: String
     */
   def dateBasedSnapshotCleanup(folderPrefix: String, dateFormat: String, numberOfFoldersToKeep: Int): ParquetDataCommitter = {
     import ParquetDataCommitter._
-    cleanupStrategy(dateBasedSnapshotCleanupStrategy(folderPrefix, dateFormat, numberOfFoldersToKeep))
+    cleanupStrategy(dateBasedSnapshotCleanupStrategy[FileStatus](folderPrefix, dateFormat, numberOfFoldersToKeep)(fileStatusToName))
   }
 
   /**
@@ -129,20 +129,20 @@ object ParquetDataCommitter {
     * @param timeStampFormat       Java format of the TIMESTAMP. Ex: yyyyMMddHHmmss
     * @param numberOfFoldersToKeep maximum number of snapshots to keep
     * @param getName               returns name of the snapshot
-    * @tparam P type that identifies snapshot
+    * @tparam T type that identifies snapshot
     * @return configured cleanup strategy that returns list of snapshots to remove
     */
-  def dateBasedSnapshotCleanupStrategy(columnName: String, timeStampFormat: String, numberOfFoldersToKeep: Int): CleanUpStrategy[FileStatus] = {
+  def dateBasedSnapshotCleanupStrategy[T](columnName: String, timeStampFormat: String, numberOfFoldersToKeep: Int)(getName: T => String): CleanUpStrategy[T] = {
     import java.time._
     import java.time.format._
 
     val folderPrefix = columnName + "="
     val formatter = DateTimeFormatter.ofPattern(timeStampFormat)
 
-    def res(table: TableName, snapshotFolders: InputSnapshots[FileStatus]): SnapshotsToDelete[FileStatus] = {
+    def res(table: TableName, snapshotFolders: InputSnapshots[T]): SnapshotsToDelete[T] = {
       snapshotFolders
-        .filter(_.getPath.getName.startsWith(folderPrefix))
-        .map(snapFolder => (LocalDateTime.parse(snapFolder.getPath.getName.substring(folderPrefix.length), formatter), snapFolder))
+        .filter(getName(_).startsWith(folderPrefix))
+        .map(snapFolder => (LocalDateTime.parse(getName(snapFolder).substring(folderPrefix.length), formatter), snapFolder))
         .sortWith((d1, d2) => d1._1.isAfter(d2._1))
         .map(_._2)
         .drop(numberOfFoldersToKeep)
@@ -150,6 +150,8 @@ object ParquetDataCommitter {
 
     res
   }
+
+  def fileStatusToName: FileStatus => String = _.getPath.getName
 
 }
 

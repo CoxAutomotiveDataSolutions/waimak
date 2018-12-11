@@ -3,7 +3,8 @@ package com.coxautodata.waimak.dataflow.spark
 import java.io.File
 
 import com.coxautodata.waimak.dataflow._
-import org.apache.hadoop.fs.Path
+import org.apache.hadoop.fs.{FileStatus, Path}
+import ParquetDataCommitter._
 
 import scala.util.{Failure, Success}
 
@@ -46,7 +47,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
   describe("date based cleanup") {
 
-    val strategyToRemove = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 5)
+    val strategyToRemove = dateBasedSnapshotCleanupStrategy[String]("snapshotFolder", dateFormat, 5)(identity)
 
     it("empty") {
       strategyToRemove("table_1", Seq.empty) should be(Seq.empty[String])
@@ -180,7 +181,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("empty, table folder does not exist") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
+        val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
           , List("table"))
@@ -192,7 +193,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("empty, table folder exists") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
+        val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
           , List("table"))
@@ -209,7 +210,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("one snapshot folder") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
+        val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
           , List("table"))
@@ -227,7 +228,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("all snapshot folders") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
+        val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
           , List("table"))
@@ -250,7 +251,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("all empty, no folders exist") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
+        val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
           , List("table_1", "table_2", "table_3"))
@@ -261,7 +262,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("1 empty, 1 has 2 snapshots, 1 has 5 snapshots") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter.dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)
+        val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
           , List("table_empty", "table_with_one", "table_with_five"))

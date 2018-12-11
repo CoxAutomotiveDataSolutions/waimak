@@ -1,5 +1,7 @@
 package com.coxautodata.waimak.dataflow
 
+import java.util.UUID
+
 import org.scalatest.{FunSpec, Matchers}
 
 import scala.util.{Success, Try}
@@ -1193,15 +1195,15 @@ class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[Stri
 
 class TestDataCommitter extends DataCommitter {
 
-  override def stageToTempFlow(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     labels.map(_.label).foldLeft(flow) { (res, label) => res.addAction(new TestEmptyAction(List(label + "_input"), List(label + "_output"))) }
   }
 
-  override def moveToPermanentStorageFlow(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
   }
 
-  override def finish(commitName: String, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
   }
 
