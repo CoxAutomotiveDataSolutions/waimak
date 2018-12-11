@@ -500,4 +500,32 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       AuditTableFile.nextLongRegion(withOne) should be("r00000000000000000112")
     }
   }
+
+  describe("compact") {
+    it("should take width into account when generating output partitions") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val purchasesTable = createADTable("purchase", createFops()).initNewTable().get
+      val reportTable = createADTable("rep", createFops()).initNewTable().get
+
+
+      val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
+      val reportData = report.toDS().withColumn("lastTS", lit("2018-01-01"))
+
+      val cellsPerPartition = 18
+
+      val finalPurchase = purchasesTable
+        .append(personData, lastUpdated(personData), lastTS_1)
+        .flatMap(_._1.compact(lastTS_2, d3d, hotCellsPerPartition = cellsPerPartition, coldCellsPerPartition = cellsPerPartition))
+
+
+      val finalReport = reportTable.append(reportData, lastUpdated(reportData), lastTS_2)
+        .flatMap(_._1.compact(lastTS_2, d3d, hotCellsPerPartition = cellsPerPartition, coldCellsPerPartition = cellsPerPartition))
+
+      val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+      fs.globStatus(new Path(basePath, "purchase/*/*/part-*")).length should be(2)
+      fs.globStatus(new Path(basePath, "rep/*/*/part-*")).length should be(3)
+    }
+  }
 }
