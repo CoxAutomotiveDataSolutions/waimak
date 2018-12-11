@@ -151,12 +151,12 @@ class AuditTableFile(val tableInfo: AuditTableInfo
   }
 
   /**
-    * Merges all regions with row numbers below a specific threshold into one cold region.
+    * Merges all regions with number of rows below a specific threshold into one cold region.
     *
     * @param compactTS               the compaction timestamp
     * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted
     * @param cellsPerPartition       approximate maximum number of cells (numRows * numColumns) to be in each partition file.
-    *                                Adjust this to control output file size,
+    *                                Adjust this to control output file size.
     * @return
     */
   protected def compactCold(compactTS: Timestamp, smallRegionRowThreshold: Int, cellsPerPartition: Int): Try[AuditTableFile] = {
