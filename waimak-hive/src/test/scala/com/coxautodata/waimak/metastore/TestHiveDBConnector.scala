@@ -4,36 +4,40 @@ import java.io.File
 
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
-import com.coxautodata.waimak.dataflow.spark.TestSparkData.basePath
-import com.coxautodata.waimak.dataflow.spark.{SimpleSparkDataFlow, SparkAndTmpDirSpec, SparkFlowContext}
+import com.coxautodata.waimak.dataflow.spark.TestSparkData._
+import com.coxautodata.waimak.dataflow.spark._
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException
 
 class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
-  var hiveConnection: HadoopDBConnector = _
-  override val appName: String = "Metastore Utils"
+  override def builderOptions: SparkSession.Builder => SparkSession.Builder = {
+    _.enableHiveSupport()
+      .config("spark.sql.warehouse.dir", s"$basePath/hive")
+      .config("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:;databaseName=$basePath/derby;create=true")
+  }
 
-  def spark: SparkSession = sparkSession
+  override val appName: String = "Metastore Utils"
 
   describe("HiveTestConnector") {
 
     it("should generate a correct drop table schema") {
-      val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(spark))
+      val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(sparkSession))
       hiveConnection.dropTableParquetDDL("testTable") should be("drop table if exists testTable")
     }
 
     it("should generate a correct update table path schema") {
-      val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(spark))
+      val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(sparkSession))
       hiveConnection.updateTableLocationDDL("testTable", "/path") should be("alter table testTable set location 'file:/path'")
     }
 
     it("should generate correct create table statements for non partitioned tables") {
-      val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(spark))
+      val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(sparkSession))
       val tableName = "testTable"
       val testingBaseFile = new File(testingBaseDirName)
       val tablePath = new File(testingBaseFile, tableName)
 
-      spark.read.option("inferSchema", "true").option("header", "true").csv(s"$basePath/csv_1").write.parquet(tablePath.toString)
+      sparkSession.read.option("inferSchema", "true").option("header", "true").csv(s"$basePath/csv_1").write.parquet(tablePath.toString)
 
       //Test non-partition table
       hiveConnection.createTableFromParquetDDL(tableName, tablePath.toURI.getPath) should be(
@@ -44,13 +48,13 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
     }
 
     it("should generate correct create table statements for partitioned tables") {
-      val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(spark))
+      val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(sparkSession))
       val tableName = "testTable"
       val partitionName = "amount"
       val testingBaseFile = new File(testingBaseDirName)
       val tablePath = new File(testingBaseFile, tableName)
 
-      spark.read.option("inferSchema", "true").option("header", "true").csv(s"$basePath/csv_1").write.partitionBy(partitionName).parquet(tablePath.toString)
+      sparkSession.read.option("inferSchema", "true").option("header", "true").csv(s"$basePath/csv_1").write.partitionBy(partitionName).parquet(tablePath.toString)
 
       //Test partitioned table
       hiveConnection.createTableFromParquetDDL(tableName, tablePath.toURI.getPath, partitionColumns = Seq(partitionName)) should be(
@@ -105,6 +109,120 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
         ))
       }
     }
+  }
+
+  describe("HiveSparkSQLConnector") {
+
+    it("should create a db for a table if it does not exists with createDatabaseIfNotExists true") {
+      val testDb = "test"
+      val baseDest = testingBaseDir + "/dest"
+      val tableDest = baseDest + "/items"
+      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1")
+        .alias("csv_1", "items")
+        .writeParquet(baseDest)("items")
+      val executor = Waimak.sparkExecutor()
+      val spark = sparkSession
+      import spark.implicits._
+
+      val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb, createDatabaseIfNotExists = true)
+
+      spark.sql(s"drop database if exists $testDb cascade")
+      spark.sql("show databases").as[String].collect() should be(Seq("default"))
+
+      executor.execute(flow)
+      spark.read.parquet(tableDest).as[TPurchase].collect() should be(purchases)
+
+      connector.submitAtomicResultlessQueries(connector.createTableFromParquetDDL("items", tableDest))
+      spark.table(s"$testDb.items").as[TPurchase].collect() should be(purchases)
+
+    }
+
+    it("should not create a db for a table if it already exists with createDatabaseIfNotExists true") {
+      val testDb = "test"
+      val baseDest = testingBaseDir + "/dest"
+      val tableDest = baseDest + "/items"
+      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1")
+        .alias("csv_1", "items")
+        .writeParquet(baseDest)("items")
+      val executor = Waimak.sparkExecutor()
+      val spark = sparkSession
+      import spark.implicits._
+
+      val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb, createDatabaseIfNotExists = true)
+
+      spark.sql(s"drop database if exists $testDb cascade")
+      spark.sql(s"create database $testDb")
+      spark.sql("show databases").as[String].collect() should contain theSameElementsAs Seq("default", testDb)
+
+      executor.execute(flow)
+      spark.read.parquet(tableDest).as[TPurchase].collect() should be(purchases)
+
+      connector.submitAtomicResultlessQueries(connector.createTableFromParquetDDL("items", tableDest))
+      spark.table(s"$testDb.items").as[TPurchase].collect() should be(purchases)
+
+    }
+
+    it("should throw an exception if the database does not exists with createDatabaseIfNotExists false") {
+      val testDb = "test"
+      val baseDest = testingBaseDir + "/dest"
+      val tableDest = baseDest + "/items"
+      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1")
+        .alias("csv_1", "items")
+        .writeParquet(baseDest)("items")
+      val executor = Waimak.sparkExecutor()
+      val spark = sparkSession
+      import spark.implicits._
+
+      val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb)
+
+      spark.sql(s"drop database if exists $testDb cascade")
+      spark.sql("show databases").as[String].collect() should be(Seq("default"))
+
+      executor.execute(flow)
+      spark.read.parquet(tableDest).as[TPurchase].collect() should be(purchases)
+
+      intercept[NoSuchDatabaseException] {
+        connector.submitAtomicResultlessQueries(connector.createTableFromParquetDDL("items", tableDest))
+      }
+
+    }
+
+    it("should use an existing database for a table if it already exists with createDatabaseIfNotExists false") {
+      val testDb = "test"
+      val baseDest = testingBaseDir + "/dest"
+      val tableDest = baseDest + "/items"
+      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1")
+        .alias("csv_1", "items")
+        .writeParquet(baseDest)("items")
+      val executor = Waimak.sparkExecutor()
+      val spark = sparkSession
+      import spark.implicits._
+
+      val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb)
+
+      spark.sql(s"drop database if exists $testDb cascade")
+      spark.sql(s"create database $testDb")
+      spark.sql("show databases").as[String].collect() should contain theSameElementsAs Seq("default", testDb)
+
+      executor.execute(flow)
+      spark.read.parquet(tableDest).as[TPurchase].collect() should be(purchases)
+
+      connector.submitAtomicResultlessQueries(connector.createTableFromParquetDDL("items", tableDest))
+      spark.table(s"$testDb.items").as[TPurchase].collect() should be(purchases)
+
+    }
+
+    it("should thrown an exception if  is called") {
+      val res = intercept[UnsupportedOperationException] {
+        HiveSparkSQLConnector(SparkFlowContext(sparkSession), "").runQueries(Seq.empty)
+      }
+      res.getMessage should be("HiveSparkSQLConnector does not support running queries that return data. You must use SparkSession.sql directly.")
+    }
+
   }
 
 }

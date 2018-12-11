@@ -101,7 +101,7 @@ case class HiveSparkSQLConnector(sparkFlowContext: SparkFlowContext,
     val ddlWithUse = s"use $database" +: ddls
     val allDdls = if (createDatabaseIfNotExists) s"create database if not exists $database" +: ddlWithUse else ddlWithUse
     allDdls.foreach(sparkSession.sql)
-    Seq(None)
+    Unit
   }
 
   override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {
