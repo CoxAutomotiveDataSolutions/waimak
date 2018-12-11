@@ -574,6 +574,26 @@ object SparkActions {
     }
 
     /**
+      * Writes out the dataset to a Hive-managed table. Data will be written out to the default hive warehouse
+      * location as specified in the hive-site configuration.
+      * Table metadata is generated from the dataset schema, and tables and schemas can be overwritten by setting
+      * the optional overwrite flag to true.
+      *
+      * It is recommended to only use this action in non-production flows as it offers no mechanism for managing
+      * snapshots or cleanly committing table definitions.
+      *
+      * @param database  - Hive database to create the table in
+      * @param overwrite - Whether to overwrite existing data and recreate table schemas if they already exist
+      * @param labels    - List of labels to create as Hive tables. They will all be created in the same database
+      * @return
+      */
+    def writeHiveManagedTable(database: String, overwrite: Boolean = false)(labels: String*): SparkDataFlow = {
+      labels.foldLeft(sparkDataFlow)((flow, label) => {
+        flow.write(label, df => df, applyOverwrite(overwrite) andThen applySaveAsTable(database, label))
+      })
+    }
+
+    /**
       * Stage a dataframe into the temporary folder. All staged dataframes will then be committed
       * at the same time at the end of the flow.
       *
@@ -725,6 +745,8 @@ object SparkActionHelpers {
   def applyWriteParquet(path: String): DataFrameWriter[_] => Unit = dfw => dfw.parquet(path)
 
   def applyWriteCSV(path: String): DataFrameWriter[_] => Unit = dfw => dfw.csv(path)
+
+  def applySaveAsTable(database: String, table: String): DataFrameWriter[_] => Unit = dfw => dfw.saveAsTable(s"$database.$table")
 
   /**
     * Base function for all read operation, in all cases users should use more specialised one.

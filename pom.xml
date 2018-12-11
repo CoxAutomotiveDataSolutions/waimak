@@ -74,6 +74,7 @@
         <module>waimak-configuration</module>
         <module>waimak-azure-table</module>
         <module>waimak-rdbm-ingestion</module>
+        <module>waimak-hive</module>
     </modules>
     <profiles>
         <!-- Spark profiles -->
