@@ -472,6 +472,38 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       spark.read.parquet(s"$baseDest/person").as[TPerson].collect() should be(persons)
     }
 
+    it("writeHiveManagedTable") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .alias("csv_1", "items")
+        .alias("csv_2", "person")
+        .writeHiveManagedTable("default")("person", "items")
+
+      executor.execute(flow)
+
+      spark.sql("select * from default.items").as[TPurchase].collect() should be(purchases)
+      spark.sql("select * from default.person").as[TPerson].collect() should be(persons)
+
+      val e = intercept[DataFlowException] {
+        executor.execute(flow)
+      }
+      e.getMessage should be(s"Exception performing action: ${flow.actions.drop(4).head.guid}: Action: write Inputs: [person] Outputs: []")
+      e.cause.getMessage should be("Table `default`.`person` already exists.;")
+
+      val secondFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .transform("csv_1")("items")(_.filter(lit(false)))
+        .transform("csv_2")("person")(_.filter(lit(false)))
+        .writeHiveManagedTable("default", overwrite = true)("person", "items")
+
+      executor.execute(secondFlow)
+      spark.sql("select * from default.items").as[TPurchase].collect() should be(List.empty[TPurchase])
+      spark.sql("select * from default.person").as[TPerson].collect() should be(List.empty[TPerson])
+    }
+
     describe("tag and tagDependency") {
 
       it("missing tag") {
@@ -818,7 +850,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     it("smoke test") {
       val parallelExecutor = Waimak.sparkExecutor(10, DFExecutorPriorityStrategies.raceToOutputs)
       val spark = sparkSession
-      import spark.implicits._
 
       val baseDest = testingBaseDir + "/dest"
       val flow = Waimak.sparkFlow(spark)
