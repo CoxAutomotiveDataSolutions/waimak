@@ -8,6 +8,7 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.sql._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.StructType
 
 import scala.util.{Failure, Success, Try}
 
@@ -79,10 +80,26 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     }
   }
 
-  override def compact(compactTS: Timestamp, trashMaxAge: Duration): Try[this.type] = {
+  /**
+    * Request optimisation of the storage layer.
+    *
+    * Fails when is called second time on same instance.
+    *
+    * @param compactTS               timestamp of when the compaction is requested, will not be used for any filtering of the data
+    * @param trashMaxAge             Maximum age of old region files kept in the .Trash folder
+    *                                after a compaction has happened.
+    * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted.
+    *                                Default is 50000000
+    * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
+    *                                Adjust this to control output file size. Default is 1000000
+    * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
+    *                                Adjust this to control output file size. Default is 2500000
+    * @return new state of the AuditTable
+    */
+  override def compact(compactTS: Timestamp, trashMaxAge: Duration, smallRegionRowThreshold: Int, hotCellsPerPartition: Int, coldCellsPerPartition: Int): Try[AuditTable] = {
     val res: Try[AuditTableFile] = Try(markToUpdate())
-      .flatMap(_ => commitHotToCold(compactTS, 1000000))
-      .flatMap(_.compactCold(compactTS, 50000000, 2500000))
+      .flatMap(_ => commitHotToCold(compactTS, hotCellsPerPartition))
+      .flatMap(_.compactCold(compactTS, smallRegionRowThreshold, coldCellsPerPartition))
       .map { f =>
         f.storageOps.purgeTrash(f.tableName, compactTS, trashMaxAge)
         f
@@ -123,34 +140,38 @@ class AuditTableFile(val tableInfo: AuditTableInfo
   /**
     * Compacts all hot regions into one cold.
     *
-    * @param compactTS
-    * @param rowsPerPartition
+    * @param compactTS         the compaction timestamp
+    * @param cellsPerPartition approximate maximum number of cells (numRows * numColumns) to be in each partition file.
+    *                          Adjust this to control output file size,
     * @return
     */
-  protected def commitHotToCold(compactTS: Timestamp, rowsPerPartition: Int): Try[AuditTableFile] = {
+  protected def commitHotToCold(compactTS: Timestamp, cellsPerPartition: Int): Try[AuditTableFile] = {
     val hotRegions = regions.filter(r => !r.is_deprecated && r.store_type == HOT_PARTITION)
-    compactRegions(hotPath, hotRegions, compactTS, rowsPerPartition)
+    compactRegions(hotPath, hotRegions, compactTS, cellsPerPartition)
   }
 
   /**
-    * Merges all regions below specific fresh cold into one cold region.
+    * Merges all regions with number of rows below a specific threshold into one cold region.
     *
-    * @param compactTS
-    * @param rowsPerRegion
-    * @param rowsPerPartition
+    * @param compactTS               the compaction timestamp
+    * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted
+    * @param cellsPerPartition       approximate maximum number of cells (numRows * numColumns) to be in each partition file.
+    *                                Adjust this to control output file size.
     * @return
     */
-  protected def compactCold(compactTS: Timestamp, rowsPerRegion: Int, rowsPerPartition: Int): Try[AuditTableFile] = {
-    val smallerRegions = regions.filter(r => r.store_type == COLD_PARTITION && r.count < rowsPerRegion)
+  protected def compactCold(compactTS: Timestamp, smallRegionRowThreshold: Int, cellsPerPartition: Int): Try[AuditTableFile] = {
+    val smallerRegions = regions.filter(r => r.store_type == COLD_PARTITION && r.count < smallRegionRowThreshold)
     // No use compacting a single small region into itself
-    compactRegions(coldPath, if (smallerRegions.length < 2) Seq.empty else smallerRegions, compactTS, rowsPerPartition)
+    compactRegions(coldPath, if (smallerRegions.length < 2) Seq.empty else smallerRegions, compactTS, cellsPerPartition)
   }
 
-  protected def compactRegions(typePath: Path, toCompact: Seq[AuditTableRegionInfo], compactTS: Timestamp, rowsPerPartition: Int): Try[AuditTableFile] = {
+  protected def compactRegions(typePath: Path
+                               , toCompact: Seq[AuditTableRegionInfo]
+                               , compactTS: Timestamp
+                               , cellsPerPartition: Int): Try[AuditTableFile] = {
     Try {
       val res = if (toCompact.isEmpty) new AuditTableFile(this.tableInfo, this.regions, this.storageOps, this.baseFolder, this.newRegionID)
       else {
-        val numOfPartitions = (toCompact.map(_.count).sum / rowsPerPartition).toInt + 1
         val ids = toCompact.map(_.store_region)
         val regionID = newRegionID(this)
         val regionPath = new Path(coldPath, s"$STORE_REGION_COLUMN=" + regionID)
@@ -159,8 +180,13 @@ class AuditTableFile(val tableInfo: AuditTableInfo
 
         val data = storageOps.openParquet(typePath)
         val newRegionSet = data.map { rows =>
-          val hotRows = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN).coalesce(numOfPartitions)
-          storageOps.atomicWriteAndCleanup(tableInfo.table_name, hotRows, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"), compactTS)
+          val currentNumPartitions = rows.rdd.getNumPartitions
+          val newNumPartitions = calculateNumPartitions(rows.schema, toCompact.map(_.count).sum, cellsPerPartition)
+          val rowsToCompact = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN)
+          val rowsToCompactRepartitioned = if (newNumPartitions > currentNumPartitions) {
+            rowsToCompact.repartition(newNumPartitions)
+          } else rowsToCompact.coalesce(newNumPartitions)
+          storageOps.atomicWriteAndCleanup(tableInfo.table_name, rowsToCompactRepartitioned, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"), compactTS)
           val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(regionPath).get)
           val idSet = ids.toSet
           val remainingRegions = regions.filter(r => !idSet.contains(r.store_region))
@@ -172,6 +198,12 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       }
       res
     }
+  }
+
+  protected def calculateNumPartitions(schema: StructType, numRows: Long, cellsPerPartition: Long): Int = {
+    val cellsPerRow = schema.size
+    val rowsPerPartition = cellsPerPartition / cellsPerRow
+    (numRows / rowsPerPartition).toInt + 1
   }
 
   protected def calcRegionStats(ds: Dataset[_]): (Long, Timestamp) = {
