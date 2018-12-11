@@ -17,41 +17,40 @@ import scala.util.Try
   *
   * Created by Alexei Perelighin on 2018/11/05
   *
-  * @param baseFolder folder under which final labels will store its data. Ex: baseFolder/label_1/
-  * @param snapFolder optional name of the snapshot folder that will be used by all of the labels committed via this committer.
-  *                   It needs to be a full name and must not be the same as in any of the previous snapshots for any of
-  *                   the commit managed labels.
-  *                   Ex:
-  *                   baseFolder/label_1/snapshot_folder=20181128
-  *                   baseFolder/label_1/snapshot_folder=20181129
-  *                   baseFolder/label_2/snapshot_folder=20181128
-  *                   baseFolder/label_2/snapshot_folder=20181129
-  * @param toRemove   optional function that takes the list of available snapshots and returns list of snapshots to remove
-  * @param conn       optional connector to the DB.
+  * @param outputBaseFolder  folder under which final labels will store its data. Ex: baseFolder/label_1/
+  * @param snapshotFolder    optional name of the snapshot folder that will be used by all of the labels committed via this committer.
+  *                          It needs to be a full name and must not be the same as in any of the previous snapshots for any of
+  *                          the commit managed labels.
+  *                          Ex:
+  *                          baseFolder/label_1/snapshot_folder=20181128
+  *                          baseFolder/label_1/snapshot_folder=20181129
+  *                          baseFolder/label_2/snapshot_folder=20181128
+  *                          baseFolder/label_2/snapshot_folder=20181129
+  * @param cleanupStrategy   optional function that takes the list of available snapshots and returns list of snapshots to remove
+  * @param hadoopDBConnector optional connector to the DB.
   */
-class ParquetDataCommitter(private val baseFolder: String
-                           , private val snapFolder: Option[String]
-                           , private val toRemove: Option[CleanUpStrategy[FileStatus]]
-                           , private val conn: Option[HadoopDBConnector])
-  extends DataCommitter with Logging {
+case class ParquetDataCommitter(outputBaseFolder: String,
+                                snapshotFolder: Option[String] = None,
+                                cleanupStrategy: Option[CleanUpStrategy[FileStatus]] = None,
+                                hadoopDBConnector: Option[HadoopDBConnector] = None) extends DataCommitter with Logging {
 
-  def snapshotFolder(folder: String): ParquetDataCommitter = new ParquetDataCommitter(baseFolder, Some(folder), toRemove, conn)
+  def withSnapshotFolder(folder: String): ParquetDataCommitter = this.copy(snapshotFolder = Some(folder))
 
-  def cleanupStrategy(strategy: CleanUpStrategy[FileStatus]): ParquetDataCommitter = new ParquetDataCommitter(baseFolder, snapFolder, Some(strategy), conn)
+  def withCleanupStrategy(strategy: CleanUpStrategy[FileStatus]): ParquetDataCommitter = this.copy(cleanupStrategy = Some(strategy))
 
   /**
     * Configures a default implementation of a cleanup strategy based on dates encoded into snapshot folder name.
     *
     */
-  def dateBasedSnapshotCleanup(folderPrefix: String, dateFormat: String, numberOfFoldersToKeep: Int): ParquetDataCommitter = {
+  def withDateBasedSnapshotCleanup(folderPrefix: String, dateFormat: String, numberOfFoldersToKeep: Int): ParquetDataCommitter = {
     import ParquetDataCommitter._
-    cleanupStrategy(dateBasedSnapshotCleanupStrategy[FileStatus](folderPrefix, dateFormat, numberOfFoldersToKeep)(fileStatusToName))
+    withCleanupStrategy(dateBasedSnapshotCleanupStrategy(folderPrefix, dateFormat, numberOfFoldersToKeep)(fileStatusToName))
   }
 
   /**
     * Sets new DB connector
     */
-  def connection(con: HadoopDBConnector) = new ParquetDataCommitter(baseFolder, snapFolder, toRemove, Some(con))
+  def withHadoopDBConnector(con: HadoopDBConnector): ParquetDataCommitter = this.copy(hadoopDBConnector = Some(con))
 
   private def commitTempPath(commitName: String, commitUUID: UUID, tempRoot: Option[Path]): Path = {
     tempRoot
@@ -71,13 +70,13 @@ class ParquetDataCommitter(private val baseFolder: String
   override protected[dataflow] def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder)
-    val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(baseFolder, snapFolder, ce.partitions, conn))).toMap
+    val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(outputBaseFolder, snapshotFolder, ce.partitions, hadoopDBConnector))).toMap
     sparkFlow.addAction(CommitAction(commitLabels, commitTempBase, labels.map(_.label).toList))
   }
 
-  override protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = toRemove.fold(flow) { strategy =>
+  override protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = cleanupStrategy.fold(flow) { strategy =>
     labels.foldLeft(flow) { (resFlow, labelCommitEntry) =>
-      resFlow.addAction(new FSCleanUp(baseFolder, strategy, List(labelCommitEntry.label)))
+      resFlow.addAction(new FSCleanUp(outputBaseFolder, strategy, List(labelCommitEntry.label)))
     }
   }
 
@@ -98,15 +97,15 @@ class ParquetDataCommitter(private val baseFolder: String
       if (!classOf[SparkDataFlow].isAssignableFrom(flow.getClass)) throw new DataFlowException(s"""ParquetDataCommitter [$commitName] can only work with data flows derived from ${classOf[SparkDataFlow].getName}""")
       val sparkDataFlow = flow.asInstanceOf[SparkDataFlow]
       if (sparkDataFlow.tempFolder.isEmpty) throw new DataFlowException(s"ParquetDataCommitter [$commitName], temp folder is not defined")
-      snapFolder
-        .map(snp => s"$baseFolder/*/$snp")
+      snapshotFolder
+        .map(snp => s"$outputBaseFolder/*/$snp")
         .map(pattern => sparkDataFlow.flowContext.fileSystem.globStatus(new Path(pattern)))
         .map { matched =>
           val labels = entries.map(_.label).toSet
           matched.map(_.getPath.getParent.getName).filter(labels.contains).sorted
         }.filter(_.nonEmpty)
-        .foreach(existing => throw new DataFlowException(s"ParquetDataCommitter [$commitName], snapshot folder [${snapFolder.get}] is already present for labels: ${existing.mkString("[", ", ", "]")}"))
-      (snapFolder, toRemove) match {
+        .foreach(existing => throw new DataFlowException(s"ParquetDataCommitter [$commitName], snapshot folder [${snapshotFolder.get}] is already present for labels: ${existing.mkString("[", ", ", "]")}"))
+      (snapshotFolder, cleanupStrategy) match {
         case (None, Some(_)) => throw new DataFlowException(s"ParquetDataCommitter [$commitName], cleanup will only work when snapshot folder is defined")
         case _ =>
       }
@@ -117,8 +116,6 @@ class ParquetDataCommitter(private val baseFolder: String
 }
 
 object ParquetDataCommitter {
-
-  def apply(destinationFolder: String): ParquetDataCommitter = new ParquetDataCommitter(destinationFolder, None, None, None)
 
   /**
     * Implements a cleanup strategy that sorts input list of snapshots by timestamp extracted from the folder names

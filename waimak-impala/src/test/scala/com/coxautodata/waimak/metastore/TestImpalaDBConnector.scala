@@ -90,18 +90,18 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
       flowPrePush.flowContext.fileSystem.exists(new Path(baseDest)) should be(false)
 
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_567")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_568")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_567")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_568")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_567")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_568")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181101_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181101_123001_568")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181103_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181103_123001_568")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181105_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181105_123001_568")))
 
       executor.execute(flowPrePush.push("comm_1")(
         ParquetDataCommitter(baseDest)
-          .snapshotFolder("snapshot=20181105_123001_569")
-          .dateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3)
-          .connection(connectorRecreate)
+          .withSnapshotFolder("snapshot=20181105_123001_569")
+          .withDateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3)
+          .withHadoopDBConnector(connectorRecreate)
       )
       )
 

@@ -106,7 +106,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("cleanup without snapshot folder") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).dateBasedSnapshotCleanup("snap", "YYYY", 1)
+        val committer = ParquetDataCommitter(baseDest).withDateBasedSnapshotCleanup("snap", "YYYY", 1)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         val res = committer.validate(flow, "f1", Seq.empty)
         res shouldBe a[Failure[_]]
@@ -116,8 +116,8 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       it("snapshot folder already exists for 2 labels out of 3") {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)
-          .snapshotFolder("snap=2001")
-          .dateBasedSnapshotCleanup("snap", "YYYY", 1)
+          .withSnapshotFolder("snap=2001")
+          .withDateBasedSnapshotCleanup("snap", "YYYY", 1)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
 
         initSnapshotFolders(new File(baseDest, "label_fail_1"), Seq("snap=2000", "snap=2001"))
@@ -145,7 +145,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("with snapshot and no cleanup") {
         val baseDest = testingBaseDir + "/dest"
-        val committer = ParquetDataCommitter(baseDest).snapshotFolder("ts=777777")
+        val committer = ParquetDataCommitter(baseDest).withSnapshotFolder("ts=777777")
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", Seq.empty, false))) should be(Success())
       }
@@ -153,8 +153,8 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       it("multiple labels, no clash of the snapshot folders of committed labels") {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)
-          .snapshotFolder("snap=2003")
-          .dateBasedSnapshotCleanup("snap", "YYYY", 1)
+          .withSnapshotFolder("snap=2003")
+          .withDateBasedSnapshotCleanup("snap", "YYYY", 1)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
 
         initSnapshotFolders(new File(baseDest, "label_not_committed"), Seq("snap=2000", "snap=2003"))

@@ -246,7 +246,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
             .openCSV(basePath)("csv_1")
             .alias("csv_1", "purchases")
             .commit("comm_1")("purchases")
-            .push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot_1"))
+            .push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot_1"))
 
           flow.flowContext.fileSystem.exists(new Path(baseDest)) should be(false)
 
@@ -268,10 +268,10 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
 
           flowPrePush.flowContext.fileSystem.exists(new Path(baseDest)) should be(false)
 
-          val flow_1 = flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot_1"))
+          val flow_1 = flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot_1"))
           executor.execute(flow_1)
 
-          val flow_2 = flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot_2"))
+          val flow_2 = flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot_2"))
           executor.execute(flow_2)
 
           spark.read.parquet(baseDest + "/purchases/snapshot_1").as[TPurchase].collect() should be(purchases)
@@ -291,20 +291,20 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
 
           flowPrePush.flowContext.fileSystem.exists(new Path(baseDest)) should be(false)
 
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_567")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_568")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_567")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_568")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_567")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_568")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181101_123001_567")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181101_123001_568")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181103_123001_567")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181103_123001_568")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181105_123001_567")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181105_123001_568")))
 
           spark.read.parquet(baseDest + "/purchases/snapshot=20181101_123001_567").as[TPurchase].collect() should be(purchases)
           spark.read.parquet(baseDest + "/purchases/snapshot=20181105_123001_568").as[TPurchase].collect() should be(purchases)
 
           executor.execute(flowPrePush.push("comm_1")(
             ParquetDataCommitter(baseDest)
-              .snapshotFolder("snapshot=20181105_123001_569")
-              .dateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3))
+              .withSnapshotFolder("snapshot=20181105_123001_569")
+              .withDateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3))
           )
 
           flowPrePush.flowContext.fileSystem.listStatus(new Path(baseDest + "/purchases")).map(_.getPath.getName).sorted should be(Array("snapshot=20181105_123001_567", "snapshot=20181105_123001_568", "snapshot=20181105_123001_569"))
@@ -324,12 +324,12 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
 
           flowPrePush.flowContext.fileSystem.exists(new Path(baseDest)) should be(false)
 
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_567")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_568")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_567")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_568")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_567")))
-          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_568")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181101_123001_567")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181101_123001_568")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181103_123001_567")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181103_123001_568")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181105_123001_567")))
+          executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181105_123001_568")))
 
           spark.read.parquet(baseDest + "/purchases/snapshot=20181101_123001_567").as[TPurchase].collect() should be(purchases)
           spark.read.parquet(baseDest + "/purchases/snapshot=20181105_123001_568").as[TPurchase].collect() should be(purchases)
@@ -338,8 +338,8 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
 
           executor.execute(flowPrePush.push("comm_1")(
             ParquetDataCommitter(baseDest)
-              .snapshotFolder("snapshot=20181105_123001_569")
-              .dateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3))
+              .withSnapshotFolder("snapshot=20181105_123001_569")
+              .withDateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3))
           )
 
           flowPrePush.flowContext.fileSystem.listStatus(new Path(baseDest + "/purchases")).map(_.getPath.getName).sorted should be(Array("snapshot=20181105_123001_567", "snapshot=20181105_123001_568", "snapshot=20181105_123001_569"))

@@ -202,7 +202,7 @@ trait DataFlow extends Logging {
   def schedulingMeta(mutateState: SchedulingMetaState => SchedulingMetaState)(nestedFlow: this.type => this.type): this.type = {
     val previousState = schedulingMeta.state
     val nestedMeta = schedulingMeta.setState(mutateState(previousState))
-    val intermediateFlow = nestedFlow(schedulingMeta(nestedMeta)) // createInstance(inputs, actions, tagState, nestedMeta, commitMeta).asInstanceOf[this.type])
+    val intermediateFlow = nestedFlow(schedulingMeta(nestedMeta))
     intermediateFlow.schedulingMeta(intermediateFlow.schedulingMeta.setState(previousState))
   }
 
