@@ -168,3 +168,4 @@ nbactions.xml
 hs_err_pid*
 
 metastore_db
+spark-warehouse
