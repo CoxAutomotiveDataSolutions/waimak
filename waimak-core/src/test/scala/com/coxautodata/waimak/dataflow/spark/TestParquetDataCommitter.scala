@@ -3,8 +3,11 @@ package com.coxautodata.waimak.dataflow.spark
 import java.io.File
 
 import com.coxautodata.waimak.dataflow._
-import org.apache.hadoop.fs.{FileStatus, Path}
-import ParquetDataCommitter._
+import com.coxautodata.waimak.dataflow.spark.ParquetDataCommitter._
+import com.coxautodata.waimak.dataflow.spark.SparkActions._
+import com.coxautodata.waimak.dataflow.spark.TestSparkData.{basePath, purchases}
+import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.Dataset
 
 import scala.util.{Failure, Success}
 
@@ -21,24 +24,24 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
     "snapshotFolder=20181101_123001_567"
     , "snapshotFolder=20181102_123001_567"
     , "snapshotFolder=20181103_123001_567"
-    ,"snapshotFolder=20181104_123001_567"
-    ,"snapshotFolder=20181105_123001_567"
-    ,"snapshotFolder=20181106_123001_567"
-    ,"snapshotFolder=20181107_123001_567"
-    ,"snapshotFolder=20181108_123001_567"
-    ,"snapshotFolder=20181109_123001_567"
-    ,"snapshotFolder=20181110_123001_567"
-    ,"snapshotFolder=20181111_123001_567"
+    , "snapshotFolder=20181104_123001_567"
+    , "snapshotFolder=20181105_123001_567"
+    , "snapshotFolder=20181106_123001_567"
+    , "snapshotFolder=20181107_123001_567"
+    , "snapshotFolder=20181108_123001_567"
+    , "snapshotFolder=20181109_123001_567"
+    , "snapshotFolder=20181110_123001_567"
+    , "snapshotFolder=20181111_123001_567"
   )
 
   val snapshotFoldersSameDay = Seq(
     "snapshotFolder=20181101_123001_567"
     , "snapshotFolder=20181101_123001_568"
     , "snapshotFolder=20181101_123001_569"
-    ,"snapshotFolder=20181101_123003_567"
-    ,"snapshotFolder=20181101_123041_567"
-    ,"snapshotFolder=20181101_123041_568"
-    ,"snapshotFolder=20181101_123041_569"
+    , "snapshotFolder=20181101_123003_567"
+    , "snapshotFolder=20181101_123041_567"
+    , "snapshotFolder=20181101_123041_568"
+    , "snapshotFolder=20181101_123041_569"
   )
 
   def initSnapshotFolders(basePath: File, snapshotFolders: Seq[String]): Unit = {
@@ -171,6 +174,38 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         res should be(Success())
       }
 
+      it("commit a parquet and make sure one label is cached and one is not") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "parquet_1")
+          .alias("csv_1", "parquet_2")
+          .commit("commit")("parquet_1")
+          .commit("commit", cacheLabels = false)("parquet_2")
+          .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        // Check to see if the alias action has been intercepted
+        val interceptorAction = ex.filter(_.outputLabels.contains("parquet_1")).head
+        interceptorAction shouldBe a[PostActionInterceptor[_]]
+
+        // Check the post action is a cache
+        val typedInterceptorAction = interceptorAction.asInstanceOf[PostActionInterceptor[Dataset[_]]]
+        typedInterceptorAction.postActions.length should be(1)
+        typedInterceptorAction.postActions.head shouldBe a[CachePostAction[_]]
+
+        // Check alias action has not been intercepted
+        val notInterceptorAction = ex.filter(_.outputLabels.contains("parquet_2")).head
+        notInterceptorAction should not be an[PostActionInterceptor[_]]
+
+        spark.read.parquet(s"$baseDest/parquet_1").as[TPurchase].collect() should be(purchases)
+        spark.read.parquet(s"$baseDest/parquet_2").as[TPurchase].collect() should be(purchases)
+      }
 
     }
   }

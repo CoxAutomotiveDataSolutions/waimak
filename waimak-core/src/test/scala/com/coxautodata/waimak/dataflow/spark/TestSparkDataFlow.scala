@@ -150,6 +150,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
       finalState.inputs.getOption[Dataset[_]]("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
 
     }
+
     it("stage and commit parquet, and force a cache as parquet") {
       val spark = sparkSession
       import spark.implicits._

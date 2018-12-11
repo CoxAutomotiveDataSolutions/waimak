@@ -69,7 +69,12 @@ case class ParquetDataCommitter(outputBaseFolder: String,
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder).toString
     labels.foldLeft(sparkFlow) { (resFlow, labelCommitEntry) =>
       logInfo(s"Commit: $commitName, label: ${labelCommitEntry.label}, writing parquet into temp.")
-      resFlow.writePartitionedParquet(commitTempBase, labelCommitEntry.repartition)(labelCommitEntry.label, labelCommitEntry.partitions: _*)
+      resFlow
+        .writePartitionedParquet(commitTempBase, labelCommitEntry.repartition)(labelCommitEntry.label, labelCommitEntry.partitions: _*)
+        .map {
+          case f if labelCommitEntry.cache => f.cacheAsPartitionedParquet(labelCommitEntry.partitions, labelCommitEntry.repartition)(labelCommitEntry.label)
+          case f => f
+        }
     }
   }
 
