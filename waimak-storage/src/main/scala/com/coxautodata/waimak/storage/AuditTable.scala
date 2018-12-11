@@ -93,9 +93,9 @@ trait AuditTable {
     *                                after a compaction has happened.
     * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted.
     *                                Default is 50000000
-    * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot parttition file.
+    * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
     *                                Adjust this to control output file size. Default is 1000000
-    * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold parttition file.
+    * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
     *                                Adjust this to control output file size. Default is 2500000
     * @return new state of the AuditTable
     */

@@ -129,7 +129,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     * Compacts all hot regions into one cold.
     *
     * @param compactTS         the compaction timestamp
-    * @param cellsPerPartition approximate maximum number of cells (numRows * numColumns) to be in each parttition file.
+    * @param cellsPerPartition approximate maximum number of cells (numRows * numColumns) to be in each partition file.
     *                          Adjust this to control output file size,
     * @return
     */
@@ -143,7 +143,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     *
     * @param compactTS               the compaction timestamp
     * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted
-    * @param cellsPerPartition       approximate maximum number of cells (numRows * numColumns) to be in each parttition file.
+    * @param cellsPerPartition       approximate maximum number of cells (numRows * numColumns) to be in each partition file.
     *                                Adjust this to control output file size,
     * @return
     */
