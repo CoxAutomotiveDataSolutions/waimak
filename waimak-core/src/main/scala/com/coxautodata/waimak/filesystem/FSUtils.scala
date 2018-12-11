@@ -1,13 +1,25 @@
 package com.coxautodata.waimak.filesystem
 
 import com.coxautodata.waimak.log.Logging
-import org.apache.hadoop.fs.{FileSystem, Path, PathFilter, RemoteIterator}
+import org.apache.hadoop.fs._
 
 /**
   *
   * Created by Alexei Perelighin on 23/10/17.
   */
 object FSUtils extends Logging {
+
+  /**
+    * Implicit class to convert an Hadoop RemoteIterator object to a Scala Iterator
+    *
+    * @param underlying Underlying RemoteIterator object
+    * @tparam T Type of the elements in the iterator
+    */
+  implicit class ScalaRemoteIterator[T](underlying: RemoteIterator[T]) extends Iterator[T] {
+    override def hasNext: Boolean = underlying.hasNext
+
+    override def next(): T = underlying.next()
+  }
 
   /**
     * Check is objects in the toTest collection can be mapped to existing folders in the HDFS and returns
@@ -27,7 +39,7 @@ object FSUtils extends Logging {
     * @param fs
     * @param inParentFolder - HDFS folder that contains folders that could be mapped to tested objects
     * @param toTest
-    * @param getObjectPath - maps hdfs path to tested object
+    * @param getObjectPath  - maps hdfs path to tested object
     * @tparam O
     * @return objects from toTest that could not be mapped into the folder inParentFolder via function getObjectPath
     */
@@ -45,11 +57,13 @@ object FSUtils extends Logging {
 
     }
     //convert existing paths to Map[TableName, Set[partitionName]]
-    val alreadyExisting = { if (fs.exists(inParentFolder)) {
-      fs.globStatus(new Path(inParentFolder.toString + "/*/*"), sameAsForObjects).map(_.getPath.toUri.getPath.toString).toSet
-    } else {
-      Set.empty[String]
-    }}
+    val alreadyExisting = {
+      if (fs.exists(inParentFolder)) {
+        fs.globStatus(new Path(inParentFolder.toString + "/*/*"), sameAsForObjects).map(_.getPath.toUri.getPath.toString).toSet
+      } else {
+        Set.empty[String]
+      }
+    }
     logInfo("Already existing: " + alreadyExisting)
     // remove all objects that could collide with existing tables and partitions
     toTest.filter { o =>
@@ -87,7 +101,7 @@ object FSUtils extends Logging {
   /**
     * Moves toMove into toPath. Parent folder of the toPath is created if it does not exist
     *
-    * @param fs - FileSystem which can be HDFS or Local.
+    * @param fs     - FileSystem which can be HDFS or Local.
     * @param toMove - full path to the folder to be moved.
     * @param toPath - full path to be moved into, includes the folder name itself.
     * @return true if move was successful.
@@ -107,12 +121,41 @@ object FSUtils extends Logging {
   }
 
   /**
+    * Move all files from a source directory into a destination directory.
+    * Source folder must exist, and destination folder will be created if it does not exists.
+    * All files that match isFile and the given pathFilter will be moved.
+    * An exception is thrown if the file is already present in the destination directory.
+    *
+    * @param fs                - FileSystem object for the given paths
+    * @param sourceFolder      - Folder to move files from
+    * @param destinationFolder - Folder to move files to
+    * @param pathFilter        - Only move files that match the given filter
+    */
+  def mergeMoveFiles(fs: FileSystem, sourceFolder: Path, destinationFolder: Path, pathFilter: Path => Boolean): Unit = {
+    if (!fs.exists(sourceFolder)) throw new PathNotFoundException(s"Source folder [$sourceFolder] not found")
+    if (!fs.getFileStatus(sourceFolder).isDirectory) throw new PathIsNotDirectoryException(s"Source path is not a directory [$sourceFolder]")
+    if (!fs.exists(destinationFolder)) {
+      logInfo(s"Creating folder $destinationFolder")
+      if (!fs.mkdirs(destinationFolder)) throw new PathOperationException(s"Could not create folder [$destinationFolder]")
+    }
+    fs.listFiles(sourceFolder, false)
+      .filter(f => f.isFile && pathFilter(f.getPath))
+      .foreach {
+        f =>
+          val destPath = new Path(destinationFolder, f.getPath.getName)
+          if (fs.exists(destPath)) throw new PathExistsException(s"Cannot move [${f.getPath}] to [$destPath] as a file already exists")
+          if (!fs.rename(f.getPath, destPath)) throw new PathOperationException(s"Failed to rename [${f.getPath}] to [$destPath]")
+          logDebug(s"Moved file [${f.getPath}] to [$destPath]")
+      }
+  }
+
+  /**
     * Check if there are any existing folders with the same name in the path and removes them. The main benefit is that
     * it performs checks in one round-trip to HDFS which in case of day zero scenarios could take a lot of time.
     *
     * @param fs
     * @param folder - parent folder in which to check for existing sub-folders
-    * @param subs - names to check, if the name is not present, than ignore it, if present, remove it
+    * @param subs   - names to check, if the name is not present, than ignore it, if present, remove it
     * @return - true if everything was fine
     */
   def removeSubFoldersPresentInList(fs: FileSystem, folder: Path, subs: Seq[String]): Boolean = {
@@ -125,7 +168,7 @@ object FSUtils extends Logging {
 
     val toRemove = fs.listStatus(folder, pathFilter).map(_.getPath)
     toRemove.foreach(p => logInfo(s"Removing ${p.toString}."))
-    val removed = toRemove.map(p => fs.delete(p, true)).fold(true) ((r,e) => r && e) //fold works on empty lists in case nothing was removed
+    val removed = toRemove.map(p => fs.delete(p, true)).fold(true)((r, e) => r && e) //fold works on empty lists in case nothing was removed
     removed
   }
 
@@ -134,10 +177,10 @@ object FSUtils extends Logging {
     * It uses and efficient approach to minimise the number of call to HDFS for checks and validations which could add
     * significant amount of time to the end to end execution.
     *
-    * @param fs - current hadoop file system
-    * @param subs - sub folders to move, usually thsese are folders in the staging folder
+    * @param fs       - current hadoop file system
+    * @param subs     - sub folders to move, usually thsese are folders in the staging folder
     * @param fromPath - parent folder in which sub folders are
-    * @param toPath - into which folder to move the subs folders, if any already exist, then need to be overwritten
+    * @param toPath   - into which folder to move the subs folders, if any already exist, then need to be overwritten
     * @return
     */
   def moveAll(fs: FileSystem, subs: Seq[String], fromPath: Path, toPath: Path): Boolean = {
@@ -152,7 +195,7 @@ object FSUtils extends Logging {
         val res = fs.rename(from, to)
         logInfo(s"${res} move of [${from.toString}] into [${to}]")
         res
-      }.fold(true) ( (r, e) => r && e)
+      }.fold(true)((r, e) => r && e)
     } else false
   }
 }

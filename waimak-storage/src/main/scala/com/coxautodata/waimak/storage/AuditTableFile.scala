@@ -64,7 +64,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(regionPath).get)
       val region = AuditTableRegionInfo(tableInfo.table_name, HOT_PARTITION, regionID, appendTS, false, count, max_latest_ts)
       logInfo(s"Created region $region")
-      (setRegions(this, regions :+ region).asInstanceOf[this.type], count)
+      (setRegions(this, regions :+ region, appendedRegions = Some(Seq(region))).asInstanceOf[this.type], count)
     }
     res
   }
@@ -115,7 +115,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       .flatMap(_ => if (storageOps.mkdirs(hotPath)) Success(true) else Failure(StorageException(s"Table [${tableInfo.table_name}] can not be initialised, can not create folder ${hotPath.toString}")))
       .flatMap(_ => if (storageOps.mkdirs(coldPath)) Success(true) else Failure(StorageException(s"Table [${tableInfo.table_name}] can not be initialised, can not create folder ${coldPath.toString}")))
       .flatMap(_ => storageOps.writeAuditTableInfo(baseFolder, tableInfo))
-      .map(_ => setRegions(this, Seq.empty).asInstanceOf[this.type])
+      .map(_ => setRegions(this, Seq.empty, appendedRegions = None).asInstanceOf[this.type])
     res
   }
 
@@ -176,7 +176,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
         val regionID = newRegionID(this)
         val regionPath = new Path(coldPath, s"$STORE_REGION_COLUMN=" + regionID)
         logInfo(s"Compacting regions ${ids.mkString("[", ", ", "]")} in path [${regionPath.toString}]")
-        if (storageOps.pathExists(regionPath)) throw StorageException(s"Can not compact table [${tableName}], as path [${regionPath.toString}] already exists")
+        if (storageOps.pathExists(regionPath)) throw StorageException(s"Can not compact table [$tableName], as path [${regionPath.toString}] already exists")
 
         val data = storageOps.openParquet(typePath)
         val newRegionSet = data.map { rows =>
@@ -194,7 +194,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
           logInfo(s"Compacted region ${region.toString} was created.")
           remainingRegions :+ region
         }
-        newRegionSet.fold(this)(r => setRegions(this, r))
+        newRegionSet.fold(this)(r => setRegions(this, r, appendedRegions = None))
       }
       res
     }
@@ -249,16 +249,25 @@ object AuditTableFile extends Logging {
   /**
     * Creates a copy of the table with new list of regions.
     *
-    * @param audit
-    * @param regions
+    * @param audit           - Audit table with old regions
+    * @param allRegions      - Complete set of current regions
+    * @param appendedRegions - Optional list of regions that have been appended. If given, only new regions are written
+    *                        to cache. If None the current cached region information is completely rewritten.
+    *                        If the case of any region deletes, this should be None.
     * @return
     */
-  def setRegions(audit: AuditTableFile, regions: Seq[AuditTableRegionInfo]): AuditTableFile = {
+  def setRegions(audit: AuditTableFile, allRegions: Seq[AuditTableRegionInfo], appendedRegions: Option[Seq[AuditTableRegionInfo]]): AuditTableFile = {
     val spark = audit.storageOps.sparkSession
     import spark.implicits._
-    val regionInfoDS = audit.storageOps.sparkSession.createDataset(regions).coalesce(1)
-    audit.storageOps.writeParquet(audit.tableName, new Path(audit.regionInfoBasePath, audit.tableName), regionInfoDS)
-    new AuditTableFile(audit.tableInfo, regions, audit.storageOps, audit.baseFolder, audit.newRegionID)
+    val regionsToWrite = appendedRegions.getOrElse(allRegions)
+    val regionInfoDS = audit.storageOps.sparkSession.createDataset(regionsToWrite).coalesce(1)
+    audit.storageOps.writeParquet(
+      audit.tableName,
+      new Path(audit.regionInfoBasePath, audit.tableName),
+      regionInfoDS,
+      overwrite = appendedRegions.isEmpty,
+      tempSubfolder = Some(REGION_INFO_DIRECTORY))
+    new AuditTableFile(audit.tableInfo, allRegions, audit.storageOps, audit.baseFolder, audit.newRegionID)
   }
 
   /**

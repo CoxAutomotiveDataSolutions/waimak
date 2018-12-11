@@ -36,12 +36,15 @@ trait FileStorageOps {
     * Commits data set into full path. The path is the full path into which the parquet will be placed after it is
     * fully written into the temp folder.
     *
-    * @param tableName name of the table, will only be used to write into tmp
-    * @param path      full destination path
-    * @param ds        dataset to write out. no partitioning will be performed on it
+    * @param tableName     name of the table, will only be used to write into tmp
+    * @param path          full destination path
+    * @param ds            dataset to write out. no partitioning will be performed on it
+    * @param overwrite     whether to overwrite the existing data in `path`. If false folder contents will be merged
+    * @param tempSubfolder an optional subfolder used for writing temporary data, used like `$temp/$tableName/$tempSubFolder`.
+    *                      If not given, then path becomes: `$temp/$tableName/${path.getName}`
     * @throws           Exception can be thrown due to access permissions, connectivity, spark UDFs (as datasets are lazily executed)
     */
-  def writeParquet(tableName: String, path: Path, ds: Dataset[_]): Unit
+  def writeParquet(tableName: String, path: Path, ds: Dataset[_], overwrite: Boolean = true, tempSubfolder: Option[String] = None): Unit
 
   /**
     * Checks if the path exists in the physical storage.
@@ -171,10 +174,17 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
     } else None
   }
 
-  override def writeParquet(tableName: String, path: Path, ds: Dataset[_]): Unit = {
-    val writePath = new Path(new Path(tmpFolder, tableName), path.getName)
+  override def writeParquet(tableName: String, path: Path, ds: Dataset[_], overwrite: Boolean = true, tempSubfolder: Option[String] = None): Unit = {
+    val writePath = new Path(new Path(tmpFolder, tableName), tempSubfolder.getOrElse(path.getName))
     ds.write.mode(SaveMode.Overwrite).parquet(writePath.toString)
-    if (!FSUtils.moveOverwriteFolder(fs, writePath, path)) throw StorageException(s"Can not write data for table [${tableName}] into folder [${path.toString}]")
+    if (overwrite) {
+      if (!FSUtils.moveOverwriteFolder(fs, writePath, path)) throw StorageException(s"Can not overwrite data for table [$tableName] into folder [${path.toString}]")
+    } else {
+      Try(FSUtils.mergeMoveFiles(fs, writePath, path, f => f.getName.toLowerCase.startsWith("part-")))
+        .recover { case e => throw StorageException(s"Failed to merge table files for table [$tableName] from [$writePath] to [$path]", e) }
+        .get
+      if (!fs.delete(writePath, true)) throw StorageException(s"Could not remove temp folder [$writePath] for table [$tableName]")
+    }
   }
 
   override def pathExists(path: Path): Boolean = fs.exists(path)
