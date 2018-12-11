@@ -4,7 +4,9 @@ import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, DataFlow
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.metastore.HadoopDBConnector
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Dataset, SaveMode}
+import org.apache.spark.sql._
+
+import scala.util.Try
 
 /**
   * Defines implicits for functional builders of the data flows.
@@ -489,7 +491,8 @@ object SparkActions {
       * @return
       */
     def sql(input: String, inputs: String*)(outputLabel: String, sqlQuery: String, dropColumns: String*): SparkDataFlow = {
-      logInfo("SQL query: " + sqlQuery)
+      logDebug("SQL query: " + sqlQuery)
+      val actionName = "sql"
 
       def run(dfs: DataFlowEntities): ActionResult = {
         val sqlRes = sparkDataFlow.spark.sql(sqlQuery)
@@ -498,6 +501,8 @@ object SparkActions {
       }
 
       val sqlTables = (input +: inputs).toList
+      checkValidSqlLabels(sparkDataFlow.flowContext.spark, sqlTables, actionName)
+
       sparkDataFlow.addAction(new SparkSimpleAction(sqlTables, List(outputLabel), d => run(d), sqlTables, "sql"))
     }
 
@@ -646,7 +651,9 @@ object SparkActions {
       * @return
       */
     def debugAsTable(labels: String*): SparkDataFlow = {
-      sparkDataFlow.addAction(new SparkSimpleAction(labels.toList, List.empty, _ => Seq.empty, labels, "debugAsTable"))
+      val actionName = "debugAsTable"
+      checkValidSqlLabels(sparkDataFlow.flowContext.spark, labels, actionName)
+      sparkDataFlow.addAction(new SparkSimpleAction(labels.toList, List.empty, _ => Seq.empty, labels, actionName))
     }
   }
 
@@ -780,4 +787,17 @@ object SparkActionHelpers {
   def applyOpenParquet(path: String): DataFrameReader => Dataset[_] = {
     reader => reader.parquet(path)
   }
+
+  def isValidViewName(sparkSession: SparkSession)(label: String): Boolean = {
+    Try(sparkSession.sessionState.sqlParser.parseTableIdentifier(label)).isSuccess
+  }
+
+  def checkValidSqlLabels(sparkSession: SparkSession, labels: Seq[String], actionName: String): Unit = {
+    labels
+      .filterNot(isValidViewName(sparkSession))
+      .reduceLeftOption((z, l) => s"$z, $l")
+      .foreach(l => throw new DataFlowException(s"The following labels contain invalid characters to be used as Spark SQL view names: [$l]. " +
+        s"You can alias the label to a valid name before calling the $actionName action."))
+  }
+
 }
