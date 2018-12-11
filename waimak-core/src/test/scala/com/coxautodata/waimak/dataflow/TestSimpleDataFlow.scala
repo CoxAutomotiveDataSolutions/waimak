@@ -1059,15 +1059,15 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       it("one label, no partitions") {
         val testFlow = flow.commit("commit_1")("com_1")
         testFlow.commitMeta.commits.size should be(1)
-        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq.empty, false))))
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq.empty, repartition = false, cache = true))))
         testFlow.commitMeta.pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
 
       it("one label, partitions, no repartition") {
-        val testFlow = flow.commit("commit_1", Seq("id", "cntry"), false)("com_1")
+        val testFlow = flow.commit("commit_1", Seq("id", "cntry"), repartition = false)("com_1")
         testFlow.commitMeta.commits.size should be(1)
-        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), false))))
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), repartition = false, cache = true))))
         testFlow.commitMeta.pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
@@ -1075,7 +1075,15 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       it("one label, partitions, repartition") {
         val testFlow = flow.commit("commit_1", Seq("id", "cntry"))("com_1")
         testFlow.commitMeta.commits.size should be(1)
-        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), true))))
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), repartition = true, cache = true))))
+        testFlow.commitMeta.pushes.isEmpty should be(true)
+        testFlow.tagState.activeTags.isEmpty should be(true)
+      }
+
+      it("one label, partitions, repartition, no cache") {
+        val testFlow = flow.commit("commit_1", Seq("id", "cntry"), cacheLabels = false)("com_1")
+        testFlow.commitMeta.commits.size should be(1)
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), repartition = true, cache = false))))
         testFlow.commitMeta.pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
@@ -1154,33 +1162,33 @@ class TestSparkDataFlow extends FunSpec with Matchers {
 
         val cacheActions_1 = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_1")).values.toList
         cacheActions_1.size should be(1)
-        cacheActions_1(0).tags should be(Set("commit_1"))
-        cacheActions_1(0).dependentOnTags should be(Set.empty)
+        cacheActions_1.head.tags should be(Set("commit_1"))
+        cacheActions_1.head.dependentOnTags should be(Set.empty)
 
         val moveActions_1 = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_1_AFTER_COMMIT")).values.toList
         moveActions_1.size should be(1)
-        moveActions_1(0).tags should be(Set("commit_1_AFTER_COMMIT"))
-        moveActions_1(0).dependentOnTags should be(Set("commit_1"))
+        moveActions_1.head.tags should be(Set("commit_1_AFTER_COMMIT"))
+        moveActions_1.head.dependentOnTags should be(Set("commit_1"))
 
         val finishActions_1 = testFlow.tagState.taggedActions.filter(_._2.dependentOnTags.contains("commit_1_AFTER_COMMIT")).values.toList
         finishActions_1.size should be(1)
-        finishActions_1(0).tags should be(Set.empty)
-        finishActions_1(0).dependentOnTags should be(Set("commit_1_AFTER_COMMIT"))
+        finishActions_1.head.tags should be(Set.empty)
+        finishActions_1.head.dependentOnTags should be(Set("commit_1_AFTER_COMMIT"))
 
         val cacheActions_2 = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_2")).values.toList
         cacheActions_2.size should be(1)
-        cacheActions_2(0).tags should be(Set("commit_2"))
-        cacheActions_2(0).dependentOnTags should be(Set.empty)
+        cacheActions_2.head.tags should be(Set("commit_2"))
+        cacheActions_2.head.dependentOnTags should be(Set.empty)
 
         val moveActions_2 = testFlow.tagState.taggedActions.filter(_._2.tags.contains("commit_2_AFTER_COMMIT")).values.toList
         moveActions_2.size should be(1)
-        moveActions_2(0).tags should be(Set("commit_2_AFTER_COMMIT"))
-        moveActions_2(0).dependentOnTags should be(Set("commit_2"))
+        moveActions_2.head.tags should be(Set("commit_2_AFTER_COMMIT"))
+        moveActions_2.head.dependentOnTags should be(Set("commit_2"))
 
         val finishActions_2 = testFlow.tagState.taggedActions.filter(_._2.dependentOnTags.contains("commit_2_AFTER_COMMIT")).values.toList
         finishActions_2.size should be(1)
-        finishActions_2(0).tags should be(Set.empty)
-        finishActions_2(0).dependentOnTags should be(Set("commit_2_AFTER_COMMIT"))
+        finishActions_2.head.tags should be(Set.empty)
+        finishActions_2.head.dependentOnTags should be(Set("commit_2_AFTER_COMMIT"))
       }
     }
 

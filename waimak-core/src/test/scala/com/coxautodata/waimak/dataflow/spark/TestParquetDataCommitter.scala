@@ -125,9 +125,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         initSnapshotFolders(new File(baseDest, "label_ok"), Seq("snap=2000"))
 
         val res = committer.validate(flow, "f1", Seq(
-          CommitEntry("label_fail_1", "f1", Seq.empty, false)
-          , CommitEntry("label_fail_2", "f1", Seq.empty, false)
-          , CommitEntry("label_ok", "f1", Seq.empty, false))
+          CommitEntry("label_fail_1", "f1", Seq.empty, repartition = false, cache = true)
+          , CommitEntry("label_fail_2", "f1", Seq.empty, repartition = false, cache = true)
+          , CommitEntry("label_ok", "f1", Seq.empty, repartition = false, cache = true))
         )
         res shouldBe a[Failure[_]]
         res.failed.get.getMessage should be("ParquetDataCommitter [f1], snapshot folder [snap=2001] is already present for labels: [label_fail_1, label_fail_2]")
@@ -140,14 +140,14 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", Seq.empty, false))) should be(Success())
+        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", Seq.empty, repartition = false, cache = true))) should be(Success())
       }
 
       it("with snapshot and no cleanup") {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest).withSnapshotFolder("ts=777777")
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", Seq.empty, false))) should be(Success())
+        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", Seq.empty, repartition = false, cache = true))) should be(Success())
       }
 
       it("multiple labels, no clash of the snapshot folders of committed labels") {
@@ -163,10 +163,10 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         initSnapshotFolders(new File(baseDest, "label_3"), Seq("snap=2000"))
 
         val res = committer.validate(flow, "f1", Seq(
-          CommitEntry("label_1", "f1", Seq.empty, false)
-          , CommitEntry("label_2", "f1", Seq.empty, false)
-          , CommitEntry("label_3", "f1", Seq.empty, false)
-          , CommitEntry("label_no_init", "f1", Seq.empty, false))
+          CommitEntry("label_1", "f1", Seq.empty, repartition = false, cache = true)
+          , CommitEntry("label_2", "f1", Seq.empty, repartition = false, cache = true)
+          , CommitEntry("label_3", "f1", Seq.empty, repartition = false, cache = true)
+          , CommitEntry("label_no_init", "f1", Seq.empty, repartition = false, cache = true))
         )
         res should be(Success())
       }

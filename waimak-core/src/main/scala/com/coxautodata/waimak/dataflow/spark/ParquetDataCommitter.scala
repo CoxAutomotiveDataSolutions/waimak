@@ -34,8 +34,14 @@ case class ParquetDataCommitter(outputBaseFolder: String,
                                 cleanupStrategy: Option[CleanUpStrategy[FileStatus]] = None,
                                 hadoopDBConnector: Option[HadoopDBConnector] = None) extends DataCommitter with Logging {
 
+  /**
+    * Set a snapshot folder for this Parquet Committer
+    */
   def withSnapshotFolder(folder: String): ParquetDataCommitter = this.copy(snapshotFolder = Some(folder))
 
+  /**
+    * Set a cleanup strategy for this Parquet Committer
+    */
   def withCleanupStrategy(strategy: CleanUpStrategy[FileStatus]): ParquetDataCommitter = this.copy(cleanupStrategy = Some(strategy))
 
   /**

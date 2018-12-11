@@ -274,12 +274,14 @@ trait DataFlow extends Logging {
     * @param partitions  list of partition columns for the labels specified in this commit invocation. It will not
     *                    impact labels from previous or following invocations of the commit with same commit name.
     * @param repartition to repartition the data
+    * @param cacheLabels request the committer to cache the underlying labels on the flow before writing them out
+    *                    if caching is supported by the data committer. If caching is not supported this parameter is ignored.
     * @param labels      labels added to the commit name with partitions config
     * @return
     */
-  def commit(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): this.type = {
+  def commit(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true, cacheLabels: Boolean = true)(labels: String*): this.type = {
     val toRepartition = partitions.nonEmpty && repartition
-    commitMeta(commitMeta.addCommits(commitName, labels, partitions, toRepartition))
+    commitMeta(commitMeta.addCommits(commitName, labels, partitions, toRepartition, cacheLabels))
   }
 
   /**
@@ -541,8 +543,8 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
   */
 case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter]]) {
 
-  def addCommits(commitName: String, labels: Seq[String], partitions: Seq[String] = Seq.empty, repartition: Boolean = true): CommitMeta = {
-    val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition))
+  def addCommits(commitName: String, labels: Seq[String], partitions: Seq[String], repartition: Boolean, cacheLabels: Boolean): CommitMeta = {
+    val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition, cacheLabels))
     this.copy(commits = commits + (commitName -> nextCommits))
   }
 
@@ -601,8 +603,8 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
 
 object CommitMeta {
 
-  def empty(): CommitMeta = new CommitMeta(Map.empty, Map.empty)
+  def empty: CommitMeta = new CommitMeta(Map.empty, Map.empty)
 
 }
 
-case class CommitEntry(label: String, commitName: String, partitions: Seq[String], repartition: Boolean)
+case class CommitEntry(label: String, commitName: String, partitions: Seq[String], repartition: Boolean, cache: Boolean)

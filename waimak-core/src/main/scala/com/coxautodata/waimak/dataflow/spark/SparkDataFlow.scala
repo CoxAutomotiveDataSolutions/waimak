@@ -146,23 +146,22 @@ private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefi
         case (label, commitDefinition) =>
           commitDefinition.connection.get.updateTableParquetLocationDDLs(label, srcDestMap(label)._2.toUri.getPath, commitDefinition.partitions)
       }).foreach {
-      case (connection, ddls) => connection.submitAtomicResultlessQueries(ddls.flatten.toSeq)}
+      case (connection, ddls) => connection.submitAtomicResultlessQueries(ddls.flatten.toSeq)
+    }
 
     List.empty
   }
 }
 
-case class SparkDataFlowInfo(
-                              spark: SparkSession
-                              , inputs: DataFlowEntities
-                              , actions: Seq[DataFlowAction]
-                              , sqlTables: Set[String]
-                              , tempFolder: Option[Path]
-                              , schedulingMeta: SchedulingMeta
-                              , commitLabels: Map[String, LabelCommitDefinition] = Map.empty
-                              , tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty)
-                              , commitMeta: CommitMeta = CommitMeta.empty
-                            )
+case class SparkDataFlowInfo(spark: SparkSession,
+                             inputs: DataFlowEntities,
+                             actions: Seq[DataFlowAction],
+                             sqlTables: Set[String],
+                             tempFolder: Option[Path],
+                             schedulingMeta: SchedulingMeta,
+                             commitLabels: Map[String, LabelCommitDefinition] = Map.empty,
+                             tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty),
+                             commitMeta: CommitMeta = CommitMeta.empty)
 
 object SparkDataFlow {
 
