@@ -200,7 +200,6 @@ class AuditTableFile(val tableInfo: AuditTableInfo
   protected def calculateNumPartitions(schema: StructType, numRows: Long, cellsPerPartition: Long): Int = {
     val cellsPerRow = schema.size
     val rowsPerPartition = cellsPerPartition / cellsPerRow
-    println(s"CELLS PER ROW: $cellsPerRow, ROWS PER PARTITION: $rowsPerPartition, NUM ROWS: $numRows, NUM PARTITIONA: ${(numRows / rowsPerPartition).toInt + 1}")
     (numRows / rowsPerPartition).toInt + 1
   }
 
