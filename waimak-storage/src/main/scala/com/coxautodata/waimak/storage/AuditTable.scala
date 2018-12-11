@@ -88,14 +88,21 @@ trait AuditTable {
     *
     * Fails when is called second time on same instance.
     *
-    * @param compactTS   timestamp of when the compaction is requested, will not be used for any filtering of the data
-    * @param trashMaxAge Maximum age of old region files kept in the .Trash folder
-    *                    after a compaction has happened.
+    * @param compactTS               timestamp of when the compaction is requested, will not be used for any filtering of the data
+    * @param trashMaxAge             Maximum age of old region files kept in the .Trash folder
+    *                                after a compaction has happened.
+    * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted.
+    *                                Default is 50000000
+    * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot parttition file.
+    *                                Adjust this to control output file size. Default is 1000000
+    * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold parttition file.
+    *                                Adjust this to control output file size. Default is 2500000
     * @return new state of the AuditTable
     */
-  def compact(compactTS: Timestamp, trashMaxAge: Duration
+  def compact(compactTS: Timestamp
+              , trashMaxAge: Duration
+              , smallRegionRowThreshold: Int = 50000000
               , hotCellsPerPartition: Int = 1000000
-              , rowsPerRegion: Int = 50000000
               , coldCellsPerPartition: Int = 2500000): Try[AuditTable]
 
   /**

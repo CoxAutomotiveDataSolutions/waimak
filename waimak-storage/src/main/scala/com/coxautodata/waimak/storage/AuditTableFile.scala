@@ -128,8 +128,9 @@ class AuditTableFile(val tableInfo: AuditTableInfo
   /**
     * Compacts all hot regions into one cold.
     *
-    * @param compactTS
-    * @param cellsPerPartition
+    * @param compactTS         the compaction timestamp
+    * @param cellsPerPartition approximate maximum number of cells (numRows * numColumns) to be in each parttition file.
+    *                          Adjust this to control output file size,
     * @return
     */
   protected def commitHotToCold(compactTS: Timestamp, cellsPerPartition: Int): Try[AuditTableFile] = {
@@ -138,15 +139,16 @@ class AuditTableFile(val tableInfo: AuditTableInfo
   }
 
   /**
-    * Merges all regions below specific fresh cold into one cold region.
+    * Merges all regions with row numbers below a specific threshold into one cold region.
     *
-    * @param compactTS
-    * @param rowsPerRegion
-    * @param cellsPerPartition
+    * @param compactTS               the compaction timestamp
+    * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted
+    * @param cellsPerPartition       approximate maximum number of cells (numRows * numColumns) to be in each parttition file.
+    *                                Adjust this to control output file size,
     * @return
     */
-  protected def compactCold(compactTS: Timestamp, rowsPerRegion: Int, cellsPerPartition: Int): Try[AuditTableFile] = {
-    val smallerRegions = regions.filter(r => r.store_type == COLD_PARTITION && r.count < rowsPerRegion)
+  protected def compactCold(compactTS: Timestamp, smallRegionRowThreshold: Int, cellsPerPartition: Int): Try[AuditTableFile] = {
+    val smallerRegions = regions.filter(r => r.store_type == COLD_PARTITION && r.count < smallRegionRowThreshold)
     // No use compacting a single small region into itself
     compactRegions(coldPath, if (smallerRegions.length < 2) Seq.empty else smallerRegions, compactTS, cellsPerPartition)
   }
