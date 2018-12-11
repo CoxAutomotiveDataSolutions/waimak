@@ -73,6 +73,59 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
   describe("with snapshots, with DB commits") {
 
+    it("stage csv to parquet and commit to impala") {
+      val spark = sparkSession
+      val executor = Waimak.sparkExecutor()
+
+      val connector1 = ImpalaDummyConnector(spark)
+      val connector2 = ImpalaDummyConnector(spark)
+      val connectorRecreate = ImpalaDummyConnector(spark, forceRecreateTables = true)
+
+      val baseDest = testingBaseDir + "/dest"
+
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .alias("csv_1", "items")
+        .alias("csv_2", "person")
+        .alias("csv_2", "person_recreate")
+        .commit("connector1", partitions = Seq("amount"))("items")
+        .commit("connector2WithSnapshot")("person")
+        .commit("connectorRecreateWithSnapshot")("person_recreate")
+        .push("connector1")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector1))
+        .push("connector2WithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector2).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
+        .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
+
+      val (_, finalState) = executor.execute(flow)
+      finalState.inputs.size should be(5)
+
+      val itemsParquet = new File(testingBaseDirName, "dest/items/amount=1").list().filter(_.endsWith(".parquet")).head
+      val personParquet = new File(testingBaseDirName, "dest/person/generatedTimestamp=2018-03-13-16-19-00").list().filter(_.endsWith(".parquet")).head
+      val person_recreateParquet = new File(testingBaseDirName, "dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00").list().filter(_.endsWith(".parquet")).head
+
+      connector1.ranDDLs should be {
+        List(List(
+          "drop table if exists items",
+          s"create external table if not exists items like parquet 'file:$testingBaseDirName/dest/items/amount=1/$itemsParquet' partitioned by (amount string) stored as parquet location '$testingBaseDirName/dest/items'",
+          "alter table items recover partitions"
+        ))
+      }
+
+      connector2.ranDDLs should be {
+        List(List(
+          s"create external table if not exists person like parquet 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00/$personParquet' stored as parquet location '$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
+          s"alter table person set location '$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
+        ))
+      }
+
+      connectorRecreate.ranDDLs should be {
+        List(List(
+          "drop table if exists person_recreate",
+          s"create external table if not exists person_recreate like parquet 'file:$testingBaseDirName/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00/$person_recreateParquet' stored as parquet location '$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
+        ))
+      }
+    }
+
+
     it("multiple tables, multiple snapshots, with cleaning and DB commit") {
       val spark = sparkSession
 

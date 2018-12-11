@@ -75,28 +75,37 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       val spark = sparkSession
       val executor = Waimak.sparkExecutor()
 
-      val connector = HiveDummyConnector(SparkFlowContext(spark))
+      val connector1 = HiveDummyConnector(SparkFlowContext(spark))
+      val connector2 = HiveDummyConnector(SparkFlowContext(spark))
       val connectorRecreate = HiveDummyConnector(SparkFlowContext(spark), forceRecreateTables = true)
 
       val baseDest = testingBaseDir + "/dest"
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
         .alias("csv_2", "person_recreate")
-        .stageAndCommitParquetToDB(connector)(baseDest, partitions = Seq("amount"))("items")
-        .stageAndCommitParquetToDB(connector)(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-        .stageAndCommitParquetToDB(connectorRecreate)(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person_recreate")
+        .commit("connector1", partitions = Seq("amount"))("items")
+        .commit("connector2WithSnapshot")("person")
+        .commit("connectorRecreateWithSnapshot")("person_recreate")
+        .push("connector1")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector1))
+        .push("connector2WithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector2).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
+        .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
 
       val (_, finalState) = executor.execute(flow)
       finalState.inputs.size should be(5)
 
-      connector.ranDDLs should be {
+      connector1.ranDDLs should be {
         List(List(
           "drop table if exists items",
           s"create external table if not exists items (id integer, item integer) partitioned by (amount string) stored as parquet location 'file:$testingBaseDirName/dest/items'",
-          "alter table items recover partitions",
+          "alter table items recover partitions"
+        ))
+      }
+
+      connector2.ranDDLs should be {
+        List(List(
           s"create external table if not exists person (id integer, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
           s"alter table person set location 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
         ))
@@ -117,7 +126,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       val testDb = "test"
       val baseDest = testingBaseDir + "/dest"
       val tableDest = baseDest + "/items"
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1")
         .alias("csv_1", "items")
         .writeParquet(baseDest)("items")
@@ -142,7 +151,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       val testDb = "test"
       val baseDest = testingBaseDir + "/dest"
       val tableDest = baseDest + "/items"
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1")
         .alias("csv_1", "items")
         .writeParquet(baseDest)("items")
@@ -168,7 +177,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       val testDb = "test"
       val baseDest = testingBaseDir + "/dest"
       val tableDest = baseDest + "/items"
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1")
         .alias("csv_1", "items")
         .writeParquet(baseDest)("items")
@@ -194,7 +203,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       val testDb = "test"
       val baseDest = testingBaseDir + "/dest"
       val tableDest = baseDest + "/items"
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1")
         .alias("csv_1", "items")
         .writeParquet(baseDest)("items")

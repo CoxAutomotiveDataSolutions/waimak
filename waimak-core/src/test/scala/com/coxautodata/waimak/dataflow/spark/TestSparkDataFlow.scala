@@ -129,6 +129,58 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
     }
 
+    it("read two parquet folders with snapshot directory") {
+      val spark = sparkSession
+      import spark.implicits._
+      val baseDest = testingBaseDir + "/dest"
+      val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+        .openCSV(basePath)("csv_1", "csv_2")
+        .alias("csv_1", "parquet_1")
+        .alias("csv_2", "parquet_2")
+        .commit("commit")("parquet_1", "parquet_2")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
+
+      executor.execute(flow)
+
+      val flow2 = Waimak.sparkFlow(spark)
+        .openParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1", "parquet_2")
+
+      val (_, finalState) = executor.execute(flow2)
+      finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
+
+    }
+    it("stage and commit parquet, and force a cache as parquet") {
+      val spark = sparkSession
+      import spark.implicits._
+      val baseDest = testingBaseDir + "/dest"
+      val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+        .openCSV(basePath)("csv_1")
+        .alias("csv_1", "parquet_1")
+        .cacheAsParquet("parquet_1")
+        .inPlaceTransform("parquet_1")(df => df)
+        .inPlaceTransform("parquet_1")(df => df)
+        .commit("commit")("parquet_1")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
+
+      // Check all post actions made it through
+      val interceptorAction = flow.actions.filter(_.outputLabels.contains("parquet_1")).head.asInstanceOf[PostActionInterceptor[Dataset[_]]]
+      interceptorAction.postActions.length should be(3)
+
+      // Check they are in the right order
+      interceptorAction.postActions.head.isInstanceOf[TransformPostAction[Dataset[_]]] should be(true)
+      interceptorAction.postActions.tail.head.isInstanceOf[TransformPostAction[Dataset[_]]] should be(true)
+      interceptorAction.postActions.tail.tail.head.isInstanceOf[CachePostAction[Dataset[_]]] should be(true)
+
+      executor.execute(flow)
+
+      val flow2 = Waimak.sparkFlow(spark)
+        .openParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1")
+
+      val (_, finalState) = executor.execute(flow2)
+      finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
+    }
+
   }
 
   describe("sql") {
@@ -346,7 +398,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
       val spark = sparkSession
       import spark.implicits._
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -363,7 +415,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
       e.getMessage should be(s"Exception performing action: ${flow.actions.drop(4).head.guid}: Action: write Inputs: [person] Outputs: []")
       e.cause.getMessage should be("Table `default`.`person` already exists.;")
 
-      val secondFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val secondFlow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .transform("csv_1")("items")(_.filter(lit(false)))
         .transform("csv_2")("person")(_.filter(lit(false)))
