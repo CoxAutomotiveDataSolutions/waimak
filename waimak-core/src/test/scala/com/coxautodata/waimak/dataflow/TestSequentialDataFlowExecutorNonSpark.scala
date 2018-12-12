@@ -54,7 +54,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
       }
 
 
-      it("action does have non empty input and errorOnUnexecutedActions is true") {
+      it("action does have an empty input and errorOnUnexecutedActions is true") {
         val action = new TestPresetAction(List("i1"), List("t1", "t2"), func2, true)
         val flow = emptyFlow.addInput("i1", None).addAction(action)
 
@@ -70,7 +70,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         )
       }
 
-      it("action does have non empty input and errorOnUnexecutedActions is false") {
+      it("action does have an empty input and errorOnUnexecutedActions is false") {
         val action = new TestPresetAction(List("i1"), List("t1", "t2"), func2, true)
         val flow = emptyFlow.addInput("i1", None).addAction(action)
 
