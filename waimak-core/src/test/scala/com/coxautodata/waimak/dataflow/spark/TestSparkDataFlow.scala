@@ -243,6 +243,18 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
       finalState.inputs.size should be(5)
       finalState.inputs.getOption[Dataset[_]]("report").map(_.as[TReport].collect()).get should be(report)
     }
+
+    it("invalid label name") {
+      val spark = sparkSession
+      val res = intercept[DataFlowException] {
+        Waimak.sparkFlow(spark)
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "bad-name")
+          .sql("bad-name")("bad-output", "select * from bad-name")
+      }
+      res.text should be ("The following labels contain invalid characters to be used as Spark SQL view names: [bad-name]. " +
+        "You can alias the label to a valid name before calling the sql action.")
+    }
   }
 
   describe("joins") {
@@ -669,6 +681,18 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       val csv_2_sql = spark.sql("select * from csv_2")
       csv_2_sql.as[TPerson].collect() should be(persons)
+    }
+
+    it("invalid label name") {
+      val spark = sparkSession
+      val res = intercept[DataFlowException] {
+        Waimak.sparkFlow(spark)
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "bad-name")
+          .debugAsTable("bad-name")
+      }
+      res.text should be ("The following labels contain invalid characters to be used as Spark SQL view names: [bad-name]. " +
+        "You can alias the label to a valid name before calling the debugAsTable action.")
     }
 
   }
