@@ -599,51 +599,6 @@ object SparkActions {
     }
 
     /**
-      * Stage a dataframe into the temporary folder. All staged dataframes will then be committed
-      * at the same time at the end of the flow.
-      *
-      * You can optionally give a snapshot folder name so resulting committed table looks like:
-      * /destBasePath/label/snapshotFolder/
-      *
-      * @param destBasePath   Base path
-      * @param labels         Labels of the dataframe to stage
-      * @param snapshotFolder Optional snapshot name
-      * @param partitions     Optionally partition the output
-      * @param repartition    Optionally repartition by partition columns
-      * @return
-      */
-    def stageAndCommitParquet(destBasePath: String, snapshotFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): SparkDataFlow = {
-      labels.foldLeft(sparkDataFlow)((flow, label) => {
-        flow.cacheAsPartitionedParquet(partitions, repartition)(label)
-          .addCommitLabel(label, LabelCommitDefinition(destBasePath, snapshotFolder))
-      })
-    }
-
-    /**
-      * Stage a dataframe into the temporary folder. All staged dataframes will then be committed
-      * at the same time at the end of the flow and then committed to a Hadoop DB.
-      * A table will be created if it does not exist.
-      *
-      * You can optionally give a snapshot folder name so resulting committed table looks like:
-      * /destBasePath/label/snapshotFolder/
-      *
-      * @param connection     Hadoop database connection object. Reuse same object instance for each call of this function
-      *                       to allow reuse of the underlying connection
-      * @param destBasePath   Base path
-      * @param labels         Labels of the dataframe to stage, resulting in the tablename
-      * @param snapshotFolder Optional snapshot name
-      * @param partitions     Optionally partition the output
-      * @param repartition    Optionally repartition by partition columns
-      * @return
-      */
-    def stageAndCommitParquetToDB(connection: HadoopDBConnector)(destBasePath: String, snapshotFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): SparkDataFlow = {
-      labels.foldLeft(sparkDataFlow)((flow, label) => {
-        flow.cacheAsPartitionedParquet(partitions, repartition)(label)
-          .addCommitLabel(label, LabelCommitDefinition(destBasePath, snapshotFolder, partitions, Some(connection)))
-      })
-    }
-
-    /**
       * In zeppelin it is easier to debug and visualise data as spark sql tables. This action does no data transformations,
       * it only marks labels as SQL tables. Only after execution of the flow it is possible
       *

@@ -17,7 +17,7 @@ case class PostActionInterceptor[T](toIntercept: DataFlowAction
           val actionsForLabel = v._2
           val pos = intercepted.outputLabels.indexOf(label)
           if (pos < 0) throw new DataFlowException(s"Can not apply post action to label $label, it does not exist in action ${intercepted.logLabel}.")
-          res(pos) = actionsForLabel.foldLeft(res(pos))((z, a) => a.run(z.map(_.asInstanceOf[T]), flowContext))
+          res(pos) = actionsForLabel.foldLeft(res(pos))((z, a) => a.run(z.map(_.asInstanceOf[T])))
       }
     }
     tryRes.map(_.toList)
@@ -47,14 +47,14 @@ case class PostActionInterceptor[T](toIntercept: DataFlowAction
 
 sealed abstract class PostAction[T](val labelToIntercept: String) {
 
-  def run: (Option[T], FlowContext) => Option[T]
+  def run: Option[T] => Option[T]
 
   def postActionName: String = getClass.getSimpleName
 
-  def description = s"PostAction: $postActionName Label: ${labelToIntercept}"
+  def description = s"PostAction: $postActionName Label: $labelToIntercept"
 
 }
 
-sealed case class CachePostAction[T](run: (Option[T], FlowContext) => Option[T], override val labelToIntercept: String) extends PostAction[T](labelToIntercept)
+sealed case class CachePostAction[T](run: Option[T] => Option[T], override val labelToIntercept: String) extends PostAction[T](labelToIntercept)
 
-sealed case class TransformPostAction[T](run: (Option[T], FlowContext) => Option[T], override val labelToIntercept: String) extends PostAction[T](labelToIntercept)
+sealed case class TransformPostAction[T](run: Option[T] => Option[T], override val labelToIntercept: String) extends PostAction[T](labelToIntercept)

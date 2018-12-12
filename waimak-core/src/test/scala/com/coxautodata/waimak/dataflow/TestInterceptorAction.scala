@@ -35,7 +35,7 @@ class TestInterceptorAction extends FunSpec with Matchers {
 
     val emptyInputs = DataFlowEntities.empty
 
-    val appendFunc = (in: Option[String], fl: FlowContext) => in.map(_ + "_6789")
+    val appendFunc = (in: Option[String]) => in.map(_ + "_6789")
 
     it("post first output") {
       val action = new TestPresetAction(List.empty, List("o1", "o2"), func2)

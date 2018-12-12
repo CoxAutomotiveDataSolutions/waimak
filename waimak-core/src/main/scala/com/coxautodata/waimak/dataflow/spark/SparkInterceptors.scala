@@ -30,7 +30,7 @@ object SparkInterceptors extends Logging {
   def addPostCacheAsParquet(sparkFlow: SparkDataFlow, outputLabel: String)
                            (dfFunc: Dataset[_] => Dataset[_])
                            (dfwFunc: DataFrameWriter[_] => DataFrameWriter[_]): SparkDataFlow = {
-    def post(data: Option[Any], sfc: FlowContext): Option[Dataset[_]] = {
+    def post(data: Option[Any]): Option[Dataset[_]] = {
       logInfo(s"About to cache the $outputLabel. Dataset is defined: ${data.isDefined}")
       val baseFolder = sparkFlow.tempFolder.getOrElse(throw new DataFlowException("Cannot cache, temporary folder was not specified"))
       data
@@ -39,7 +39,7 @@ object SparkInterceptors extends Logging {
         .map { ds =>
           val path = new Path(new Path(baseFolder.toString), outputLabel).toString
           dfwFunc(ds.write).mode(SaveMode.Overwrite).parquet(path)
-          sfc.asInstanceOf[SparkFlowContext].spark.read.parquet(path)
+          ds.sparkSession.read.parquet(path)
         }
     }
 
@@ -59,7 +59,7 @@ object SparkInterceptors extends Logging {
   }
 
   def addPostTransform(sparkFlow: SparkDataFlow, outputLabel: String)(transform: Dataset[_] => Dataset[_]): SparkDataFlow = {
-    def post(data: Option[Any], sfc: FlowContext): Option[Dataset[_]] =
+    def post(data: Option[Any]): Option[Dataset[_]] =
       data
         .map(checkIfDataset(_, outputLabel, "inPlaceTransform"))
         .map(transform)

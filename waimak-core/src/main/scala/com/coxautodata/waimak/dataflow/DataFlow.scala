@@ -1,5 +1,7 @@
 package com.coxautodata.waimak.dataflow
 
+import java.util.UUID
+
 import com.coxautodata.waimak.log.Logging
 
 import scala.annotation.tailrec
@@ -47,7 +49,7 @@ trait DataFlow extends Logging {
     */
   def actions: Seq[DataFlowAction]
 
-  def actions(acs : Seq[DataFlowAction]): this.type
+  def actions(acs: Seq[DataFlowAction]): this.type
 
   def tagState: DataFlowTagState
 
@@ -161,7 +163,7 @@ trait DataFlow extends Logging {
     val (alreadyActiveDeps, newDeps) = depTags.toSet.partition(tagState.activeDependentOnTags.contains)
     logInfo(s"The following tag dependencies are already active, therefore the outer (wider) tag dependency scope will take precedence: ${alreadyActiveDeps.mkString(", ")}")
     val newTagState = tagState.copy(activeDependentOnTags = tagState.activeDependentOnTags union newDeps)
-    val intermediateFlow = tagDependentFlow(tagState(newTagState))// createInstance(inputs, actions, newTagState, schedulingMeta, commitMeta).asInstanceOf[this.type])
+    val intermediateFlow = tagDependentFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeDependentOnTags = intermediateFlow.tagState.activeDependentOnTags diff newDeps)
     intermediateFlow.tagState(finalTagState).asInstanceOf[this.type]
   }
@@ -172,35 +174,35 @@ trait DataFlow extends Logging {
     *
     * Ex:
     * flow.executionPool("pool_1") {
-    *    _.addAction(a1)
-    *     .addAction(a2)
-    *     .executionPool("pool_2") {
-    *       _.addAction(a3)
-    *        .addAction(a4)
-    *     }..addAction(a5)
+    * _.addAction(a1)
+    * .addAction(a2)
+    * .executionPool("pool_2") {
+    * _.addAction(a3)
+    * .addAction(a4)
+    * }..addAction(a5)
     * }
     *
     * So actions a1, a2, a5 will be in the pool_1 and actions a3, a4 in the pool_2
     *
-    * @param executionPoolName  pool name to assign to all actions inside of it, but it can be overwritten by the nested execution pools.
+    * @param executionPoolName pool name to assign to all actions inside of it, but it can be overwritten by the nested execution pools.
     * @param nestedFlow
     * @tparam S
     * @return
     */
-  def executionPool(executionPoolName: String)(nestedFlow: this.type => this.type): this.type = schedulingMeta( _.setExecutionPoolName(executionPoolName) ) (nestedFlow)
+  def executionPool(executionPoolName: String)(nestedFlow: this.type => this.type): this.type = schedulingMeta(_.setExecutionPoolName(executionPoolName))(nestedFlow)
 
   /**
     * Generic method that can be used to add context and state to all actions inside the block.
     *
-    * @param mutateState  function that adds attributes to the state
-    * @param nestedFlow   all actions inside of this flow will be associated with the mutated state
+    * @param mutateState function that adds attributes to the state
+    * @param nestedFlow  all actions inside of this flow will be associated with the mutated state
     * @tparam S
     * @return
     */
   def schedulingMeta(mutateState: SchedulingMetaState => SchedulingMetaState)(nestedFlow: this.type => this.type): this.type = {
     val previousState = schedulingMeta.state
     val nestedMeta = schedulingMeta.setState(mutateState(previousState))
-    val intermediateFlow = nestedFlow(schedulingMeta(nestedMeta))// createInstance(inputs, actions, tagState, nestedMeta, commitMeta).asInstanceOf[this.type])
+    val intermediateFlow = nestedFlow(schedulingMeta(nestedMeta))
     intermediateFlow.schedulingMeta(intermediateFlow.schedulingMeta.setState(previousState))
   }
 
@@ -248,7 +250,7 @@ trait DataFlow extends Logging {
     *
     * will not include actions that are skipped.
     *
-    * @param executionPoolsAvailable  set of execution pool for which to schedule actions
+    * @param executionPoolsAvailable set of execution pool for which to schedule actions
     * @return
     */
   def nextRunnable(executionPoolsAvailable: Set[String]): Seq[DataFlowAction] = {
@@ -268,16 +270,18 @@ trait DataFlow extends Logging {
     * Can be called multiple times with same same commit name, thus adding labels to it.
     * There can be multiple commit names defined in a single data flow.
     *
-    * @param commitName   name of the commit, which will be used to define its push implementation
-    * @param partitions   list of partition columns for the labels specified in this commit invocation. It will not
-    *                     impact labels from previous or following invocations of the commit with same commit name.
-    * @param repartition  to repartition the data
-    * @param labels       labels added to the commit name with partitions config
+    * @param commitName  name of the commit, which will be used to define its push implementation
+    * @param partitions  list of partition columns for the labels specified in this commit invocation. It will not
+    *                    impact labels from previous or following invocations of the commit with same commit name.
+    * @param repartition to repartition the data
+    * @param cacheLabels request the committer to cache the underlying labels on the flow before writing them out
+    *                    if caching is supported by the data committer. If caching is not supported this parameter is ignored.
+    * @param labels      labels added to the commit name with partitions config
     * @return
     */
-  def commit(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): this.type = {
+  def commit(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true, cacheLabels: Boolean = true)(labels: String*): this.type = {
     val toRepartition = partitions.nonEmpty && repartition
-    commitMeta(commitMeta.addCommits(commitName, labels, partitions, toRepartition))
+    commitMeta(commitMeta.addCommits(commitName, labels, partitions, toRepartition, cacheLabels))
   }
 
   /**
@@ -299,16 +303,17 @@ trait DataFlow extends Logging {
     */
   protected[dataflow] def buildCommits(): this.type = commitMeta.pushes.foldLeft(this) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
     val commitName = pushCommitter._1
+    val commitUUID = UUID.randomUUID()
     val committer = pushCommitter._2.head
     val labels = commitMeta.commits(commitName)
     resFlow.tag(commitName) {
-      committer.cacheToTempFlow(commitName, labels, _)
+      committer.stageToTempFlow(commitName, commitUUID, labels, _)
     }.tagDependency(commitName) {
       _.tag(commitName + "_AFTER_COMMIT") {
-        committer.moveToPermanentStorageFlow(commitName, labels, _)
+        committer.moveToPermanentStorageFlow(commitName, commitUUID, labels, _)
       }
     }.tagDependency(commitName + "_AFTER_COMMIT") {
-      committer.finish(commitName, labels, _)
+      committer.finish(commitName, commitUUID, labels, _)
     }
   }.asInstanceOf[this.type]
 
@@ -372,7 +377,7 @@ trait DataFlow extends Logging {
       // Condition 4
       if (tagState.activeDependentOnTags.nonEmpty) throw new DataFlowException(s"Attempted to execute a flow whilst inside the following tag dependency blocks: [${tagState.activeDependentOnTags.mkString(", ")}]")
 
-    }.flatMap {_ =>
+    }.flatMap { _ =>
       // Conditions 5, 6 and 7
       isValidDependencyState
     }.map(_ => this)
@@ -467,8 +472,8 @@ case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[
   * At the moment, when an action is added to the scheduling meta, it will automatically assign it the current Execution
   * Pool, but if there were other global context attributes to assign, than the action could aquire them as well.
   *
-  * @param state           describes a current state of schedulingMeta
-  * @param actionState     Map[DataFlowAction.schedulingGuid, Execution Pool Name] - association between actions and execution pool names
+  * @param state       describes a current state of schedulingMeta
+  * @param actionState Map[DataFlowAction.schedulingGuid, Execution Pool Name] - association between actions and execution pool names
   * @tparam C
   */
 case class SchedulingMeta(state: SchedulingMetaState, actionState: Map[String, SchedulingMetaState]) {
@@ -479,7 +484,7 @@ case class SchedulingMeta(state: SchedulingMetaState, actionState: Map[String, S
     * Adds action to the scheduling meta, action aquires all of the relevant context attributes (like currentExecutionPoolName)
     *
     * @param action action to add to the scheduling meta
-    * @return       new state of the scheduling meta with action associated with relevant context attributes
+    * @return new state of the scheduling meta with action associated with relevant context attributes
     */
   def addAction(action: DataFlowAction): SchedulingMeta = {
     SchedulingMeta(state, actionState + (action.schedulingGuid -> state))
@@ -489,7 +494,7 @@ case class SchedulingMeta(state: SchedulingMetaState, actionState: Map[String, S
     * Removes the action from scheduling meta.
     *
     * @param action
-    * @return       new state of the scheduling meta without the action
+    * @return new state of the scheduling meta without the action
     */
   def removeAction(action: DataFlowAction): SchedulingMeta = {
     SchedulingMeta(state, actionState - action.schedulingGuid)
@@ -499,7 +504,7 @@ case class SchedulingMeta(state: SchedulingMetaState, actionState: Map[String, S
     * Gets action's execution pool name.
     *
     * @param action
-    * @return       execution pool name of the action, if not found than returns DEFAULT_POOL_NAME
+    * @return execution pool name of the action, if not found than returns DEFAULT_POOL_NAME
     */
   def executionPoolName(action: DataFlowAction): String = actionState.get(action.schedulingGuid).map(_.executionPoolName).getOrElse(DEFAULT_POOL_NAME)
 
@@ -507,7 +512,7 @@ case class SchedulingMeta(state: SchedulingMetaState, actionState: Map[String, S
     * Sets current pool name into the context of the scheduling meta.
     *
     * @param newState
-    * @return                   new state of the scheduling meta with new execution pool name, all subsequent actions will be added to it.
+    * @return new state of the scheduling meta with new execution pool name, all subsequent actions will be added to it.
     */
   def setState(newState: SchedulingMetaState): SchedulingMeta = SchedulingMeta(newState, actionState)
 
@@ -516,7 +521,7 @@ case class SchedulingMeta(state: SchedulingMetaState, actionState: Map[String, S
 /**
   * Contains values that will be associated with all actions added to the data flow.
   *
-  * @param executionPoolName  name of the execution pool
+  * @param executionPoolName name of the execution pool
   */
 case class SchedulingMetaState(executionPoolName: String, context: Option[Any] = None) {
 
@@ -532,14 +537,14 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
   * Contains configurations for commits and pushes, while configs are added, there are no modifications to the
   * dataflow, as it waits for a validation before execution.
   *
-  * @param commits  Map[ COMMIT_NAME, Seq[CommitEntry] ]
-  * @param pushes   Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
-  *                 lazy definitions of the data flows, validation will have to catch it.
+  * @param commits Map[ COMMIT_NAME, Seq[CommitEntry] ]
+  * @param pushes  Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
+  *                lazy definitions of the data flows, validation will have to catch it.
   */
 case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter]]) {
 
-  def addCommits(commitName: String, labels: Seq[String], partitions: Seq[String] = Seq.empty, repartition: Boolean = true): CommitMeta = {
-    val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition))
+  def addCommits(commitName: String, labels: Seq[String], partitions: Seq[String], repartition: Boolean, cacheLabels: Boolean): CommitMeta = {
+    val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition, cacheLabels))
     this.copy(commits = commits + (commitName -> nextCommits))
   }
 
@@ -576,8 +581,8 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
   /**
     * Checks if commits refer to labels that are not produced in the flow.
     *
-    * @param presentLabels  labels that are produced in the data flow
-    * @return               Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
+    * @param presentLabels labels that are produced in the data flow
+    * @return Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
     */
   def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty)
 
@@ -592,19 +597,14 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
       val notPresent = phantomLabels(outputLabels).mapValues(_.mkString("{", ", ", "}"))
       if (notPresent.nonEmpty) throw new DataFlowException(s"Commit definitions with labels that are not produced by any action: ${notPresent.mkString("[", ", ", "]")}")
 
-      val usedForInputs = commits.mapValues(_.map(_.label).filter(inputLabels.contains)).filter(_._2.nonEmpty).mapValues(_.mkString("{", ", ", "}"))
-      if (usedForInputs.nonEmpty) throw new DataFlowException(s"Labels used in commits can not be used as inputs to other actions: [${usedForInputs.mkString("[", ", ", "]")}]. To commit this label use alias.")
-
-      val usedInMultipleCommits = labelsUsedInMultipleCommits().map(_.map(kv => kv._1 + " -> " + kv._2.mkString("[", ", ", "]")).mkString("(", ", ", ")"))
-      if (usedInMultipleCommits.isDefined) throw new DataFlowException(s"Same label can not be used in more than one commit. (Label -> [Commit Names]): ${usedInMultipleCommits.get}")
     }.flatMap(_ => validateCommitters(dataFlow))
   }
 }
 
 object CommitMeta {
 
-  def empty(): CommitMeta = new CommitMeta(Map.empty, Map.empty)
+  def empty: CommitMeta = new CommitMeta(Map.empty, Map.empty)
 
 }
 
-case class CommitEntry(label: String, commitName: String, partitions: Seq[String], repartition: Boolean)
+case class CommitEntry(label: String, commitName: String, partitions: Seq[String], repartition: Boolean, cache: Boolean)

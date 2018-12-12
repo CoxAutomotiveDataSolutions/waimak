@@ -2,13 +2,13 @@ package com.coxautodata.waimak.metastore
 
 import java.io.File
 
-import com.coxautodata.waimak.dataflow.{DFExecutorPriorityStrategies, Waimak}
-import com.coxautodata.waimak.dataflow.spark.TestSparkData.{basePath, persons, purchases}
-import com.coxautodata.waimak.dataflow.spark._
-import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.SparkSession
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
+import com.coxautodata.waimak.dataflow.spark.TestSparkData.basePath
+import com.coxautodata.waimak.dataflow.spark._
+import com.coxautodata.waimak.dataflow.{DFExecutorPriorityStrategies, Waimak}
+import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.SparkSession
 
 class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
@@ -71,39 +71,47 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
   }
 
-  describe("stageAndCommitParquetToDB") {
+  describe("with snapshots, with DB commits") {
 
     it("stage csv to parquet and commit to impala") {
       val spark = sparkSession
-      import spark.implicits._
       val executor = Waimak.sparkExecutor()
 
-      val connector = ImpalaDummyConnector(spark)
+      val connector1 = ImpalaDummyConnector(spark)
+      val connector2 = ImpalaDummyConnector(spark)
       val connectorRecreate = ImpalaDummyConnector(spark, forceRecreateTables = true)
 
       val baseDest = testingBaseDir + "/dest"
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
         .alias("csv_2", "person_recreate")
-        .stageAndCommitParquetToDB(connector)(baseDest, partitions = Seq("amount"))("items")
-        .stageAndCommitParquetToDB(connector)(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-        .stageAndCommitParquetToDB(connectorRecreate)(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person_recreate")
+        .commit("connector1", partitions = Seq("amount"))("items")
+        .commit("connector2WithSnapshot")("person")
+        .commit("connectorRecreateWithSnapshot")("person_recreate")
+        .push("connector1")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector1))
+        .push("connector2WithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector2).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
+        .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
 
-      val (executedActions, finalState) = executor.execute(flow)
+      val (_, finalState) = executor.execute(flow)
       finalState.inputs.size should be(5)
 
       val itemsParquet = new File(testingBaseDirName, "dest/items/amount=1").list().filter(_.endsWith(".parquet")).head
       val personParquet = new File(testingBaseDirName, "dest/person/generatedTimestamp=2018-03-13-16-19-00").list().filter(_.endsWith(".parquet")).head
       val person_recreateParquet = new File(testingBaseDirName, "dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00").list().filter(_.endsWith(".parquet")).head
 
-      connector.ranDDLs should be {
+      connector1.ranDDLs should be {
         List(List(
           "drop table if exists items",
           s"create external table if not exists items like parquet 'file:$testingBaseDirName/dest/items/amount=1/$itemsParquet' partitioned by (amount string) stored as parquet location '$testingBaseDirName/dest/items'",
-          "alter table items recover partitions",
+          "alter table items recover partitions"
+        ))
+      }
+
+      connector2.ranDDLs should be {
+        List(List(
           s"create external table if not exists person like parquet 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00/$personParquet' stored as parquet location '$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
           s"alter table person set location '$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
         ))
@@ -116,13 +124,10 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
         ))
       }
     }
-  }
 
-  describe("with snapshots, with DB commits") {
 
     it("multiple tables, multiple snapshots, with cleaning and DB commit") {
       val spark = sparkSession
-      import spark.implicits._
 
       val executor = Waimak.sparkExecutor(1, DFExecutorPriorityStrategies.preferLoaders)
 
@@ -138,18 +143,18 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
       flowPrePush.flowContext.fileSystem.exists(new Path(baseDest)) should be(false)
 
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_567")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181101_123001_568")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_567")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181103_123001_568")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_567")))
-      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).snapshotFolder("snapshot=20181105_123001_568")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181101_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181101_123001_568")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181103_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181103_123001_568")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181105_123001_567")))
+      executor.execute(flowPrePush.push("comm_1")(ParquetDataCommitter(baseDest).withSnapshotFolder("snapshot=20181105_123001_568")))
 
       executor.execute(flowPrePush.push("comm_1")(
         ParquetDataCommitter(baseDest)
-          .snapshotFolder("snapshot=20181105_123001_569")
-          .dateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3)
-          .connection(connectorRecreate)
+          .withSnapshotFolder("snapshot=20181105_123001_569")
+          .withDateBasedSnapshotCleanup("snapshot", "yyyyMMdd_HHmmss_SSS", 3)
+          .withHadoopDBConnector(connectorRecreate)
       )
       )
 
