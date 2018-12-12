@@ -54,11 +54,27 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
       }
 
 
-      it("action does not have non empty input") {
+      it("action does have an empty input and errorOnUnexecutedActions is true") {
         val action = new TestPresetAction(List("i1"), List("t1", "t2"), func2, true)
         val flow = emptyFlow.addInput("i1", None).addAction(action)
 
-        val res = executor.execute(flow)
+        val res = intercept[DataFlowException] {
+          executor.execute(flow)
+        }
+        res.text should be(
+          "There were actions in the flow that did not run. " +
+            "If this was intentional you can allow unexecuted actions by " +
+            "setting the flag [errorOnUnexecutedActions=false] when calling " +
+            "the execute method.\nThe actions that did not run were:\n" +
+            s"${action.logLabel}"
+        )
+      }
+
+      it("action does have an empty input and errorOnUnexecutedActions is false") {
+        val action = new TestPresetAction(List("i1"), List("t1", "t2"), func2, true)
+        val flow = emptyFlow.addInput("i1", None).addAction(action)
+
+        val res = executor.execute(flow, errorOnUnexecutedActions = false)
         res._1 should be(Seq.empty)
         res._2.inputs should be(DataFlowEntities(Map("i1" -> None)))
         res._2.actions should be(Seq(action))
@@ -138,7 +154,7 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         res._2.actions should be(Seq.empty)
       }
 
-      it("executed 2 waves, one action in wave 1 returned empty") {
+      it("executed 2 waves, one action in wave 1 returned empty, errorOnUnexecutedActions is true") {
         val action_1 = new TestPresetAction(List.empty, List("t1", "t2"), func2)
         val action_2 = new TestPresetAction(List.empty, List("t3", "t4"), func1(Seq(Some("v3"), None)))
         val action_3 = new TestPresetAction(List("t1", "t2"), List("t5", "t6"), func2)
@@ -146,7 +162,26 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
         val flow = emptyFlow.addAction(action_1).addAction(action_2)
           .addAction(action_3).addAction(action_4)
 
-        val res = executor.execute(flow)
+        val res = intercept[DataFlowException] {
+          executor.execute(flow)
+        }
+        res.text should be(
+          "There were actions in the flow that did not run. " +
+            "If this was intentional you can allow unexecuted actions by " +
+            "setting the flag [errorOnUnexecutedActions=false] when calling " +
+            "the execute method.\nThe actions that did not run were:\n" +
+            s"${action_4.logLabel}")
+      }
+
+      it("executed 2 waves, one action in wave 1 returned empty, errorOnUnexecutedActions is false") {
+        val action_1 = new TestPresetAction(List.empty, List("t1", "t2"), func2)
+        val action_2 = new TestPresetAction(List.empty, List("t3", "t4"), func1(Seq(Some("v3"), None)))
+        val action_3 = new TestPresetAction(List("t1", "t2"), List("t5", "t6"), func2)
+        val action_4 = new TestPresetAction(List("t2", "t4"), List("t7", "t8"), func2)
+        val flow = emptyFlow.addAction(action_1).addAction(action_2)
+          .addAction(action_3).addAction(action_4)
+
+        val res = executor.execute(flow, errorOnUnexecutedActions = false)
 
         res._1 should be(Seq(action_1, action_2, action_3))
         res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "t3" -> Some("v3"), "t4" -> None

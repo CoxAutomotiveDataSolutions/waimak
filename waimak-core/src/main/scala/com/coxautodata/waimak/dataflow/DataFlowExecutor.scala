@@ -13,25 +13,44 @@ trait DataFlowExecutor extends Logging {
   /**
     * Executes as many actions as possible with the given DAG, stops when no more actions can be executed.
     *
-    * @param dataFlow initial state with actions to execute and set inputs from previous actions
+    * @param dataFlow                 initial state with actions to execute and set inputs from previous actions
+    * @param errorOnUnexecutedActions whether to throw an exception if some actions on the flow did not execute.
+    *                                 Default is true
     * @return (Seq[EXECUTED ACTIONS], FINAL STATE). Final state does not contain the executed actions and the outputs
     *         of the executed actions are now in the inputs
     */
-  def execute(dataFlow: DataFlow): (Seq[DataFlowAction], DataFlow) = {
+  def execute(dataFlow: DataFlow, errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], DataFlow) = {
 
-    dataFlow
+    val (executedActions, finalFlow) = dataFlow
       .prepareForExecution()
       .map(loopExecution(_, initActionScheduler(), Seq.empty))
-        .flatMap { executionResults: (ActionScheduler, Try[(Seq[DataFlowAction], DataFlow)]) =>
-          executionResults._1.shutDown() match {
-            case Failure(e) => logError("Problem shutting down execution pools", e)
-            case _ => logInfo("Execution pools were shutdown ok.")
-          }
-          executionResults._2
-        }.get
+      .flatMap { executionResults: (ActionScheduler, Try[(Seq[DataFlowAction], DataFlow)]) =>
+        executionResults._1.shutDown() match {
+          case Failure(e) => throw new DataFlowException("Problem shutting down execution pools", e)
+          case _ => logDebug("Execution pools were shutdown ok.")
+        }
+        executionResults._2
+      }.get
+
+    finalFlow
+      .actions
+      .map(_.logLabel)
+      .reduceLeftOption((z, a) => s"$z\n$a")
+      .foreach {
+        case a if errorOnUnexecutedActions =>
+          throw new DataFlowException(
+            s"There were actions in the flow that did not run. If this was intentional you can allow unexecuted actions " +
+              s"by setting the flag [errorOnUnexecutedActions=false] when calling the execute method.\n" +
+              s"The actions that did not run were:\n$a"
+          )
+        case a => logWarning(s"The following actions did not run:\n$a")
+      }
+
+    (executedActions, finalFlow)
+
   }
 
-  
+
   /**
     * Used to report events on the flow.
     */
