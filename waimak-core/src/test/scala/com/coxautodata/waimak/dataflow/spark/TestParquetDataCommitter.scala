@@ -174,7 +174,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         res should be(Success())
       }
 
-      it("commit a parquet and make sure one label is cached and one is not") {
+      it("commit a parquet and make sure one label is cached if it is used as input elsewhere") {
         val spark = sparkSession
         import spark.implicits._
 
@@ -182,16 +182,15 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
-          .alias("csv_1", "parquet_1")
-          .alias("csv_1", "parquet_2")
-          .commit("commit")("parquet_1")
-          .commit("commit", cacheLabels = false)("parquet_2")
+          .alias("csv_1", "items")
+          .commit("commit")("items")
           .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
+          .alias("items", "items_aliased")
 
         val (ex, _) = Waimak.sparkExecutor().execute(flow)
 
         // Check to see if the alias action has been intercepted
-        val interceptorAction = ex.filter(_.outputLabels.contains("parquet_1")).head
+        val interceptorAction = ex.filter(_.outputLabels.contains("items")).head
         interceptorAction shouldBe a[PostActionInterceptor[_]]
 
         // Check the post action is a cache
@@ -199,12 +198,130 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         typedInterceptorAction.postActions.length should be(1)
         typedInterceptorAction.postActions.head shouldBe a[CachePostAction[_]]
 
+        spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should be(purchases)
+      }
+
+      it("commit a parquet and make sure one label is cached if it is used in multiple commit groups") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest1 = testingBaseDir + "/dest1"
+        val baseDest2 = testingBaseDir + "/dest2"
+        val baseDest3 = testingBaseDir + "/dest3"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest1/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit1")("items")
+          .commit("commit2")("items")
+          .commit("commit3")("items")
+          .push("commit1")(ParquetDataCommitter(baseDest1).withSnapshotFolder("generated_timestamp=20180509094500"))
+          .push("commit2")(ParquetDataCommitter(baseDest2).withSnapshotFolder("generated_timestamp=20180509094500"))
+          .push("commit3")(ParquetDataCommitter(baseDest3).withSnapshotFolder("generated_timestamp=20180509094500"))
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        // Check to see if the alias action has been intercepted
+        val interceptorAction = ex.filter(_.outputLabels.contains("items")).head
+        interceptorAction shouldBe a[PostActionInterceptor[_]]
+
+        // Check the post action is a cache
+        val typedInterceptorAction = interceptorAction.asInstanceOf[PostActionInterceptor[Dataset[_]]]
+        typedInterceptorAction.postActions.length should be(1)
+        typedInterceptorAction.postActions.head shouldBe a[CachePostAction[_]]
+
+        spark.read.parquet(s"$baseDest1/items").as[TPurchase].collect() should be(purchases)
+        spark.read.parquet(s"$baseDest2/items").as[TPurchase].collect() should be(purchases)
+        spark.read.parquet(s"$baseDest3/items").as[TPurchase].collect() should be(purchases)
+      }
+
+      it("commit a parquet and make sure one label is not cached even though the hint was given as it is not used as input in another action") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit")("items")
+          .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
         // Check alias action has not been intercepted
-        val notInterceptorAction = ex.filter(_.outputLabels.contains("parquet_2")).head
+        val notInterceptorAction = ex.filter(_.outputLabels.contains("items")).head
         notInterceptorAction should not be an[PostActionInterceptor[_]]
 
-        spark.read.parquet(s"$baseDest/parquet_1").as[TPurchase].collect() should be(purchases)
-        spark.read.parquet(s"$baseDest/parquet_2").as[TPurchase].collect() should be(purchases)
+        spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should be(purchases)
+      }
+
+      it("commit a parquet and make sure one label is not cached as the hint was false") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit", cacheLabels = false)("items")
+          .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        // Check alias action has not been intercepted
+        val notInterceptorAction = ex.filter(_.outputLabels.contains("items")).head
+        notInterceptorAction should not be an[PostActionInterceptor[_]]
+
+        spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should be(purchases)
+      }
+
+      it("commit a parquet and make sure one label is not cached as the hint was false but the label is used as input to another commit group") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit", cacheLabels = false)("items")
+          .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
+          .alias("items", "items_aliased")
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        // Check alias action has not been intercepted
+        val notInterceptorAction = ex.filter(_.outputLabels.contains("items")).head
+        notInterceptorAction should not be an[PostActionInterceptor[_]]
+
+        spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should be(purchases)
+      }
+
+      it("commit a parquet and make sure one label is not cached as the hint was false but the label is used in multiple commit groups") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest1 = testingBaseDir + "/dest1"
+        val baseDest2 = testingBaseDir + "/dest2"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest1/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit1", cacheLabels = false)("items")
+          .commit("commit2", cacheLabels = false)("items")
+          .push("commit1")(ParquetDataCommitter(baseDest1).withSnapshotFolder("generated_timestamp=20180509094500"))
+          .push("commit2")(ParquetDataCommitter(baseDest2).withSnapshotFolder("generated_timestamp=20180509094500"))
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        // Check alias action has not been intercepted
+        val notInterceptorAction = ex.filter(_.outputLabels.contains("items")).head
+        notInterceptorAction should not be an[PostActionInterceptor[_]]
+
+        spark.read.parquet(s"$baseDest1/items").as[TPurchase].collect() should be(purchases)
+        spark.read.parquet(s"$baseDest2/items").as[TPurchase].collect() should be(purchases)
       }
 
     }
