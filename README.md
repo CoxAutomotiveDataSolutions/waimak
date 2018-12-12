@@ -1,19 +1,26 @@
 # Waimak
 
 [![Build Status](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak.svg?branch=develop)](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak) 
-[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.11.svg)](http://search.maven.org/#search%7Cga%7C1%7Cwaimak) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.11.svg)](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak*) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-<img align="right" src="./images/waimak.png">
+<img align="right" src="./images/waimak.svg">
 
 ## What is Waimak?
 
-Waimak is an open-source framework that makes it easier to build, test and deploy complex data flows in Apache Spark.
+Waimak is an open-source framework that makes it easier to create complex data flows in Apache Spark.
+
+Waimak aims to abstract the more complex parts of Spark application development (such as orchestration) away from the business logic, allowing users to get their business logic in a production-ready state much faster. By using a framework written by Data Engineers, the teams defining the business logic can write and own their production code.
+
+Our metaphor to describe this framework is the braided river – it splits and rejoins to itself repeatedly on its journey. By describing a Spark application as a sequence of flow transformations, Waimak can execute independent branches of the flow in parallel making more efficient use of compute resources and greatly reducing the execution time of complex flows.
 
 ## Why would I use Waimak?
+We developed Waimak to:
+* allow teams to own their own business logic without owning an entire production Spark application
+* reduce the time it takes to write production-ready Spark applications
+* provide an intuitive structure to Spark applications by describing them as a sequence of transformations forming a flow
+* increase the performance of Spark data flows by making more efficient use of the Spark executors
 
-* Separate logic
-* Provide Structure
-* Performance
+Importantly, Waimak is a framework for building Spark applications by describing a sequence of composed Spark transformations. To create those transformations Waimak exposes the complete Spark API, giving you the power of Apache Spark with added structure.
 
 ## How do I get started?
 
@@ -67,14 +74,14 @@ Waimak currently consists of the following modules:
 
 Artifact ID | Purpose | Maven Release
 ----------- | ------- | -------------
-`waimak-core` | Core Waimak functionality and generic actions | [Maven Central](https://search.maven.org/search?q=a:waimak-core*) 
-`waimak-azure-table` | Functionality to write outputs to Azure Tables | [Maven Central](https://search.maven.org/search?q=a:waimak-azure-table*)
-`waimak-configuration` | Non-flow functionality to simplify configuration | [Maven Central](https://search.maven.org/search?q=a:waimak-configuration*)
-`waimak-rdbm-export` | Functionality to write outputs to MSSQL databases | [Maven Central](https://search.maven.org/search?q=a:waimak-rdbm-export*)
-`waimak-impala` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](https://search.maven.org/search?q=a:waimak-impala*)
-`waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=a:waimak-hive*)
-`waimak-rdbm-ingestion` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](https://search.maven.org/search?q=a:waimak-rdbm-ingestion*)
-`waimak-storage` | Functionality for providing a hot/cold region-based ingestion storage layer | [Maven Central](https://search.maven.org/search?q=a:waimak-storage*)
+`waimak-core` | Core Waimak functionality and generic actions | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-core*) 
+`waimak-azure-table` | Functionality to write outputs to Azure Tables | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-azure-table*)
+`waimak-configuration` | Non-flow functionality to simplify configuration | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration*)
+`waimak-rdbm-export` | Functionality to write outputs to MSSQL databases | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-export*)
+`waimak-impala` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-impala*)
+`waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-hive*)
+`waimak-rdbm-ingestion` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-ingestion*)
+`waimak-storage` | Functionality for providing a hot/cold region-based ingestion storage layer | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-storage*)
 
 ## What versions of Spark are supported?
 

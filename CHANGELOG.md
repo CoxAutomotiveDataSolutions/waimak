@@ -23,7 +23,7 @@
 
 ### Fixed
 - Fixed issue where reading from the storage layer can fail whilst another job is writing to the storage layer (non-compaction write) due to cached region info being overwritten
-- Partitions within regions are now calculated on total size (`columns * rows`) instead of just number of rows. This should reduce partition sizes in the case of wide tables
+- Partitions within regions in the storage layer are now calculated on total size (`columns * rows`) instead of just number of rows. This should reduce partition sizes in the case of wide tables
 - Upgraded the Scala 2.11 compiler version due to a vulnerability in earlier versions
 
 ## 1.5.2 - 2018-10-09
