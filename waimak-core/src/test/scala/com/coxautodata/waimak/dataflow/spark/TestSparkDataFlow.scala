@@ -559,7 +559,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       }
 
-      it("tag dependent action depends on an action that does not run and therefore does not run") {
+      it("tag dependent action depends on an action that does not run and therefore does not run and errorOnUnexecutedActions is true") {
         val spark = sparkSession
         val baseDest = testingBaseDir + "/dest"
 
@@ -572,7 +572,34 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
             _.openCSV(basePath)("csv_1")
           }
 
-        val (executed, _) = executor.execute(flow)
+        val res = intercept[DataFlowException]{
+          executor.execute(flow)
+        }
+        res.text should be(
+          "There were actions in the flow that did not run. " +
+            "If this was intentional you can allow unexecuted actions by " +
+            "setting the flag [errorOnUnexecutedActions=false] when calling " +
+            "the execute method.\nThe actions that did not run were:\n" +
+            s"${flow.actions.find(_.outputLabels.contains("test_2")).get.logLabel}\n" +
+            s"${flow.actions.find(_.outputLabels.contains("csv_1")).get.logLabel}"
+        )
+
+      }
+
+      it("tag dependent action depends on an action that does not run and therefore does not run and errorOnUnexecutedActions is false") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .addInput("test_1", None)
+          .tag("tag1") {
+            _.transform("test_1")("test_2")(df => df)
+          }
+          .tagDependency("tag1") {
+            _.openCSV(basePath)("csv_1")
+          }
+
+        val (executed, _) = executor.execute(flow, errorOnUnexecutedActions = false)
         executed.size should be(0)
 
       }
