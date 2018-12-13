@@ -43,8 +43,6 @@ import scala.collection.JavaConverters._
   *
   * @param pools                           details of the execution pools: name, limits, running actions, thread pool
   * @param actionFinishedNotificationQueue thread safe queue through which threads that have finished actions will communicate back to the scheduler
-  * @param poolIntoContext                 callback function that is called to let context know that an action is about to be executed
-  * @tparam C
   */
 class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
                               , val actionFinishedNotificationQueue: BlockingQueue[(String, DataFlowAction, Try[ActionResult])]

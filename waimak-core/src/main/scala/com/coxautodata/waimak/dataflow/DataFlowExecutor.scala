@@ -103,8 +103,9 @@ trait DataFlowExecutor extends Logging {
                               , successfulActions: Seq[DataFlowAction]): Try[(DataFlow, ActionScheduler, Seq[DataFlowAction])] = {
     val (newScheduler, actionResults) = actionScheduler.waitToFinish(currentFlow.flowContext, flowReporter)
     processActionResults(actionResults, currentFlow, successfulActions)
-      .map {
-        case (newFlow, newSuccessfulActions) => (newFlow, newScheduler, newSuccessfulActions)
+      .flatMap {
+        case (newFlow, newSuccessfulActions) if !newScheduler.hasRunningActions => Success(newFlow, newScheduler, newSuccessfulActions)
+        case (newFlow, newSuccesfulActions) => waitForAnActionToFinish(newFlow, newScheduler, newSuccesfulActions)
       }
       .recoverWith {
         case e: Throwable =>
