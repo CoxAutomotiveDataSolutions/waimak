@@ -39,7 +39,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
 
   protected val tablePath = new Path(baseFolder, tableInfo.table_name)
 
-  protected val regionInfoBasePath = new Path(baseFolder, AuditTableFile.REGION_INFO_DIRECTORY)
+  protected[storage] val regionInfoBasePath = new Path(baseFolder, AuditTableFile.REGION_INFO_DIRECTORY)
 
   protected val coldPath = new Path(tablePath, s"$STORE_TYPE_COLUMN=$COLD_PARTITION")
 
@@ -180,6 +180,8 @@ class AuditTableFile(val tableInfo: AuditTableInfo
 
         val data = storageOps.openParquet(typePath)
         val newRegionSet = data.map { rows =>
+          //Clear current region info to prevent corruption on failure
+          clearTableRegionCache(this)
           val currentNumPartitions = rows.rdd.getNumPartitions
           val newNumPartitions = calculateNumPartitions(rows.schema, toCompact.map(_.count).sum, cellsPerPartition)
           val rowsToCompact = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN)
@@ -268,6 +270,13 @@ object AuditTableFile extends Logging {
       overwrite = appendedRegions.isEmpty,
       tempSubfolder = Some(REGION_INFO_DIRECTORY))
     new AuditTableFile(audit.tableInfo, allRegions, audit.storageOps, audit.baseFolder, audit.newRegionID)
+  }
+
+  def clearTableRegionCache(audit: AuditTableFile): Unit = {
+    val tableRegionInfoPath = new Path(audit.regionInfoBasePath, audit.tableName)
+    Try(audit.storageOps.deletePath(tableRegionInfoPath, recursive = true))
+      .recover { case e => throw StorageException(s"Failed to delete region information for table [${audit.tableName}]", e) }
+      .get
   }
 
   /**

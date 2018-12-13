@@ -7,6 +7,8 @@ import java.time.Duration
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPersonEvolved}
 import com.coxautodata.waimak.storage.AuditTableFile._
+import org.apache.hadoop.fs.permission.FsAction._
+import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.TimestampType
@@ -526,6 +528,42 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
       fs.globStatus(new Path(basePath, "purchase/*/*/part-*")).length should be(2)
       fs.globStatus(new Path(basePath, "rep/*/*/part-*")).length should be(3)
+    }
+  }
+
+  describe("clearTableRegionCache") {
+
+    it("should not error if the region information does not exist") {
+      val audit = createADTable("purchase", createFops()).initNewTable().get
+      val regionInfo = new Path(audit.regionInfoBasePath, audit.tableName)
+      val fs = FileSystem.getLocal(sparkSession.sparkContext.hadoopConfiguration)
+      fs.delete(regionInfo, true)
+      fs.exists(regionInfo) should be (false)
+      AuditTableFile.clearTableRegionCache(audit)
+      fs.exists(regionInfo) should be (false)
+    }
+
+    it("should clean up region information") {
+      val audit = createADTable("purchase", createFops()).initNewTable().get
+      val regionInfo = new Path(audit.regionInfoBasePath, audit.tableName)
+      val fs = FileSystem.getLocal(sparkSession.sparkContext.hadoopConfiguration)
+      fs.mkdirs(regionInfo)
+      fs.exists(regionInfo) should be (true)
+      AuditTableFile.clearTableRegionCache(audit)
+      fs.exists(regionInfo) should be (false)
+    }
+
+    it("should thrown an exception if it could not delete region information") {
+      val audit = createADTable("purchase", createFops()).initNewTable().get
+      val regionInfo = new Path(audit.regionInfoBasePath, audit.tableName)
+      val fs = FileSystem.getLocal(sparkSession.sparkContext.hadoopConfiguration)
+      fs.mkdirs(regionInfo, new FsPermission(READ_EXECUTE, READ_EXECUTE, READ_EXECUTE))
+      val res = intercept[StorageException] {
+        AuditTableFile.clearTableRegionCache(audit)
+      }
+      res.text should be("Failed to delete region information for table [purchase]")
+      // Clean up permissions
+      fs.setPermission(regionInfo, new FsPermission(ALL, READ_EXECUTE, READ_EXECUTE))
     }
   }
 }
