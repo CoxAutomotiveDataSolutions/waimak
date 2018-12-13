@@ -293,15 +293,28 @@ object AuditTableFile extends Logging {
     */
   def inferRegionsWithStats(sparkSession: SparkSession, fileStorage: FileStorageOps, basePath: Path, tableNames: Seq[String], includeHot: Boolean = true, skipRegionInfoCache: Boolean = false): Seq[AuditTableRegionInfo] = {
 
-    val fromCache = if (skipRegionInfoCache) Seq.empty else inferRegionsFromCache(fileStorage, basePath, tableNames, includeHot)
+    // Get all region info from cache and paths
+    val allCacheInfo = {
+      if (skipRegionInfoCache)
+        Map.empty[(String, String, String), AuditTableRegionInfo]
+      else
+        inferRegionsFromCache(fileStorage, basePath, tableNames, includeHot).map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
+    }
+    val allPathInfo = inferRegionsFromPaths(fileStorage, basePath, tableNames, includeHot).map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
 
-    //Only infer regions using paths and parquet from tables that are not in the cache
-    val tablesMissingFromCache = (tableNames.toSet diff fromCache.map(_.table_name).toSet).toSeq
-    val fromPaths = inferRegionsFromPaths(fileStorage, basePath, tablesMissingFromCache, includeHot).map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
+    // Keep only cached info that matches files as the region info might be invalid
+    val cacheInfoByTable = allCacheInfo.keySet.groupBy(_._1)
+    val pathInfoByTable = allPathInfo.keySet.groupBy(_._1)
+    val validCachedTables = cacheInfoByTable.filter{ case (t, r) => pathInfoByTable.get(t).contains(r)}.keySet
+    val validCacheInfo = allCacheInfo.filterKeys(t => validCachedTables.contains(t._1)).values
+
+    //Only infer regions using paths and parquet from tables that are not in the cache or the cache looks invalid
+    val tablesMissingFromCache = (tableNames.toSet diff validCachedTables).toSeq
+    val fromPaths = allPathInfo.filterKeys(k => tablesMissingFromCache.contains(k._1))
     val fromParquet = inferRegionsFromParquet(sparkSession, fileStorage, basePath, tablesMissingFromCache, includeHot).map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
 
     //Merge regions, take preference for fromParquet, then combine with cache-backed region info
-    (fromPaths.keySet ++ fromParquet.keySet).toSeq.map(k => fromParquet.getOrElse(k, fromPaths(k))) ++ fromCache
+    (fromPaths.keySet ++ fromParquet.keySet).toSeq.map(k => fromParquet.getOrElse(k, fromPaths(k))) ++ validCacheInfo
   }
 
   private[storage] def inferRegionsFromCache(fileStorage: FileStorageOps, basePath: Path, tableNames: Seq[String], includeHot: Boolean): Seq[AuditTableRegionInfo] = {
