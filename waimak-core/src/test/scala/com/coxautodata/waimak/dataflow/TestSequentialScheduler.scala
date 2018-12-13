@@ -69,14 +69,14 @@ class TestSequentialScheduler extends FunSpec with Matchers {
   describe("SequentialScheduler.waitToFinish") {
 
     it("nothing is running") {
-      val error = emptyScheduler.waitToFinish(flowContext, reporter)
-      error.failed.get.getMessage should be("Error while waiting to finish")
+      val error = intercept[RuntimeException](emptyScheduler.waitToFinish(flowContext, reporter))
+      error.getMessage should be("Called waitToFinish when there is nothing to run")
     }
 
     it("an input only one action is running") {
       val res = schedulerWithAction.waitToFinish(flowContext, reporter)
-      res.get._1.asInstanceOf[SequentialScheduler].toRun should be(None)
-      res.get._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
+      res._1.asInstanceOf[SequentialScheduler].toRun should be(None)
+      res._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
     }
 
   }
@@ -91,8 +91,8 @@ class TestSequentialScheduler extends FunSpec with Matchers {
 
     it("an input only one action is running") {
       val res = schedulerWithAction.waitToFinish(flowContext, reporter)
-      res.get._1.asInstanceOf[SequentialScheduler].toRun should be(None)
-      res.get._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
+      res._1.asInstanceOf[SequentialScheduler].toRun should be(None)
+      res._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
     }
 
   }

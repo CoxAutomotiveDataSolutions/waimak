@@ -83,13 +83,8 @@ trait DataFlowExecutor extends Logging {
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
         (actionScheduler, Success((successfulActions, currentFlow)))
       case None => {
-        actionScheduler.waitToFinish(currentFlow.flowContext, flowReporter) match { // nothing to schedule, in order to continue need to wait for some running actions to finish to unlock other actions
-          case Success((newScheduler, actionResults)) => {
-            processActionResults(actionResults, currentFlow, successfulActions) match {
-              case Success((newFlow, newSuccessfulActions)) => loopExecution(newFlow, newScheduler, newSuccessfulActions)
-              case Failure(e) => (actionScheduler, Failure(e))
-            }
-          }
+        waitForAnActionToFinish(currentFlow, actionScheduler, successfulActions) match {
+          case Success((newFlow, newScheduler, newSuccessfulActions)) => loopExecution(newFlow, newScheduler, newSuccessfulActions)
           case Failure(e) => (actionScheduler, Failure(e))
         }
       }
@@ -102,6 +97,25 @@ trait DataFlowExecutor extends Logging {
       }
     }
   }
+
+  def waitForAnActionToFinish(currentFlow: DataFlow
+                              , actionScheduler: ActionScheduler
+                              , successfulActions: Seq[DataFlowAction]): Try[(DataFlow, ActionScheduler, Seq[DataFlowAction])] = {
+    val (newScheduler, actionResults) = actionScheduler.waitToFinish(currentFlow.flowContext, flowReporter)
+    processActionResults(actionResults, currentFlow, successfulActions)
+      .map {
+        case (newFlow, newSuccessfulActions) => (newFlow, newScheduler, newSuccessfulActions)
+      }
+      .recoverWith {
+        case e: Throwable =>
+          if (newScheduler.hasRunningActions) {
+            //Allow currently running actions to finish
+            waitForAnActionToFinish(currentFlow, newScheduler, successfulActions)
+          }
+          Failure(e)
+      }
+  }
+
 
   /**
     * Determines which execution pool to schedule in and an action to schedule into it.

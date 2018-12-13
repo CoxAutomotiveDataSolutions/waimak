@@ -42,7 +42,7 @@ trait ActionScheduler {
     * @param flowReporter  object that is used to signal start and end of the action execution
     * @return
     */
-  def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): Try[(ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])])]
+  def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): (ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])])
 
   /**
     * Submits action into the specified execution pool.
