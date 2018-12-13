@@ -100,18 +100,19 @@ trait DataFlowExecutor extends Logging {
 
   def waitForAnActionToFinish(currentFlow: DataFlow
                               , actionScheduler: ActionScheduler
-                              , successfulActions: Seq[DataFlowAction]): Try[(DataFlow, ActionScheduler, Seq[DataFlowAction])] = {
+                              , successfulActions: Seq[DataFlowAction]
+                              , cascade: Boolean = false): Try[(DataFlow, ActionScheduler, Seq[DataFlowAction])] = {
     val (newScheduler, actionResults) = actionScheduler.waitToFinish(currentFlow.flowContext, flowReporter)
     processActionResults(actionResults, currentFlow, successfulActions)
       .flatMap {
-        case (newFlow, newSuccessfulActions) if !newScheduler.hasRunningActions => Success(newFlow, newScheduler, newSuccessfulActions)
-        case (newFlow, newSuccesfulActions) => waitForAnActionToFinish(newFlow, newScheduler, newSuccesfulActions)
+        case (newFlow, newSuccessfulActions) if newScheduler.hasRunningActions && cascade => waitForAnActionToFinish(newFlow, newScheduler, newSuccessfulActions, true)
+        case (newFlow, newSuccessfulActions) => Success(newFlow, newScheduler, newSuccessfulActions)
       }
       .recoverWith {
         case e: Throwable =>
           if (newScheduler.hasRunningActions) {
             //Allow currently running actions to finish
-            waitForAnActionToFinish(currentFlow, newScheduler, successfulActions)
+            waitForAnActionToFinish(currentFlow, newScheduler, successfulActions, true)
           }
           Failure(e)
       }
