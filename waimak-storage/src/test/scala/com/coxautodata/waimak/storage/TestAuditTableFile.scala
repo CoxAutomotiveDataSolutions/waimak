@@ -389,27 +389,25 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       reportTable.append(reportData1, lastUpdated(reportData1), lastTS_2)
 
 
-      val inferredRegions = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq(personTableName, reportTablename)).sortBy(_.store_region)
-      inferredRegions should be(Seq(
-        AuditTableRegionInfo("person", "hot", "0", t1, false, 0, lowTimestamp)
-        , AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
+      val inferredRegions = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq(personTableName, reportTablename))
+      inferredRegions should contain theSameElementsAs Seq(
+        AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
+        , AuditTableRegionInfo("person", "hot", "0", t1, false, 0, lowTimestamp)
         , AuditTableRegionInfo("person", "hot", "1", t1, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "2", t2, false, 3, lastTS_2)
-      ))
+      )
 
       // Cached information should be valid
       val c1 = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq(personTableName, reportTablename), includeHot = true)
-        .sortBy(_.store_region)
         .map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
       val p1 = AuditTableFile.inferRegionsFromPaths(person.storageOps, basePath, Seq(personTableName, reportTablename), includeHot = true)
-        .sortBy(_.store_region)
         .map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
-      AuditTableFile.calculateValidCacheInfo(c1, p1) should be(Seq(
+      AuditTableFile.calculateValidCacheInfo(c1, p1) should contain theSameElementsAs Seq(
         AuditTableRegionInfo("person", "hot", "0", t1, false, 0, lowTimestamp)
         , AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "1", t1, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "2", t2, false, 3, lastTS_2)
-      ))
+      )
 
 
       // Force the cached region information to be invalid by removing a region
@@ -417,28 +415,26 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
       // Cached information should be invalid
       val c2 = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq(personTableName, reportTablename), includeHot = true)
-        .sortBy(_.store_region)
         .map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
       val p2 = AuditTableFile.inferRegionsFromPaths(person.storageOps, basePath, Seq(personTableName, reportTablename), includeHot = true)
-        .sortBy(_.store_region)
         .map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
-      c2.values.toSeq.sortBy(_.store_region) should be(Seq(
-        AuditTableRegionInfo("person", "hot", "0", t1, false, 0, lowTimestamp)
-        , AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
-        , AuditTableRegionInfo("person", "hot", "1", t1, false, 5, lastTS_1)
-      ))
-      AuditTableFile.calculateValidCacheInfo(c2, p2) should be(Seq(
+      c2.values.toSeq should contain theSameElementsAs Seq(
         AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
-      ))
+        , AuditTableRegionInfo("person", "hot", "0", t1, false, 0, lowTimestamp)
+        , AuditTableRegionInfo("person", "hot", "1", t1, false, 5, lastTS_1)
+      )
+      AuditTableFile.calculateValidCacheInfo(c2, p2) should contain theSameElementsAs Seq(
+        AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
+      )
 
       // The regions should be inferred correctly (they are lowtimestamp so all region info is from parquet)
-      val inferredRegions2 = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq(personTableName, reportTablename)).sortBy(_.store_region)
-      inferredRegions2 should be(Seq(
-        AuditTableRegionInfo("person", "hot", "0", lowTimestamp, false, 0, lowTimestamp)
-        , AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
+      val inferredRegions2 = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq(personTableName, reportTablename))
+      inferredRegions2 should contain theSameElementsAs Seq(
+        AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
+        , AuditTableRegionInfo("person", "hot", "0", lowTimestamp, false, 0, lowTimestamp)
         , AuditTableRegionInfo("person", "hot", "1", lowTimestamp, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "2", lowTimestamp, false, 3, lastTS_2)
-      ))
+      )
 
     }
 
@@ -467,27 +463,25 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       reportTable.append(reportData1, lastUpdated(reportData1), lastTS_2)
 
 
-      val inferredRegions = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq(personTableName, reportTablename)).sortBy(_.store_region)
-      inferredRegions should be(Seq(
+      val inferredRegions = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq(personTableName, reportTablename))
+      inferredRegions should contain theSameElementsAs Seq(
         AuditTableRegionInfo("person", "hot", "0", t1, false, 0, lowTimestamp)
         , AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "1", t1, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "2", t2, false, 3, lastTS_2)
-      ))
+      )
 
       // Cached information should be valid
       val c1 = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq(personTableName, reportTablename), includeHot = true)
-        .sortBy(_.store_region)
         .map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
       val p1 = AuditTableFile.inferRegionsFromPaths(person.storageOps, basePath, Seq(personTableName, reportTablename), includeHot = true)
-        .sortBy(_.store_region)
         .map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
-      AuditTableFile.calculateValidCacheInfo(c1, p1) should be(Seq(
+      AuditTableFile.calculateValidCacheInfo(c1, p1) should contain theSameElementsAs Seq(
         AuditTableRegionInfo("person", "hot", "0", t1, false, 0, lowTimestamp)
         , AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "1", t1, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "2", t2, false, 3, lastTS_2)
-      ))
+      )
 
 
       // Force the cached region information to be invalid by removing a region from the filesystem
@@ -497,28 +491,26 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
       // Cached information should be invalid
       val c2 = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq(personTableName, reportTablename), includeHot = true)
-        .sortBy(_.store_region)
         .map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
       val p2 = AuditTableFile.inferRegionsFromPaths(person.storageOps, basePath, Seq(personTableName, reportTablename), includeHot = true)
-        .sortBy(_.store_region)
         .map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
-      c2.values.toSeq.sortBy(_.store_region) should be(Seq(
+      c2.values.toSeq should contain theSameElementsAs Seq(
         AuditTableRegionInfo("person", "hot", "0", t1, false, 0, lowTimestamp)
         , AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "1", t1, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "2", t2, false, 3, lastTS_2)
-      ))
-      AuditTableFile.calculateValidCacheInfo(c2, p2) should be(Seq(
+      )
+      AuditTableFile.calculateValidCacheInfo(c2, p2) should contain theSameElementsAs Seq(
         AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
-      ))
+      )
 
       // The regions should be inferred correctly (they are lowtimestamp so all region info is from parquet)
-      val inferredRegions2 = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq(personTableName, reportTablename)).sortBy(_.store_region)
-      inferredRegions2 should be(Seq(
+      val inferredRegions2 = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq(personTableName, reportTablename))
+      inferredRegions2 should contain theSameElementsAs Seq(
         AuditTableRegionInfo("person", "hot", "0", lowTimestamp, false, 0, lowTimestamp)
         , AuditTableRegionInfo("report", "hot", "0", lastTS_2, false, 5, lastTS_1)
         , AuditTableRegionInfo("person", "hot", "1", lowTimestamp, false, 5, lastTS_1)
-      ))
+      )
 
     }
   }
