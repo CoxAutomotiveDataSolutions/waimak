@@ -553,17 +553,5 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       fs.exists(regionInfo) should be (false)
     }
 
-    it("should thrown an exception if it could not delete region information") {
-      val audit = createADTable("purchase", createFops()).initNewTable().get
-      val regionInfo = new Path(audit.regionInfoBasePath, audit.tableName)
-      val fs = FileSystem.getLocal(sparkSession.sparkContext.hadoopConfiguration)
-      fs.mkdirs(regionInfo, new FsPermission(READ_EXECUTE, READ_EXECUTE, READ_EXECUTE))
-      val res = intercept[StorageException] {
-        AuditTableFile.clearTableRegionCache(audit)
-      }
-      res.text should be("Failed to delete region information for table [purchase]")
-      // Clean up permissions
-      fs.setPermission(regionInfo, new FsPermission(ALL, READ_EXECUTE, READ_EXECUTE))
-    }
   }
 }
