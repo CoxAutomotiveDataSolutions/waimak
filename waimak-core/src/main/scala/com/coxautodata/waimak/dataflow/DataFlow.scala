@@ -144,7 +144,11 @@ trait DataFlow extends Logging {
     */
   def tag[S <: DataFlow](tags: String*)(taggedFlow: this.type => S): this.type = {
     val (alreadyActiveTags, newTags) = tags.toSet.partition(tagState.activeTags.contains)
-    logInfo(s"The following tags are already active, therefore the outer (wider) tagging scope will take precedence: ${alreadyActiveTags.mkString(", ")}")
+
+    alreadyActiveTags
+      .reduceLeftOption((z, t) => s"$z, $t")
+      .foreach(t => logInfo(s"The following tags are already active, therefore the outer (wider) tagging scope will take precedence: $t"))
+
     val newTagState = tagState.copy(activeTags = tagState.activeTags union newTags)
     val intermediateFlow = taggedFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeTags = intermediateFlow.tagState.activeTags diff newTags)
@@ -161,7 +165,11 @@ trait DataFlow extends Logging {
     */
   def tagDependency[S <: DataFlow](depTags: String*)(tagDependentFlow: this.type => S): this.type = {
     val (alreadyActiveDeps, newDeps) = depTags.toSet.partition(tagState.activeDependentOnTags.contains)
-    logInfo(s"The following tag dependencies are already active, therefore the outer (wider) tag dependency scope will take precedence: ${alreadyActiveDeps.mkString(", ")}")
+
+    alreadyActiveDeps
+      .reduceLeftOption((z, t) => s"$z, $t")
+      .foreach(t => logInfo(s"The following tag dependencies are already active, therefore the outer (wider) tag dependency scope will take precedence: $t"))
+
     val newTagState = tagState.copy(activeDependentOnTags = tagState.activeDependentOnTags union newDeps)
     val intermediateFlow = tagDependentFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeDependentOnTags = intermediateFlow.tagState.activeDependentOnTags diff newDeps)
@@ -399,7 +407,7 @@ trait DataFlow extends Logging {
     * - Combination of cyclic references in tags and labels will be covered by the above checks if we always check for duplicate seen outputs and
     * seen actions and a cyclic reference will always be triggered by the above cases in the case of the combination of cycles.
     *
-    * TODO: Optimise the implementation, it recurses through all actions multiple times
+    * Optimisation: The actions checked during a chain of actions from an initial action are memoised to prevent the same action chain being checked twice
     */
   private def isValidDependencyState: Try[Unit] = {
 
@@ -413,8 +421,9 @@ trait DataFlow extends Logging {
     case class LoopObject(action: DataFlowAction, seenActions: Set[String], seenOutputs: Set[String])
 
     // Resolve dependent actions independently
-    def loop(actionsToResolve: List[LoopObject]): Unit = actionsToResolve match {
-      case Nil => Unit
+    def loop(actionsToResolve: List[LoopObject], resolvedActions: List[String], provisionallyResolvedActions: List[String]): List[String] = actionsToResolve match {
+      case Nil => resolvedActions ++ provisionallyResolvedActions
+      case h :: tail if resolvedActions.contains(h.action.guid) => loop(tail, resolvedActions, provisionallyResolvedActions)
       case h :: tail =>
         // Check current action doesn't contain input that have been seen before
         val cyclicLabels = h.action.inputLabels.toSet intersect h.seenOutputs
@@ -440,10 +449,13 @@ trait DataFlow extends Logging {
         val newSeenActions = h.seenActions + h.action.guid
         val newSeenOutputs = h.seenOutputs union h.action.outputLabels.toSet
         val newActionsToResolve = allNewActionGuids.map(getActionByGuid).map(a => LoopObject(a, newSeenActions, newSeenOutputs)).toList
-        loop(newActionsToResolve ++ tail)
+        loop(newActionsToResolve ++ tail, resolvedActions, h.action.guid +: provisionallyResolvedActions)
     }
 
-    Try(loop(actions.map(LoopObject(_, Set.empty[String], Set.empty[String])).toList))
+    // Fold over all the actions, accumulating fully resolved actions as we go so we don't check the same action multiple times
+    Try {
+      actions.foldLeft(List.empty[String])((resolvedActions, toResolve) => loop(List(LoopObject(toResolve, Set.empty, Set.empty)), resolvedActions, List.empty))
+    }
 
   }
 
