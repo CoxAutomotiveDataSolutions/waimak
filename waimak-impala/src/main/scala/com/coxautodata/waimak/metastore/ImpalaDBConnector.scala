@@ -17,7 +17,7 @@ trait ImpalaDBConnector extends HadoopDBConnector {
 
   def sparkSession: SparkSession
 
-  lazy val fileSystem: FileSystem = FileSystem.get(sparkSession.sparkContext.hadoopConfiguration)
+  def fileSystem: FileSystem
 
   private[metastore] override def createTableFromParquetDDL(tableName: String, path: String, external: Boolean, partitionColumns: Seq[String], ifNotExists: Boolean = true): Seq[String] = {
     //Find glob paths catering for partitions
@@ -48,11 +48,18 @@ trait ImpalaDBConnector extends HadoopDBConnector {
 /**
   * Impala Database connector that is constructed using the Waimak JDBC template in spark conf
   *
-  * @param sparkSession SparkSession object
-  * @param database     name of the database to connect to
-  * @param cluster      the cluster label in the JDBC template string
+  * @param sparkFlowContext    The flow context object containing the SparkSession and FileSystem
+  * @param database            name of the database to connect to
+  * @param cluster             the cluster label in the JDBC template string
+  * @param forceRecreateTables Force drop+create of tables even if update is called (necessary in cases of schema change)
+  * @param properties          Key value pairs passed as connection arguments to the DriverManager during connection
+  * @param secureProperties    Key value set of parameters used to get parameter values for JDBC properties
+  *                            from a secure jceks file at CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH.
+  *                            First value is the key of the parameter in the jceks file and the second parameter
+  *                            is the key of the parameter you want in jdbc properties
+  *
   */
-case class ImpalaWaimakJDBCConnector(sparkSession: SparkSession,
+case class ImpalaWaimakJDBCConnector(sparkFlowContext: SparkFlowContext,
                                      database: String,
                                      cluster: String = "default",
                                      forceRecreateTables: Boolean = false,
@@ -62,21 +69,35 @@ case class ImpalaWaimakJDBCConnector(sparkSession: SparkSession,
   override val sparkConf: SparkConf = sparkSession.sparkContext.getConf
   override val service: String = "impala"
 
+  override def sparkSession: SparkSession = sparkFlowContext.spark
+
+  override def fileSystem: FileSystem = sparkFlowContext.fileSystem
+
   override def hadoopConfiguration: Configuration = sparkSession.sparkContext.hadoopConfiguration
 }
 
 /**
   * Impala Database connector that is constructed from a JDBC connection string
   *
-  * @param sparkSession SparkSession object
-  * @param jdbcString   the JDBC connection string
+  * @param sparkFlowContext    The flow context object containing the SparkSession and FileSystem
+  * @param jdbcString          the JDBC connection string
+  * @param forceRecreateTables Force drop+create of tables even if update is called (necessary in cases of schema change)
+  * @param properties          Key value pairs passed as connection arguments to the DriverManager during connection
+  * @param secureProperties    Key value set of parameters used to get parameter values for JDBC properties
+  *                            from a secure jceks file at CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH.
+  *                            First value is the key of the parameter in the jceks file and the second parameter
+  *                            is the key of the parameter you want in jdbc properties
   */
-case class ImpalaJDBCConnector(sparkSession: SparkSession,
+case class ImpalaJDBCConnector(sparkFlowContext: SparkFlowContext,
                                jdbcString: String,
                                forceRecreateTables: Boolean = false,
                                properties: java.util.Properties = new java.util.Properties(),
                                secureProperties: Map[String, String] = Map.empty) extends ImpalaDBConnector with JDBCConnector {
   override val driverName: String = "org.apache.hive.jdbc.HiveDriver"
+
+  override def sparkSession: SparkSession = sparkFlowContext.spark
+
+  override def fileSystem: FileSystem = sparkFlowContext.fileSystem
 
   override def hadoopConfiguration: Configuration = sparkSession.sparkContext.hadoopConfiguration
 }
@@ -87,13 +108,19 @@ case class ImpalaJDBCConnector(sparkSession: SparkSession,
   * This is useful for testing or using in flows where you wish to collect
   * the DDLs and run them manually.
   *
-  * @param sparkSession SparkSession object
+  * @param sparkFlowContext    The flow context object containing the SparkSession and FileSystem
+  * @param forceRecreateTables Force drop+create of tables even if update is called (necessary in cases of schema change)
   */
-case class ImpalaDummyConnector(sparkSession: SparkSession, forceRecreateTables: Boolean = false) extends ImpalaDBConnector {
+case class ImpalaDummyConnector(sparkFlowContext: SparkFlowContext, forceRecreateTables: Boolean = false) extends ImpalaDBConnector {
   var ranDDLs: List[List[String]] = List.empty
 
   override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {
     ranDDLs = ranDDLs :+ ddls.toList
     Seq(None)
   }
+
+  override def sparkSession: SparkSession = sparkFlowContext.spark
+
+  override def fileSystem: FileSystem = sparkFlowContext.fileSystem
+
 }

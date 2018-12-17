@@ -20,7 +20,7 @@ import scala.util.{Failure, Success, Try}
   */
 class SQLServerTemporalExtractor(override val sparkSession: SparkSession
                                  , sqlServerConnectionDetails: SQLServerConnectionDetails
-                                 , extraConnectionProperties: Properties = new Properties()) extends SQLServerExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
+                                 , extraConnectionProperties: Properties = new Properties()) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
 
   val metadataQuery: String =
     s"""(
@@ -99,7 +99,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
     val mainTable = sparkLoad(sqlServerTableMetadata.mainTableMetadata, lastUpdated, maxRowsPerPartition, explicitColumnSelects)
       .toDF
     val fullTable = sqlServerTableMetadata.historyTableMetadata.foldLeft(mainTable)((df, historyMetadata) => {
-      val historyTable = sparkLoad(historyMetadata, lastUpdated, maxRowsPerPartition,  Seq("1 as source_type"))
+      val historyTable = sparkLoad(historyMetadata, lastUpdated, maxRowsPerPartition, Seq("1 as source_type"))
         .toDF
 
       df union historyTable.select(df.schema.fieldNames.map(historyTable(_)): _*)

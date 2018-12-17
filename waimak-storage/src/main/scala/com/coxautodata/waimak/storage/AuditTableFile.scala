@@ -8,6 +8,7 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.sql._
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.StructType
 
 import scala.util.{Failure, Success, Try}
 
@@ -38,7 +39,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
 
   protected val tablePath = new Path(baseFolder, tableInfo.table_name)
 
-  protected val regionInfoBasePath = new Path(baseFolder, AuditTableFile.REGION_INFO_DIRECTORY)
+  protected[storage] val regionInfoBasePath = new Path(baseFolder, AuditTableFile.REGION_INFO_DIRECTORY)
 
   protected val coldPath = new Path(tablePath, s"$STORE_TYPE_COLUMN=$COLD_PARTITION")
 
@@ -63,7 +64,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(regionPath).get)
       val region = AuditTableRegionInfo(tableInfo.table_name, HOT_PARTITION, regionID, appendTS, false, count, max_latest_ts)
       logInfo(s"Created region $region")
-      (setRegions(this, regions :+ region).asInstanceOf[this.type], count)
+      (setRegions(this, regions :+ region, appendedRegions = Some(Seq(region))).asInstanceOf[this.type], count)
     }
     res
   }
@@ -79,10 +80,32 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     }
   }
 
-  override def compact(compactTS: Timestamp, trashMaxAge: Duration): Try[this.type] = {
+  /**
+    * Request optimisation of the storage layer.
+    *
+    * Fails when is called second time on same instance.
+    *
+    * @param compactTS               timestamp of when the compaction is requested, will not be used for any filtering of the data
+    * @param trashMaxAge             Maximum age of old region files kept in the .Trash folder
+    *                                after a compaction has happened.
+    * @param smallRegionRowThreshold the row number threshold to use for determining small regions to be compacted.
+    *                                Default is 50000000
+    * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
+    *                                Adjust this to control output file size. Default is 1000000
+    * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
+    *                                Adjust this to control output file size. Default is 2500000
+    * @param recompactAll            Whether to recompact all regions regardless of size (i.e. ignore smallRegionRowThreshold)
+    * @return new state of the AuditTable
+    */
+  override def compact(compactTS: Timestamp
+                       , trashMaxAge: Duration
+                       , smallRegionRowThreshold: Int
+                       , hotCellsPerPartition: Int
+                       , coldCellsPerPartition: Int
+                       , recompactAll: Boolean): Try[AuditTable] = {
     val res: Try[AuditTableFile] = Try(markToUpdate())
-      .flatMap(_ => commitHotToCold(compactTS, 1000000))
-      .flatMap(_.compactCold(compactTS, 50000000, 2500000))
+      .flatMap(_ => commitHotToCold(compactTS, hotCellsPerPartition))
+      .flatMap(_.compactCold(compactTS, smallRegionRowThreshold, coldCellsPerPartition, recompactAll))
       .map { f =>
         f.storageOps.purgeTrash(f.tableName, compactTS, trashMaxAge)
         f
@@ -98,7 +121,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       .flatMap(_ => if (storageOps.mkdirs(hotPath)) Success(true) else Failure(StorageException(s"Table [${tableInfo.table_name}] can not be initialised, can not create folder ${hotPath.toString}")))
       .flatMap(_ => if (storageOps.mkdirs(coldPath)) Success(true) else Failure(StorageException(s"Table [${tableInfo.table_name}] can not be initialised, can not create folder ${coldPath.toString}")))
       .flatMap(_ => storageOps.writeAuditTableInfo(baseFolder, tableInfo))
-      .map(_ => setRegions(this, Seq.empty).asInstanceOf[this.type])
+      .map(_ => setRegions(this, Seq.empty, appendedRegions = None).asInstanceOf[this.type])
     res
   }
 
@@ -123,44 +146,60 @@ class AuditTableFile(val tableInfo: AuditTableInfo
   /**
     * Compacts all hot regions into one cold.
     *
-    * @param compactTS
-    * @param rowsPerPartition
+    * @param compactTS         the compaction timestamp
+    * @param cellsPerPartition approximate maximum number of cells (numRows * numColumns) to be in each partition file.
+    *                          Adjust this to control output file size,
     * @return
     */
-  protected def commitHotToCold(compactTS: Timestamp, rowsPerPartition: Int): Try[AuditTableFile] = {
+  protected def commitHotToCold(compactTS: Timestamp, cellsPerPartition: Int): Try[AuditTableFile] = {
     val hotRegions = regions.filter(r => !r.is_deprecated && r.store_type == HOT_PARTITION)
-    compactRegions(hotPath, hotRegions, compactTS, rowsPerPartition)
+    compactRegions(hotPath, hotRegions, compactTS, cellsPerPartition)
   }
 
   /**
-    * Merges all regions below specific fresh cold into one cold region.
+    * Merges all regions with number of rows below a specific threshold into one cold region.
     *
-    * @param compactTS
-    * @param rowsPerRegion
-    * @param rowsPerPartition
+    * @param compactTS               the compaction timestamp
+    * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted
+    * @param cellsPerPartition       approximate maximum number of cells (numRows * numColumns) to be in each partition file.
+    *                                Adjust this to control output file size.
     * @return
     */
-  protected def compactCold(compactTS: Timestamp, rowsPerRegion: Int, rowsPerPartition: Int): Try[AuditTableFile] = {
-    val smallerRegions = regions.filter(r => r.store_type == COLD_PARTITION && r.count < rowsPerRegion)
+  protected def compactCold(compactTS: Timestamp
+                            , smallRegionRowThreshold: Int
+                            , cellsPerPartition: Int
+                            , recompactAll: Boolean): Try[AuditTableFile] = {
+    val smallerRegions =
+      if (recompactAll) regions
+      else regions.filter(r => r.store_type == COLD_PARTITION && r.count < smallRegionRowThreshold)
     // No use compacting a single small region into itself
-    compactRegions(coldPath, if (smallerRegions.length < 2) Seq.empty else smallerRegions, compactTS, rowsPerPartition)
+    compactRegions(coldPath, if (smallerRegions.length < 2 && !recompactAll) Seq.empty else smallerRegions, compactTS, cellsPerPartition)
   }
 
-  protected def compactRegions(typePath: Path, toCompact: Seq[AuditTableRegionInfo], compactTS: Timestamp, rowsPerPartition: Int): Try[AuditTableFile] = {
+  protected def compactRegions(typePath: Path
+                               , toCompact: Seq[AuditTableRegionInfo]
+                               , compactTS: Timestamp
+                               , cellsPerPartition: Int): Try[AuditTableFile] = {
     Try {
       val res = if (toCompact.isEmpty) new AuditTableFile(this.tableInfo, this.regions, this.storageOps, this.baseFolder, this.newRegionID)
       else {
-        val numOfPartitions = (toCompact.map(_.count).sum / rowsPerPartition).toInt + 1
         val ids = toCompact.map(_.store_region)
         val regionID = newRegionID(this)
         val regionPath = new Path(coldPath, s"$STORE_REGION_COLUMN=" + regionID)
         logInfo(s"Compacting regions ${ids.mkString("[", ", ", "]")} in path [${regionPath.toString}]")
-        if (storageOps.pathExists(regionPath)) throw StorageException(s"Can not compact table [${tableName}], as path [${regionPath.toString}] already exists")
+        if (storageOps.pathExists(regionPath)) throw StorageException(s"Can not compact table [$tableName], as path [${regionPath.toString}] already exists")
 
         val data = storageOps.openParquet(typePath)
         val newRegionSet = data.map { rows =>
-          val hotRows = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN).coalesce(numOfPartitions)
-          storageOps.atomicWriteAndCleanup(tableInfo.table_name, hotRows, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"), compactTS)
+          //Clear current region info to prevent corruption on failure
+          clearTableRegionCache(this)
+          val currentNumPartitions = rows.rdd.getNumPartitions
+          val newNumPartitions = calculateNumPartitions(rows.schema, toCompact.map(_.count).sum, cellsPerPartition)
+          val rowsToCompact = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN)
+          val rowsToCompactRepartitioned = if (newNumPartitions > currentNumPartitions) {
+            rowsToCompact.repartition(newNumPartitions)
+          } else rowsToCompact.coalesce(newNumPartitions)
+          storageOps.atomicWriteAndCleanup(tableInfo.table_name, rowsToCompactRepartitioned, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"), compactTS)
           val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(regionPath).get)
           val idSet = ids.toSet
           val remainingRegions = regions.filter(r => !idSet.contains(r.store_region))
@@ -168,10 +207,16 @@ class AuditTableFile(val tableInfo: AuditTableInfo
           logInfo(s"Compacted region ${region.toString} was created.")
           remainingRegions :+ region
         }
-        newRegionSet.fold(this)(r => setRegions(this, r))
+        newRegionSet.fold(this)(r => setRegions(this, r, appendedRegions = None))
       }
       res
     }
+  }
+
+  protected def calculateNumPartitions(schema: StructType, numRows: Long, cellsPerPartition: Long): Int = {
+    val cellsPerRow = schema.size
+    val rowsPerPartition = cellsPerPartition / cellsPerRow
+    (numRows / rowsPerPartition).toInt + 1
   }
 
   protected def calcRegionStats(ds: Dataset[_]): (Long, Timestamp) = {
@@ -217,16 +262,32 @@ object AuditTableFile extends Logging {
   /**
     * Creates a copy of the table with new list of regions.
     *
-    * @param audit
-    * @param regions
+    * @param audit           - Audit table with old regions
+    * @param allRegions      - Complete set of current regions
+    * @param appendedRegions - Optional list of regions that have been appended. If given, only new regions are written
+    *                        to cache. If None the current cached region information is completely rewritten.
+    *                        If the case of any region deletes, this should be None.
     * @return
     */
-  def setRegions(audit: AuditTableFile, regions: Seq[AuditTableRegionInfo]): AuditTableFile = {
+  def setRegions(audit: AuditTableFile, allRegions: Seq[AuditTableRegionInfo], appendedRegions: Option[Seq[AuditTableRegionInfo]]): AuditTableFile = {
     val spark = audit.storageOps.sparkSession
     import spark.implicits._
-    val regionInfoDS = audit.storageOps.sparkSession.createDataset(regions).coalesce(1)
-    audit.storageOps.writeParquet(audit.tableName, new Path(audit.regionInfoBasePath, audit.tableName), regionInfoDS)
-    new AuditTableFile(audit.tableInfo, regions, audit.storageOps, audit.baseFolder, audit.newRegionID)
+    val regionsToWrite = appendedRegions.getOrElse(allRegions)
+    val regionInfoDS = audit.storageOps.sparkSession.createDataset(regionsToWrite).coalesce(1)
+    audit.storageOps.writeParquet(
+      audit.tableName,
+      new Path(audit.regionInfoBasePath, audit.tableName),
+      regionInfoDS,
+      overwrite = appendedRegions.isEmpty,
+      tempSubfolder = Some(REGION_INFO_DIRECTORY))
+    new AuditTableFile(audit.tableInfo, allRegions, audit.storageOps, audit.baseFolder, audit.newRegionID)
+  }
+
+  def clearTableRegionCache(audit: AuditTableFile): Unit = {
+    val tableRegionInfoPath = new Path(audit.regionInfoBasePath, audit.tableName)
+    Try(audit.storageOps.deletePath(tableRegionInfoPath, recursive = true))
+      .recover { case e => throw StorageException(s"Failed to delete region information for table [${audit.tableName}]", e) }
+      .get
   }
 
   /**
@@ -243,15 +304,44 @@ object AuditTableFile extends Logging {
     */
   def inferRegionsWithStats(sparkSession: SparkSession, fileStorage: FileStorageOps, basePath: Path, tableNames: Seq[String], includeHot: Boolean = true, skipRegionInfoCache: Boolean = false): Seq[AuditTableRegionInfo] = {
 
-    val fromCache = if (skipRegionInfoCache) Seq.empty else inferRegionsFromCache(fileStorage, basePath, tableNames, includeHot)
+    // Get all region info from cache and paths
+    val allCacheInfo = {
+      if (skipRegionInfoCache)
+        Map.empty[(String, String, String), AuditTableRegionInfo]
+      else
+        inferRegionsFromCache(fileStorage, basePath, tableNames, includeHot).map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
+    }
+    val allPathInfo = inferRegionsFromPaths(fileStorage, basePath, tableNames, includeHot).map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
 
-    //Only infer regions using paths and parquet from tables that are not in the cache
-    val tablesMissingFromCache = (tableNames.toSet diff fromCache.map(_.table_name).toSet).toSeq
-    val fromPaths = inferRegionsFromPaths(fileStorage, basePath, tablesMissingFromCache, includeHot).map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
+    // Keep only cached info that matches files as the region info might be invalid
+    val validCacheInfo = calculateValidCacheInfo(allCacheInfo, allPathInfo)
+    val validCachedTables = validCacheInfo.map(_.table_name).toSet
+
+    //Only infer regions using paths and parquet from tables that are not in the cache or the cache looks invalid
+    val tablesMissingFromCache = (tableNames.toSet diff validCachedTables).toSeq
+    val fromPaths = allPathInfo.filterKeys(k => tablesMissingFromCache.contains(k._1))
     val fromParquet = inferRegionsFromParquet(sparkSession, fileStorage, basePath, tablesMissingFromCache, includeHot).map(t => (t.table_name, t.store_type, t.store_region) -> t).toMap
 
     //Merge regions, take preference for fromParquet, then combine with cache-backed region info
-    (fromPaths.keySet ++ fromParquet.keySet).toSeq.map(k => fromParquet.getOrElse(k, fromPaths(k))) ++ fromCache
+    (fromPaths.keySet ++ fromParquet.keySet).toSeq.map(k => fromParquet.getOrElse(k, fromPaths(k))) ++ validCacheInfo
+  }
+
+  type RegionMap = Map[(String, String, String), AuditTableRegionInfo]
+
+  private[storage] def calculateValidCacheInfo(allCacheInfo: RegionMap, allPathInfo: RegionMap): Seq[AuditTableRegionInfo] = {
+    val cacheInfoByTable = allCacheInfo.keySet.groupBy(_._1)
+    val pathInfoByTable = allPathInfo.keySet.groupBy(_._1)
+    val validCachedTables = cacheInfoByTable.filter { case (t, r) => pathInfoByTable.get(t).contains(r) }.keySet
+    val validCacheInfo = allCacheInfo.filterKeys(t => validCachedTables.contains(t._1)).values.toSeq
+    (cacheInfoByTable.keySet diff validCachedTables)
+      .reduceLeftOption((z, t) => s"$z, $t")
+      .foreach(
+        t => logWarning(
+          s"The cached region information for the following tables looks invalid, it does not match the found partition folders. " +
+            s"The cached region information for these tables will be ignored, this will affect performance: [$t]"
+        )
+      )
+    validCacheInfo
   }
 
   private[storage] def inferRegionsFromCache(fileStorage: FileStorageOps, basePath: Path, tableNames: Seq[String], includeHot: Boolean): Seq[AuditTableRegionInfo] = {
@@ -321,7 +411,7 @@ object AuditTableFile extends Logging {
     * Infer all regions using information found in paths only. This will not include any specific information about region details.
     * Counts will be 0, and all timestamps will be [[lowTimestamp]]. This information should be augmented with details from [[inferRegionsFromParquet]].
     */
-  private def inferRegionsFromPaths(fileStorage: FileStorageOps, basePath: Path, tableNames: Seq[String], includeHot: Boolean): Seq[AuditTableRegionInfo] = {
+  private[storage] def inferRegionsFromPaths(fileStorage: FileStorageOps, basePath: Path, tableNames: Seq[String], includeHot: Boolean): Seq[AuditTableRegionInfo] = {
 
     val parFun: PartialFunction[FileStatus, AuditTableRegionInfo] = {
       case r if r.isDirectory => val path = r.getPath

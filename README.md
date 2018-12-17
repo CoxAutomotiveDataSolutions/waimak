@@ -1,26 +1,46 @@
 # Waimak
 
 [![Build Status](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak.svg?branch=develop)](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak) 
-[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.11.svg)](http://search.maven.org/#search%7Cga%7C1%7Cwaimak) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.11.svg)](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak*) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
+<img align="right" src="./images/waimak.svg">
 
-![Waimak logo](images/waimak.png)
+## What is Waimak?
 
-Waimak is an open-source framework that makes it easier to build, test and deploy complex data flows in Apache Spark.
+Waimak is an open-source framework that makes it easier to create complex data flows in Apache Spark.
 
-Traditional approaches to data engineering on RDBMs tend to process large volumes of data in highly-dependent waves. Prior waves must finish before the next begin. This creates a problem on distributed Big Data systems as it leaves valuable resources sitting idle but locked. The more complex is the flow of data, the worse the problem gets.
+Waimak aims to abstract the more complex parts of Spark application development (such as orchestration) away from the business logic, allowing users to get their business logic in a production-ready state much faster. By using a framework written by Data Engineers, the teams defining the business logic can write and own their production code.
 
-Waimak alleviates this by providing functions that allow a complex flow to be more easily broken up in to independent chunks, within an application. These chunks are labelled to make reuse-without-repetition easier, and deployment to another environment (eg dev vs prod) much simpler.
+Our metaphor to describe this framework is the braided river – it splits and rejoins to itself repeatedly on its journey. By describing a Spark application as a sequence of flow transformations, Waimak can execute independent branches of the flow in parallel making more efficient use of compute resources and greatly reducing the execution time of complex flows.
 
-As a side-effect, it makes collaboration between teams that use data (BI, Data Science) and those that provide data (Data Engineering) less burdensome by encouraging compromise on a common set of Big Data tools. Data users give up some amount of freedom afforded by pure SQL interfaces to Hadoop, but gain the ability to string together sets of data objects defined by Spark SQL and use more native Spark over time. Data providers give up some amount of “optimal computation” but have the business logic owned by those who understand it, on a platform where optimisation is easier to manage.
+## Why would I use Waimak?
+We developed Waimak to:
+* allow teams to own their own business logic without owning an entire production Spark application
+* reduce the time it takes to write production-ready Spark applications
+* provide an intuitive structure to Spark applications by describing them as a sequence of transformations forming a flow
+* increase the performance of Spark data flows by making more efficient use of the Spark executors
 
-Our metaphor to describe this framework is the braided river – it splits and rejoins to itself repeatedly on its journey. We chose a particular braided river, the Waimakiriri near Christchurch, New Zealand, as the name and inspiration for the logo.
+Importantly, Waimak is a framework for building Spark applications by describing a sequence of composed Spark transformations. To create those transformations Waimak exposes the complete Spark API, giving you the power of Apache Spark with added structure.
 
-## Documentation
+## How do I get started?
 
-You can find the latest documentation for Waimak on the [project wiki page](https://github.com/CoxAutomotiveDataSolutions/waimak/wiki). This README file contains basic setup instructions and general project information.
+You can import Waimak into your Maven project using the following dependency details:
 
-## Getting Started
+```xml
+        <dependency>
+            <groupId>com.coxautodata</groupId>
+            <artifactId>waimak-core_2.11</artifactId>
+            <version>${waimak.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.spark</groupId>
+            <artifactId>spark-core_2.11</artifactId>
+            <version>${spark.version}</version>
+            <scope>provided</scope>
+        </dependency>
+```
+
+Waimak marks the Spark dependency as optional so as not to depend on any specific release of Spark, therefore you must specify the version of Spark you wish to use as a dependency. Waimak _should_ run on any version of Spark 2.2+, however the list of officially tested versions is given below.
 
 The following code snippet demonstrates a basic Waimak example taken from the unit tests:
 
@@ -48,116 +68,54 @@ This example is very small, but in practice flow definitions can become very lar
 
 The project wiki page provides best practices for structuring your project when dealing with large flows.
 
-## Importing Waimak
-
-You can import Waimak into your Maven project using the following dependency details:
-
-```xml
-        <dependency>
-            <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.11</artifactId>
-            <version>${waimak.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.11</artifactId>
-            <version>${spark.version}</version>
-            <scope>provided</scope>
-        </dependency>
-```
-
-Waimak marks the Spark dependency as optional to not depend on any specific release of Spark, therefore you must specify the version of Spark you wish to use as a dependency. Waimak _should_ run on any version of Spark 2.x, however the list of officially tested versions is given below.
+## What Waimak modules are available?
 
 Waimak currently consists of the following modules:
 
 Artifact ID | Purpose | Maven Release
 ----------- | ------- | -------------
-`waimak-core_2.11` | Core Waimak functionality and generic actions | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-core_2.11%22) 
-`waimak-azure-table_2.11` | Functionality to write outputs to Azure Tables | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-azure-table_2.11%22)
-`waimak-configuration_2.11` | Non-flow functionality to simplify configuration | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-configuration_2.11%22)
-`waimak-rdbm-export_2.11` | Functionality to write outputs to MSSQL databases | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-rdbm-export_2.11%22)
-`waimak-impala_2.11` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-impala_2.11%22)
-`waimak-rdbm-ingestion_2.11` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-rdbm-ingestion_2.11%22)
-`waimak-storage_2.11` | Functionality for providing a hot/cold region-based ingestion storage layer | [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22waimak-storage_2.11%22)
+`waimak-core` | Core Waimak functionality and generic actions | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-core*) 
+`waimak-azure-table` | Functionality to write outputs to Azure Tables | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-azure-table*)
+`waimak-configuration` | Non-flow functionality to simplify configuration | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration*)
+`waimak-rdbm-export` | Functionality to write outputs to MSSQL databases | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-export*)
+`waimak-impala` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-impala*)
+`waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-hive*)
+`waimak-rdbm-ingestion` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-ingestion*)
+`waimak-storage` | Functionality for providing a hot/cold region-based ingestion storage layer | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-storage*)
 
-## Supported Spark Versions
+## What versions of Spark are supported?
 
 Waimak is tested against the following versions of Spark:
 
-Package Maintainer | Spark Version
------------------- | -------------
-Apache Spark | [2.2.0](https://spark.apache.org/releases/spark-release-2-2-0.html)
-Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.html)
-Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html)
+Package Maintainer | Spark Version | Scala Version
+------------------ | ------------- | -------------
+Apache Spark | [2.2.0](https://spark.apache.org/releases/spark-release-2-2-0.html) | 2.11
+Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.11
+Apache Spark | [2.4.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.11
+Apache Spark | [2.4.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.12 (experimental)
+Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html) | 2.11
 
 Other versions of Spark >= 2.2 are also likely to work and can be added to the list of tested versions if there is sufficient need.
 
-## Changelog
-### 1.5.2 - 2018-10-09
+## Where can I learn more?
 
-#### Added
-- Allowing optional output prefix on labels when reading from the storage layer
+You can find the latest documentation for Waimak on the [project wiki page](https://github.com/CoxAutomotiveDataSolutions/waimak/wiki). This README file contains basic setup instructions and general project information.
 
-### 1.5.1 - 2018-08-21
+You can also find details of what's in the latest releases in the [changelog](CHANGELOG.md).
 
-#### Added
-- Support of custom properties for JDBC connections using the Metastore Utils by passing either a `Properties` object or a `Map` so they can be read securely from a `JCEKS` file
+Finally, you can also talk to the developers and other users directly at our [Gitter room](https://gitter.im/waimak-framework/users).
 
-#### Removed
-- Removed support for Spark 2.0 and Spark 2.1
+## Can I contribute to Waimak?
 
-### 1.5 - 2018-08-13
+We welcome all users to contribute to the development of Waimak by raising pull-requests. We kindly ask that you include suitable unit tests along with proposed changes.
 
-#### Added
-- Trash deletion feature in Waimak-Storage that will clean up old region compactions stored in `.Trash`
-- Interceptor actions will now show details of the actions they intercepted and actions they intercepted with in the Spark UI
+### How do I test my contributions?
 
-#### Fixed
-- Single cold partitions will no longer be recompacted into themselves in the storage layer
-
-### 1.4.3 - 2018-08-13
-
-#### Fixed
-- Azure Table uploader will now clean up thread pools to prevent exhausting system threads after being invoked multiple times
-
-### 1.4.2 - 2018-08-06
-
-#### Added
-- Added optional Spark parameter `spark.waimak.fs.defaultFS` to specify the URI of the FileSystem object in the [`SparkFlowContext`](src/main/scala/com/coxautodata/waimak/dataflow/spark/SparkFlowContext.scala)
-
-### 1.4.1 - 2018-07-27
-
-#### Fixed
-- Azure Table uploader now respects and uploads `null` values instead of converting them to zero'd values
-
-### 1.4 - 2018-07-05
-
-#### Added
-- Better exception logging on failing actions during execution
-- `Any` types allowed to be used by and returned from actions
-- Impala queries to the same connection object now reuse connections to improve query submission performance
-
-#### Fixed
-- Spark 2.0, 2.1 and 2.3 compatability
-
-### 1.3.1 - 2018-07-02
-
-#### Fixed
-- Azure Table writer hanging after API failures
-
-## Contributing
-
-We welcome all users to contribute to the development of Waimak by raising pull-requests. We kindly ask that you include suitable unit tests with along with proposed changes.
-
-### Testing
-
-Waimak is tested against different versions of Spark 2.x to ensure uniform compatibility. The versions of Spark tested by Waimak are given in the `<profiles>` section of the POM. You can activate a given profile in the POM by using the `-P` flag: `mvn clean package -P apache-2.3.0`
+Waimak is tested against different versions of Spark 2.x to ensure uniform compatibility. The versions of Spark tested by Waimak are given in the `<profiles>` section of the POM. You can activate a given profile in the POM by using the `-P` flag: `mvn clean package -P apache-2.3.0_2.11`
 
 The integration tests of the RDBM ingestion module require Docker therefore you must have the Docker service running and the current user must be able to access the Docker service.
 
-## License
-
-Copyright 2018 Cox Automotive UK Limited
+## What is Waimak licensed under?
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -170,3 +128,5 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+Copyright 2018 Cox Automotive UK Limited

@@ -11,7 +11,7 @@ import scala.util.Try
   *
   * @tparam C the type of the context of the flow in which this action runs
   */
-trait DataFlowAction[C] {
+trait DataFlowAction {
 
   /**
     * This action can only be executed if all of the inputs are not empty. An input can be explicitly marked as empty.
@@ -31,16 +31,28 @@ trait DataFlowAction[C] {
     */
   val outputLabels: List[String]
 
+  /**
+    * Unique id of the action, but using it for adding behaviours can be problematic due to Interceptors that are
+    * defined at a much later stage. Because of that ActionSchedulers must NOT use this guid.
+    */
   val guid: String = UUID.randomUUID().toString
+
+  /**
+    * Interceptors must not override this property, as certain behaviours of the data flow (Ex, execution pools)
+    * will be associated with this scheduling guid. Also ActionScheduler will use this guid to track scheduled actions.
+    *
+    * @return
+    */
+  def schedulingGuid: String = guid
 
   /**
     * For representing the action
     */
   def actionName: String = getClass.getSimpleName
 
-  def description = s"Action: $actionName Inputs: ${inputLabels.mkString("[", ",", "]")} Outputs: ${outputLabels.mkString("[", ",", "]")}"
+  def description: String = s"Action: $actionName Inputs: ${inputLabels.mkString("[", ",", "]")} Outputs: ${outputLabels.mkString("[", ",", "]")}"
 
-  def logLabel = s"$guid: $description"
+  def logLabel: String = s"$guid: $description"
 
   /**
     * Perform the action
@@ -49,7 +61,7 @@ trait DataFlowAction[C] {
     * @param flowContext context of the flow in which this action runs
     * @return the action outputs (these must be declared in the same order as their labels in [[outputLabels]])
     */
-  def performAction(inputs: DataFlowEntities, flowContext: C): Try[ActionResult]
+  def performAction[C <: FlowContext](inputs: DataFlowEntities, flowContext: C): Try[ActionResult]
 
   /**
     * Action has the responsibility of assessing itself and produce DataFlowActionState, that will be used by the

@@ -1,19 +1,23 @@
 package com.coxautodata.waimak.dataflow
 
-trait FlowReporter[C] {
+trait FlowReporter {
 
-  def reportActionStarted(action: DataFlowAction[C], flowContext: C): Unit
+  def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit
 
-  def reportActionFinished(action: DataFlowAction[C], flowContext: C): Unit
+  def reportActionFinished(action: DataFlowAction, flowContext: FlowContext): Unit
 
 }
 
-class NoReportingFlowReporter[C] extends FlowReporter[C] {
-  override def reportActionStarted(action: DataFlowAction[C], flowContext: C): Unit = Unit
+class NoReportingFlowReporter extends FlowReporter {
 
-  override def reportActionFinished(action: DataFlowAction[C], flowContext: C): Unit = Unit
+  override def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit = Unit
+
+  override def reportActionFinished(action: DataFlowAction, flowContext: FlowContext): Unit = Unit
+
 }
 
 object NoReportingFlowReporter {
-  def apply[C]: FlowReporter[C] = new NoReportingFlowReporter()
+
+  def apply(): NoReportingFlowReporter = new NoReportingFlowReporter()
+
 }

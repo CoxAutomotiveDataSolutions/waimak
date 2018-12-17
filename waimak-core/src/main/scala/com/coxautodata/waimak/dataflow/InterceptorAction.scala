@@ -15,12 +15,12 @@ import scala.util.Try
   *
   * @tparam C the type of the context of the flow in which this action runs
   */
-class InterceptorAction[C](val intercepted: DataFlowAction[C]) extends DataFlowAction[C] {
+class InterceptorAction(val intercepted: DataFlowAction) extends DataFlowAction {
 
   /**
     * @return same value as the intercepted action.
     */
-  override def requiresAllInputs = intercepted.requiresAllInputs
+  override def requiresAllInputs: Boolean = intercepted.requiresAllInputs
 
   /**
     * Generates its own guid, different from intercepted
@@ -37,6 +37,8 @@ class InterceptorAction[C](val intercepted: DataFlowAction[C]) extends DataFlowA
     */
   override val outputLabels: List[String] = intercepted.outputLabels
 
+  final override def schedulingGuid: String = intercepted.schedulingGuid
+
   /**
     * Perform the action
     *
@@ -44,7 +46,7 @@ class InterceptorAction[C](val intercepted: DataFlowAction[C]) extends DataFlowA
     * @param flowContext context of the flow in which this action runs
     * @return the action outputs (these must be declared in the same order as their labels in [[outputLabels]])
     */
-  final override def performAction(inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = {
+  final override def performAction[C <: FlowContext](inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = {
     val res = instead(inputs, flowContext)
     res
   }
@@ -61,7 +63,7 @@ class InterceptorAction[C](val intercepted: DataFlowAction[C]) extends DataFlowA
     * @param flowContext
     * @return
     */
-  def instead(inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = intercepted.performAction(inputs, flowContext)
+  def instead(inputs: DataFlowEntities, flowContext: FlowContext): Try[ActionResult] = intercepted.performAction(inputs, flowContext)
 
   /**
     * Calls the intercepted.flowState.

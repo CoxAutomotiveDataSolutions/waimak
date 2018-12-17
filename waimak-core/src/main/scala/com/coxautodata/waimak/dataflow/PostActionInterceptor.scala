@@ -4,11 +4,11 @@ import com.coxautodata.waimak.log.Logging
 
 import scala.util.Try
 
-case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
-                                       , postActions: Seq[PostAction[T, C]])
-  extends InterceptorAction[C](toIntercept) with Logging {
+case class PostActionInterceptor[T](toIntercept: DataFlowAction
+                                       , postActions: Seq[PostAction[T]])
+  extends InterceptorAction(toIntercept) with Logging {
 
-  override def instead(inputs: DataFlowEntities, flowContext: C): Try[ActionResult] = {
+  override def instead(inputs: DataFlowEntities, flowContext: FlowContext): Try[ActionResult] = {
     val tryRes = intercepted.performAction(inputs, flowContext).map(_.toArray)
     tryRes.foreach { res =>
       postActions.groupBy(_.labelToIntercept).foreach {
@@ -17,7 +17,7 @@ case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
           val actionsForLabel = v._2
           val pos = intercepted.outputLabels.indexOf(label)
           if (pos < 0) throw new DataFlowException(s"Can not apply post action to label $label, it does not exist in action ${intercepted.logLabel}.")
-          res(pos) = actionsForLabel.foldLeft(res(pos))((z, a) => a.run(z.map(_.asInstanceOf[T]), flowContext))
+          res(pos) = actionsForLabel.foldLeft(res(pos))((z, a) => a.run(z.map(_.asInstanceOf[T])))
       }
     }
     tryRes.map(_.toList)
@@ -28,14 +28,14 @@ case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
       "Intercepted " + toIntercept.description + "\n" +
       "Intercepted with: " + postActions.map(_.description).mkString(", ")
 
-  def addPostAction(newAction: PostAction[T, C]): PostActionInterceptor[T, C] = newAction match {
+  def addPostAction(newAction: PostAction[T]): PostActionInterceptor[T] = newAction match {
     // Cache already exists, so ignore
-    case CachePostAction(_, l) if postActions.exists(a => a.isInstanceOf[CachePostAction[T, C]] && a.labelToIntercept == l) =>
+    case CachePostAction(_, l) if postActions.exists(a => a.isInstanceOf[CachePostAction[T]] && a.labelToIntercept == l) =>
       logWarning(s"Label $l already has a cache interceptor, skipping")
       this
     // Cache exists, so make sure transform is before cache
-    case TransformPostAction(_, l) if postActions.exists(a => a.isInstanceOf[CachePostAction[T, C]] && a.labelToIntercept == l) =>
-      val (trans, cache) = postActions.partition(!_.isInstanceOf[CachePostAction[T, C]])
+    case TransformPostAction(_, l) if postActions.exists(a => a.isInstanceOf[CachePostAction[T]] && a.labelToIntercept == l) =>
+      val (trans, cache) = postActions.partition(!_.isInstanceOf[CachePostAction[T]])
       val newActions = (trans :+ newAction) ++ cache
       PostActionInterceptor(toIntercept, newActions)
     // No cache exists yet
@@ -45,14 +45,16 @@ case class PostActionInterceptor[T, C](toIntercept: DataFlowAction[C]
 
 }
 
-sealed abstract class PostAction[T, C](val labelToIntercept: String) {
-  def run: (Option[T], C) => Option[T]
+sealed abstract class PostAction[T](val labelToIntercept: String) {
+
+  def run: Option[T] => Option[T]
 
   def postActionName: String = getClass.getSimpleName
 
-  def description = s"PostAction: $postActionName Label: ${labelToIntercept}"
+  def description = s"PostAction: $postActionName Label: $labelToIntercept"
+
 }
 
-sealed case class CachePostAction[T, C](run: (Option[T], C) => Option[T], override val labelToIntercept: String) extends PostAction[T, C](labelToIntercept)
+sealed case class CachePostAction[T](run: Option[T] => Option[T], override val labelToIntercept: String) extends PostAction[T](labelToIntercept)
 
-sealed case class TransformPostAction[T, C](run: (Option[T], C) => Option[T], override val labelToIntercept: String) extends PostAction[T, C](labelToIntercept)
+sealed case class TransformPostAction[T](run: Option[T] => Option[T], override val labelToIntercept: String) extends PostAction[T](labelToIntercept)

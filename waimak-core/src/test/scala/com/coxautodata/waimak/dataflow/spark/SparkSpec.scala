@@ -16,14 +16,17 @@ trait SparkSpec extends FunSpec with Matchers with BeforeAndAfterEach {
   val master = "local[2]"
   val appName: String
 
+  def builderOptions: SparkSession.Builder => SparkSession.Builder = identity
+
   override def beforeEach(): Unit = {
-    sparkSession = SparkSession
+    val preBuilder = SparkSession
       .builder()
       .appName(appName)
       .master(master)
       .config("spark.executor.memory", "2g")
       .config("spark.ui.enabled", "false")
-      .getOrCreate()
+
+    sparkSession = builderOptions(preBuilder).getOrCreate()
   }
 
   override def afterEach(): Unit = {

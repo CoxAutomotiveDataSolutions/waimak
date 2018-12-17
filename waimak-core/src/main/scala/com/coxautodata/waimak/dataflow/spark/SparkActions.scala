@@ -4,7 +4,9 @@ import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, DataFlow
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.metastore.HadoopDBConnector
 import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Dataset, SaveMode}
+import org.apache.spark.sql._
+
+import scala.util.Try
 
 /**
   * Defines implicits for functional builders of the data flows.
@@ -480,17 +482,17 @@ object SparkActions {
     }
 
     /**
-      * Executes Spark sql. All input labels must already be registered as sql tables using tempView* functions.
-      * Output is automatically added as temp view.
+      * Executes Spark sql. All input labels are automatically registered as sql tables.
       *
-      * @param inputs      - required inputs, used mainly for scheduling.
-      * @param sqlQuery    - sql code that uses registered labels as table names
+      * @param inputs      - required input labels
+      * @param sqlQuery    - sql code that uses labels as table names
       * @param outputLabel - label of the output transformation
       * @param dropColumns - optional list of columns to drop after transformation
       * @return
       */
     def sql(input: String, inputs: String*)(outputLabel: String, sqlQuery: String, dropColumns: String*): SparkDataFlow = {
-      logInfo("SQL query: " + sqlQuery)
+      logDebug("SQL query: " + sqlQuery)
+      val actionName = "sql"
 
       def run(dfs: DataFlowEntities): ActionResult = {
         val sqlRes = sparkDataFlow.spark.sql(sqlQuery)
@@ -499,6 +501,8 @@ object SparkActions {
       }
 
       val sqlTables = (input +: inputs).toList
+      checkValidSqlLabels(sparkDataFlow.flowContext.spark, sqlTables, actionName)
+
       sparkDataFlow.addAction(new SparkSimpleAction(sqlTables, List(outputLabel), d => run(d), sqlTables, "sql"))
     }
 
@@ -575,47 +579,22 @@ object SparkActions {
     }
 
     /**
-      * Stage a dataframe into the temporary folder. All staged dataframes will then be committed
-      * at the same time at the end of the flow.
+      * Writes out the dataset to a Hive-managed table. Data will be written out to the default hive warehouse
+      * location as specified in the hive-site configuration.
+      * Table metadata is generated from the dataset schema, and tables and schemas can be overwritten by setting
+      * the optional overwrite flag to true.
       *
-      * You can optionally give a snapshot folder name so resulting committed table looks like:
-      * /destBasePath/label/snapshotFolder/
+      * It is recommended to only use this action in non-production flows as it offers no mechanism for managing
+      * snapshots or cleanly committing table definitions.
       *
-      * @param destBasePath   Base path
-      * @param labels         Labels of the dataframe to stage
-      * @param snapshotFolder Optional snapshot name
-      * @param partitions     Optionally partition the output
-      * @param repartition    Optionally repartition by partition columns
+      * @param database  - Hive database to create the table in
+      * @param overwrite - Whether to overwrite existing data and recreate table schemas if they already exist
+      * @param labels    - List of labels to create as Hive tables. They will all be created in the same database
       * @return
       */
-    def stageAndCommitParquet(destBasePath: String, snapshotFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): SparkDataFlow = {
+    def writeHiveManagedTable(database: String, overwrite: Boolean = false)(labels: String*): SparkDataFlow = {
       labels.foldLeft(sparkDataFlow)((flow, label) => {
-        flow.cacheAsPartitionedParquet(partitions, repartition)(label)
-          .addCommitLabel(label, LabelCommitDefinition(destBasePath, snapshotFolder))
-      })
-    }
-
-    /**
-      * Stage a dataframe into the temporary folder. All staged dataframes will then be committed
-      * at the same time at the end of the flow and then committed to a Hadoop DB.
-      * A table will be created if it does not exist.
-      *
-      * You can optionally give a snapshot folder name so resulting committed table looks like:
-      * /destBasePath/label/snapshotFolder/
-      *
-      * @param connection     Hadoop database connection object. Reuse same object instance for each call of this function
-      *                       to allow reuse of the underlying connection
-      * @param destBasePath   Base path
-      * @param labels         Labels of the dataframe to stage, resulting in the tablename
-      * @param snapshotFolder Optional snapshot name
-      * @param partitions     Optionally partition the output
-      * @param repartition    Optionally repartition by partition columns
-      * @return
-      */
-    def stageAndCommitParquetToDB(connection: HadoopDBConnector)(destBasePath: String, snapshotFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, repartition: Boolean = true)(labels: String*): SparkDataFlow = {
-      labels.foldLeft(sparkDataFlow)((flow, label) => {
-        flow.cacheAsPartitionedParquet(partitions, repartition)(label)
-          .addCommitLabel(label, LabelCommitDefinition(destBasePath, snapshotFolder, partitions, Some(connection)))
+        flow.write(label, df => df, applyOverwrite(overwrite) andThen applySaveAsTable(database, label))
       })
     }
 
@@ -627,7 +606,9 @@ object SparkActions {
       * @return
       */
     def debugAsTable(labels: String*): SparkDataFlow = {
-      sparkDataFlow.addAction(new SparkSimpleAction(labels.toList, List.empty, _ => Seq.empty, labels, "debugAsTable"))
+      val actionName = "debugAsTable"
+      checkValidSqlLabels(sparkDataFlow.flowContext.spark, labels, actionName)
+      sparkDataFlow.addAction(new SparkSimpleAction(labels.toList, List.empty, _ => Seq.empty, labels, actionName))
     }
   }
 
@@ -727,6 +708,8 @@ object SparkActionHelpers {
 
   def applyWriteCSV(path: String): DataFrameWriter[_] => Unit = dfw => dfw.csv(path)
 
+  def applySaveAsTable(database: String, table: String): DataFrameWriter[_] => Unit = dfw => dfw.saveAsTable(s"$database.$table")
+
   /**
     * Base function for all read operation, in all cases users should use more specialised one.
     * This one is used by other builders.
@@ -759,4 +742,17 @@ object SparkActionHelpers {
   def applyOpenParquet(path: String): DataFrameReader => Dataset[_] = {
     reader => reader.parquet(path)
   }
+
+  def isValidViewName(sparkSession: SparkSession)(label: String): Boolean = {
+    Try(sparkSession.sessionState.sqlParser.parseTableIdentifier(label)).isSuccess
+  }
+
+  def checkValidSqlLabels(sparkSession: SparkSession, labels: Seq[String], actionName: String): Unit = {
+    labels
+      .filterNot(isValidViewName(sparkSession))
+      .reduceLeftOption((z, l) => s"$z, $l")
+      .foreach(l => throw new DataFlowException(s"The following labels contain invalid characters to be used as Spark SQL view names: [$l]. " +
+        s"You can alias the label to a valid name before calling the $actionName action."))
+  }
+
 }

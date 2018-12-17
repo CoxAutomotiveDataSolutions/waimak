@@ -13,14 +13,12 @@ import scala.util.Try
 /**
   * Created by Alexei Perelighin on 22/12/17.
   */
-class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
+class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
   override val appName: String = "Simple Spark Data Flow"
 
-  val executor = Waimak.sparkExecutor()
-
-  // Need to explicitly use sequential executor
-  val sequentialExecutor = new SequentialDataFlowExecutor[SparkFlowContext](SparkFlowReporter)
+  // Need to explicitly use sequential like executor with preference to loaders
+  val executor = Waimak.sparkExecutor(1, DFExecutorPriorityStrategies.preferLoaders)
 
   import SparkActions._
   import TestSparkData._
@@ -139,19 +137,19 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "parquet_1")
         .alias("csv_2", "parquet_2")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1", "parquet_2")
+        .commit("commit")("parquet_1", "parquet_2")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
 
       executor.execute(flow)
 
       val flow2 = Waimak.sparkFlow(spark)
         .openParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1", "parquet_2")
 
-      val (executedActions, finalState) = executor.execute(flow2)
+      val (_, finalState) = executor.execute(flow2)
       finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
       finalState.inputs.getOption[Dataset[_]]("parquet_2").map(_.as[TPerson].collect()).get should be(persons)
 
     }
-
 
     it("stage and commit parquet, and force a cache as parquet") {
       val spark = sparkSession
@@ -163,17 +161,17 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         .cacheAsParquet("parquet_1")
         .inPlaceTransform("parquet_1")(df => df)
         .inPlaceTransform("parquet_1")(df => df)
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generated_timestamp=20180509094500"))("parquet_1")
-
+        .commit("commit")("parquet_1")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
 
       // Check all post actions made it through
-      val interceptorAction = flow.actions.filter(_.outputLabels.contains("parquet_1")).head.asInstanceOf[PostActionInterceptor[Dataset[_], SparkFlowContext]]
+      val interceptorAction = flow.actions.filter(_.outputLabels.contains("parquet_1")).head.asInstanceOf[PostActionInterceptor[Dataset[_]]]
       interceptorAction.postActions.length should be(3)
 
       // Check they are in the right order
-      interceptorAction.postActions.head.isInstanceOf[TransformPostAction[Dataset[_], SparkFlowContext]] should be(true)
-      interceptorAction.postActions.tail.head.isInstanceOf[TransformPostAction[Dataset[_], SparkFlowContext]] should be(true)
-      interceptorAction.postActions.tail.tail.head.isInstanceOf[CachePostAction[Dataset[_], SparkFlowContext]] should be(true)
+      interceptorAction.postActions.head.isInstanceOf[TransformPostAction[Dataset[_]]] should be(true)
+      interceptorAction.postActions.tail.head.isInstanceOf[TransformPostAction[Dataset[_]]] should be(true)
+      interceptorAction.postActions.tail.tail.head.isInstanceOf[CachePostAction[Dataset[_]]] should be(true)
 
       executor.execute(flow)
 
@@ -182,7 +180,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
       val (_, finalState) = executor.execute(flow2)
       finalState.inputs.getOption[Dataset[_]]("parquet_1").map(_.as[TPurchase].collect()).get should be(purchases)
-
     }
 
   }
@@ -245,6 +242,18 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       finalState.actions.size should be(0) // no actions to execute
       finalState.inputs.size should be(5)
       finalState.inputs.getOption[Dataset[_]]("report").map(_.as[TReport].collect()).get should be(report)
+    }
+
+    it("invalid label name") {
+      val spark = sparkSession
+      val res = intercept[DataFlowException] {
+        Waimak.sparkFlow(spark)
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "bad-name")
+          .sql("bad-name")("bad-output", "select * from bad-name")
+      }
+      res.text should be ("The following labels contain invalid characters to be used as Spark SQL view names: [bad-name]. " +
+        "You can alias the label to a valid name before calling the sql action.")
     }
   }
 
@@ -315,83 +324,6 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
     }
   }
 
-  describe("stageAndCommitParquet") {
-
-    it("stage csv to parquet and commit") {
-      val spark = sparkSession
-      import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
-
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
-        .openCSV(basePath)("csv_1", "csv_2")
-        .alias("csv_1", "items")
-        .alias("csv_2", "person")
-        .stageAndCommitParquet(baseDest, partitions = Seq("amount"))("items")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-
-      val (executedActions, finalState) = executor.execute(flow)
-      finalState.inputs.size should be(4)
-      new File(s"$baseDest/items").list().toSeq.filter(_.startsWith("amount=")).sorted should be(Seq("amount=1", "amount=2", "amount=4"))
-      spark.read.parquet(s"$baseDest/items").as[TPurchase].sort("id", "item", "amount").collect() should be(purchases)
-      spark.read.parquet(s"$baseDest/person/generatedTimestamp=2018-03-13-16-19-00").as[TPerson].collect() should be(persons)
-    }
-
-    it("stage csv to parquet on an action that returns two labels and commit") {
-      val spark = sparkSession
-      import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
-
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
-        .openCSV(basePath)("csv_1", "csv_2")
-        .addAction(new TestTwoInputsAndOutputsAction(List("csv_1", "csv_2"), List("items", "person"), (_, _)))
-        .stageAndCommitParquet(baseDest, partitions = Seq("amount"))("items")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-
-      val (executedActions, finalState) = executor.execute(flow)
-      finalState.inputs.size should be(4)
-      new File(s"$baseDest/items").list().toSeq.filter(_.startsWith("amount=")).sorted should be(Seq("amount=1", "amount=2", "amount=4"))
-      spark.read.parquet(s"$baseDest/items").as[TPurchase].sort("id", "item", "amount").collect() should be(purchases)
-      spark.read.parquet(s"$baseDest/person/generatedTimestamp=2018-03-13-16-19-00").as[TPerson].collect() should be(persons)
-    }
-
-    it("stage csv to parquet and commit should throw exception when dest exists") {
-      val spark = sparkSession
-      val baseDest = testingBaseDir + "/dest"
-      val resultDest = testingBaseDir + "/dest/person/generatedTimestamp=2018-03-13-16-19-00"
-      FileUtils.forceMkdir(new File(resultDest))
-
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
-        .openCSV(basePath)("csv_2")
-        .alias("csv_2", "person")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-
-      val res = intercept[DataFlowException] {
-        executor.execute(flow)
-      }
-      res.text.split(": ", 3).zipWithIndex.collect { case (s, i) if i != 1 => s }.mkString(" ") should be("Exception performing action Action: CommitAction Inputs: [csv_2,person] Outputs: []")
-      res.cause shouldBe a[FileAlreadyExistsException]
-    }
-
-    it("stage csv to parquet and commit then use label afterwards") {
-      val spark = sparkSession
-      val baseDest = testingBaseDir + "/dest"
-
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
-        .openCSV(basePath)("csv_2")
-        .alias("csv_2", "person")
-        .stageAndCommitParquet(baseDest, snapshotFolder = Some("generatedTimestamp=2018-03-13-16-19-00"))("person")
-        .transform("person")("person_1") {
-          df =>
-            df.sparkSession.catalog.clearCache()
-            df
-        }
-        .show("person_1")
-      executor.execute(flow)
-
-    }
-
-  }
-
   describe("write") {
 
     it("writeCSV") {
@@ -399,7 +331,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -424,7 +356,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       dummyPath.exists() should be(true)
       itemsPath.exists() should be(false)
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -444,7 +376,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -463,7 +395,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
 
-      val flow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
@@ -473,6 +405,38 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       finalState.inputs.size should be(4)
       spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should be(purchases)
       spark.read.parquet(s"$baseDest/person").as[TPerson].collect() should be(persons)
+    }
+
+    it("writeHiveManagedTable") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .alias("csv_1", "items")
+        .alias("csv_2", "person")
+        .writeHiveManagedTable("default")("person", "items")
+
+      executor.execute(flow)
+
+      spark.sql("select * from default.items").as[TPurchase].collect() should be(purchases)
+      spark.sql("select * from default.person").as[TPerson].collect() should be(persons)
+
+      val e = intercept[DataFlowException] {
+        executor.execute(flow)
+      }
+      e.getMessage should be(s"Exception performing action: ${flow.actions.drop(4).head.guid}: Action: write Inputs: [person] Outputs: []")
+      e.cause.getMessage should be("Table `default`.`person` already exists.;")
+
+      val secondFlow = SparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .transform("csv_1")("items")(_.filter(lit(false)))
+        .transform("csv_2")("person")(_.filter(lit(false)))
+        .writeHiveManagedTable("default", overwrite = true)("person", "items")
+
+      executor.execute(secondFlow)
+      spark.sql("select * from default.items").as[TPurchase].collect() should be(List.empty[TPurchase])
+      spark.sql("select * from default.person").as[TPerson].collect() should be(List.empty[TPerson])
     }
 
     describe("tag and tagDependency") {
@@ -491,7 +455,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           .writeParquet(baseDest)("person", "items")
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Could not find any actions tagged with label [write_person] when resolving dependent actions for action [${flow.actions.head.guid}]")
 
@@ -503,17 +467,18 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
         val baseDest = testingBaseDir + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-          .openParquet(baseDest)("person_written", "items_written")
+          .openFileParquet(s"$baseDest/person", "person_written")
+          .openFileParquet(s"$baseDest/items", "items_written")
           .openCSV(basePath)("csv_1", "csv_2")
           .alias("csv_1", "items")
           .alias("csv_2", "person")
           .writeParquet(baseDest)("person", "items")
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.cause shouldBe a[AnalysisException]
-        res.cause.asInstanceOf[AnalysisException].message should be(s"Path does not exist: file:$baseDest/person_written")
+        res.cause.asInstanceOf[AnalysisException].message should be(s"Path does not exist: file:$baseDest/person")
       }
 
       it("tag dependency between write and open") {
@@ -534,7 +499,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
             _.writeParquet(baseDest)("person", "items")
           }
 
-        val (_, finalState) = sequentialExecutor.execute(flow)
+        val (_, finalState) = executor.execute(flow)
         finalState.inputs.size should be(6)
 
         finalState.inputs.get[Dataset[_]]("items_written").as[TPurchase].collect() should be(purchases)
@@ -562,7 +527,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           }
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Circular reference for action [${flow.actions.find(_.inputLabels.contains("person")).get.guid}] as a result of cyclic tag dependency. " +
           "Action has the following tag dependencies [read] and depends on the following input labels [person]")
@@ -587,14 +552,14 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
           }
 
         val res = intercept[DataFlowException] {
-          sequentialExecutor.execute(flow)
+          executor.execute(flow)
         }
         res.text should be(s"Circular reference for action [${flow.actions.find(_.inputLabels.contains("csv_1")).get.guid}] as a result of cyclic tag dependency. " +
           "Action has the following tag dependencies [written] and depends on the following input labels [csv_1]")
 
       }
 
-      it("tag dependent action depends on an action that does not run and therefore does not run") {
+      it("tag dependent action depends on an action that does not run and therefore does not run and errorOnUnexecutedActions is true") {
         val spark = sparkSession
         val baseDest = testingBaseDir + "/dest"
 
@@ -607,11 +572,121 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
             _.openCSV(basePath)("csv_1")
           }
 
-        val (executed, _) = sequentialExecutor.execute(flow)
+        val res = intercept[DataFlowException]{
+          executor.execute(flow)
+        }
+        res.text should be(
+          "There were actions in the flow that did not run. " +
+            "If this was intentional you can allow unexecuted actions by " +
+            "setting the flag [errorOnUnexecutedActions=false] when calling " +
+            "the execute method.\nThe actions that did not run were:\n" +
+            s"${flow.actions.find(_.outputLabels.contains("test_2")).get.logLabel}\n" +
+            s"${flow.actions.find(_.outputLabels.contains("csv_1")).get.logLabel}"
+        )
+
+      }
+
+      it("tag dependent action depends on an action that does not run and therefore does not run and errorOnUnexecutedActions is false") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .addInput("test_1", None)
+          .tag("tag1") {
+            _.transform("test_1")("test_2")(df => df)
+          }
+          .tagDependency("tag1") {
+            _.openCSV(basePath)("csv_1")
+          }
+
+        val (executed, _) = executor.execute(flow, errorOnUnexecutedActions = false)
         executed.size should be(0)
 
       }
 
+      it("interceptor on tagged action, should replace action in tag state") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .tag("tag_1") {
+            _.openCSV(basePath)("csv_1", "csv_2")
+              .alias("csv_1", "items")
+              .alias("csv_2", "person")
+          }.tagDependency("tag_1") {
+          _.transform("items")("one_item") { _.filter("id = 1")}
+        }.show("one_item")
+
+        val flowWithCache = flowNoCache.cacheAsParquet("items")
+
+        flowNoCache.actions.size should be(flowWithCache.actions.size)
+        flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
+
+        val noCacheActionGUIDs = flowNoCache.actions.map(_.guid).toSet
+        val cacheAction = flowWithCache.actions.filter(a => !noCacheActionGUIDs.contains(a.guid)).head
+        cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
+
+        flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
+        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("tag_1")))
+      }
+
+      it("tagged interceptor on tagged action") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .tag("tag_1") {
+            _.openCSV(basePath)("csv_1", "csv_2")
+              .alias("csv_1", "items")
+              .alias("csv_2", "person")
+          }.tagDependency("tag_1") {
+          _.transform("items")("one_item") { _.filter("id = 1")}
+        }.show("one_item")
+
+        val flowWithCache = flowNoCache
+            .tag("cache_tag_1") {
+              _.cacheAsParquet("items")
+            }
+
+        flowWithCache.actions.foreach(a => println("DEBUG a " + a.logLabel))
+
+        flowNoCache.actions.size should be(flowWithCache.actions.size)
+        flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
+
+        val noCacheActionGUIDs = flowNoCache.actions.map(_.guid).toSet
+        val cacheAction = flowWithCache.actions.filter(a => !noCacheActionGUIDs.contains(a.guid)).head
+        cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
+
+        flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
+        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("tag_1", "cache_tag_1")))
+      }
+
+      it("tagged interceptor on non tagged action") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .openCSV(basePath)("csv_1", "csv_2")
+          .alias("csv_1", "items")
+          .alias("csv_2", "person")
+          .transform("items")("one_item") { _.filter("id = 1") }
+          .show("one_item")
+
+        val flowWithCache = flowNoCache
+          .tag("cache_tag_1") {
+            _.cacheAsParquet("items")
+          }
+
+        flowNoCache.actions.size should be(flowWithCache.actions.size)
+        flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
+
+        val noCacheActionGUIDs = flowNoCache.actions.map(_.guid).toSet
+        val cacheAction = flowWithCache.actions.filter(a => !noCacheActionGUIDs.contains(a.guid)).head
+        cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
+
+        flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
+        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("cache_tag_1")))
+      }
     }
 
   }
@@ -635,12 +710,24 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       csv_2_sql.as[TPerson].collect() should be(persons)
     }
 
+    it("invalid label name") {
+      val spark = sparkSession
+      val res = intercept[DataFlowException] {
+        Waimak.sparkFlow(spark)
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "bad-name")
+          .debugAsTable("bad-name")
+      }
+      res.text should be ("The following labels contain invalid characters to be used as Spark SQL view names: [bad-name]. " +
+        "You can alias the label to a valid name before calling the debugAsTable action.")
+    }
+
   }
 
   describe("map/mapOption") {
     it("map should transform a sparkdataflow when using implicit classes") {
 
-      val emptyFlow: SimpleSparkDataFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val emptyFlow: SparkDataFlow = SparkDataFlow.empty(sparkSession, tmpDir)
       implicit class TestSparkImplicit1(dataFlow: SparkDataFlow) {
         def runTest1: SparkDataFlow = dataFlow.addAction(new TestEmptySparkAction(List.empty, List.empty) {
           override val guid: String = "abd22c36-4dd0-4fa5-9298-c494ede7f363"
@@ -665,7 +752,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       FileUtils.forceMkdir(testingDir)
       testingDir.getParentFile.list().toSeq should be(Seq("test1"))
 
-      val emptyFlow: SimpleSparkDataFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val emptyFlow: SparkDataFlow = SparkDataFlow.empty(sparkSession, tmpDir)
       executor.execute(emptyFlow)
       testingDir.getParentFile.list().toSeq should be(Seq())
 
@@ -676,7 +763,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val tmpDirFile = new File(tmpDir.toUri.getPath)
       tmpDirFile.getParentFile.list().toSeq should be(Seq())
 
-      val emptyFlow: SimpleSparkDataFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val emptyFlow: SparkDataFlow = SparkDataFlow.empty(sparkSession, tmpDir)
       executor.execute(emptyFlow)
       tmpDirFile.list().toSeq should be(Seq())
 
@@ -711,7 +798,7 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
 
     it("should handle multiple types in the flow") {
 
-      val emptyFlow = SimpleSparkDataFlow.empty(sparkSession, tmpDir)
+      val emptyFlow = SparkDataFlow.empty(sparkSession, tmpDir)
       val flow = emptyFlow.addInput("integer_1", Some(1))
         .addInput("dataset_1", Some(sparkSession.emptyDataFrame))
         .addAction(new TestOutputMultipleTypesAction(List("integer_1", "dataset_1"), List("integer_2", "dataset_2"),
@@ -724,11 +811,36 @@ class TestSimpleSparkDataFlow extends SparkAndTmpDirSpec {
       val ex1 = intercept[DataFlowException] {
         executor.execute(flow.inPlaceTransform("integer_2")(identity))
       }
-      ex1.text should be("Can only call inPlaceTransform on a Dataset. Label integer_2 is a java.lang.Integer")
+      ex1.cause.getMessage should be("Can only call inPlaceTransform on a Dataset. Label integer_2 is a java.lang.Integer")
       val ex2 = intercept[DataFlowException] {
         executor.execute(flow.cacheAsParquet("integer_2"))
       }
-      ex2.text should be("Can only call cacheAsParquet on a Dataset. Label integer_2 is a java.lang.Integer")
+      ex2.cause.getMessage should be("Can only call cacheAsParquet on a Dataset. Label integer_2 is a java.lang.Integer")
+    }
+  }
+
+  describe("fully parallel") {
+
+    it("smoke test") {
+      val parallelExecutor = Waimak.sparkExecutor(10, DFExecutorPriorityStrategies.raceToOutputs)
+      val spark = sparkSession
+
+      val baseDest = testingBaseDir + "/dest"
+      val flow = Waimak.sparkFlow(spark)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .sql("csv_1")("person_summary", "select id, count(item) as item_cnt, sum(amount) as total from csv_1 group by id")
+        .transform("csv_2", "person_summary")("report") { (l, r) => l.join(r, l("id") === r("id"), "left").drop(r("id")) }
+        .alias("csv_1", "person")
+        .alias("csv_2", "purchase")
+        .show("report")
+        .show("csv_1")
+        .show("csv_2")
+        .show("person_summary")
+        .writeParquet(baseDest, true)("person", "purchase", "report", "person_summary")
+
+      val (executedActions, finalState) = parallelExecutor.execute(flow)
+
+      executedActions.size should be(14) //all actions
     }
   }
 }

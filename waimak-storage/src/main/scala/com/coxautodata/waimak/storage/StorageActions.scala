@@ -16,6 +16,36 @@ import scala.util.{Failure, Success, Try}
   */
 object StorageActions extends Logging {
 
+  val storageParamPrefix: String = "spark.waimak.storage"
+  /**
+    * Maximum age of old region files kept in the .Trash folder
+    * after a compaction has happened.
+    */
+  val TRASH_MAX_AGE_MS: String = s"$storageParamPrefix.trashMaxAgeMs"
+  val TRASH_MAX_AGE_MS_DEFAULT: Int = 86400000
+  /**
+    * The row number threshold to use for determining small regions to be compacted.
+    */
+  val SMALL_REGION_ROW_THRESHOLD: String = s"$storageParamPrefix.smallRegionRowThreshold"
+  val SMALL_REGION_ROW_THRESHOLD_DEFAULT = 50000000
+  /**
+    * Approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
+    * Adjust this to control output file size
+    */
+  val HOT_CELLS_PER_PARTITION = s"$storageParamPrefix.hotCellsPerPartition"
+  val HOT_CELLS_PER_PARTITION_DEFAULT = 1000000
+  /**
+    * Approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
+    * Adjust this to control output file size
+    */
+  val COLD_CELLS_PER_PARTITION = s"$storageParamPrefix.coldCellsPerPartition"
+  val COLD_CELLS_PER_PARTITION_DEFAULT = 2500000
+  /**
+    * Whether to recompact all regions regardless of size (i.e. ignore [[SMALL_REGION_ROW_THRESHOLD]])
+    */
+  val RECOMPACT_ALL = s"$storageParamPrefix.recompactAll"
+  val RECOMPACT_ALL_DEFAULT = false
+
 
   def handleTableErrors(tableResults: Map[String, Try[Any]], errorMessageBase: String): Unit = {
     val tableErrors = tableResults.filter(_._2.isFailure).mapValues(_.failed.get)
@@ -79,22 +109,34 @@ object StorageActions extends Logging {
       *                       Takes list of table regions, the count of records added in this batch and
       *                       the compaction zoned date time.
       *                       Default is not to trigger a compaction.
-      * @param trashMaxAge    Maximum age of old region files kept in the .Trash folder
-      *                       after a compaction has happened.
       * @return a new SparkDataFlow with the write action added
       */
-    def writeToStorage(labelName: String, table: AuditTable, lastUpdatedCol: String, appendDateTime: ZonedDateTime,
-                       doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false,
-                       trashMaxAge: Duration = Duration.ofHours(24)): SparkDataFlow = {
+    def writeToStorage(labelName: String
+                       , table: AuditTable
+                       , lastUpdatedCol: String
+                       , appendDateTime: ZonedDateTime
+                       , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false): SparkDataFlow = {
       val run: DataFlowEntities => ActionResult = m => {
-        import sparkDataFlow.flowContext.spark.implicits._
+        val sparkSession = sparkDataFlow.flowContext.spark
+        val sparkConf = sparkSession.sparkContext.getConf
+        import sparkSession.implicits._
 
         val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
 
         table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
           case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
             logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
-            t.compact(appendTimestamp, trashMaxAge) match {
+            val trashMaxAge = Duration.ofMillis(sparkConf.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
+            val smallRegionRowThreshold = sparkConf.getInt(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
+            val hotCellsPerPartition = sparkConf.getInt(HOT_CELLS_PER_PARTITION, HOT_CELLS_PER_PARTITION_DEFAULT)
+            val coldCellsPerPartition = sparkConf.getInt(COLD_CELLS_PER_PARTITION, COLD_CELLS_PER_PARTITION_DEFAULT)
+            val recompactAll = sparkConf.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
+            t.compact(compactTS = appendTimestamp
+              , trashMaxAge = trashMaxAge
+              , coldCellsPerPartition = coldCellsPerPartition
+              , hotCellsPerPartition = hotCellsPerPartition
+              , smallRegionRowThreshold = smallRegionRowThreshold
+              , recompactAll = recompactAll) match {
               case Success(_) => Seq.empty
               case Failure(e) => throw StorageException(s"Failed to compact table [$labelName], with compaction timestamp [$appendTimestamp]", e)
             }
