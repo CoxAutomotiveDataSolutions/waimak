@@ -16,21 +16,22 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
   override val appName: String = "Metastore Utils"
 
   lazy val spark: SparkSession = sparkSession
+  lazy val flowContext: SparkFlowContext = SparkFlowContext(spark)
 
   describe("ImpalaTestConnector") {
 
     it("should generate a correct drop table schema") {
-      val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(spark)
+      val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(flowContext)
       impalaConnection.dropTableParquetDDL("testTable") should be("drop table if exists testTable")
     }
 
     it("should generate a correct update table path schema") {
-      val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(spark)
+      val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(flowContext)
       impalaConnection.updateTableLocationDDL("testTable", "path") should be("alter table testTable set location 'path'")
     }
 
     it("should generate correct create table statements for non partitioned tables") {
-      val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(spark)
+      val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(flowContext)
       val tableName = "testTable"
       val testingBaseFile = new File(testingBaseDirName)
       val tablePath = new File(testingBaseFile, tableName)
@@ -47,7 +48,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
     }
 
     it("should generate correct create table statements for partitioned tables") {
-      val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(spark)
+      val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(flowContext)
       val tableName = "testTable"
       val partitionName = "testPartition"
       val partitionFolder = s"$partitionName=value"
@@ -77,9 +78,9 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
       val spark = sparkSession
       val executor = Waimak.sparkExecutor()
 
-      val connector1 = ImpalaDummyConnector(spark)
-      val connector2 = ImpalaDummyConnector(spark)
-      val connectorRecreate = ImpalaDummyConnector(spark, forceRecreateTables = true)
+      val connector1 = ImpalaDummyConnector(flowContext)
+      val connector2 = ImpalaDummyConnector(flowContext)
+      val connectorRecreate = ImpalaDummyConnector(flowContext, forceRecreateTables = true)
 
       val baseDest = testingBaseDir + "/dest"
 
@@ -133,7 +134,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
       val baseDest = testingBaseDir + "/dest"
 
-      val connectorRecreate = ImpalaDummyConnector(spark, forceRecreateTables = true)
+      val connectorRecreate = ImpalaDummyConnector(flowContext, forceRecreateTables = true)
 
       val flowPrePush: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
         .openCSV(basePath)("csv_1", "csv_2")
