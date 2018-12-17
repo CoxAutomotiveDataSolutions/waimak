@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 2.0 - 2018-12-12
+## 2.0 - 2018-12-17
 
 ### Added
 - Parallel scheduler: By default flows will be executed by the parallel scheduler allowing multiple independent actions to be executed at the same time within the same Spark session
@@ -10,6 +10,7 @@
 - Added a Hive implementation of the `HadoopDBConnector` trait used for committing DDLs for underlying parquet files. This includes an implementation of the Hive SQL dialect (`trait HiveDBConnector`) and a class that submits Hive queries via `sparkSession.sql` (`HiveSparkSQLConnector`) 
 - Added a new action writeHiveManagedTable that creates Hive tables using the saveAsTable on the DataFrameWriter class
 - Added `SQLServerExtractor` for ingesting data from older (pre-2016) versions of SQL Server
+- Added global configuration parameters for the storage layer
 - Added experimental Scala 2.12 support
 
 ### Changed
@@ -17,6 +18,7 @@
 - An exception is now thrown if a flow attempts to register a Spark view with an invalid label name
 - Renamed `SimpleSparkDataFlow` to `SparkDataFlow`
 - Removed unnecessary flow context on Interceptor API
+- All Impala `HadoopDBConnector` classes now take a `SparkFlowContext` object to allow them to work on filesystems other than the one given in `fs.defaultFS`
 
 ### Removed
 - Removed `stageAndCommitParquet` and `stageAndCommitParquetToDB` actions in favour of the new `commit` and `push` approach
@@ -24,6 +26,8 @@
 ### Fixed
 - Fixed issue where reading from the storage layer can fail whilst another job is writing to the storage layer (non-compaction write) due to cached region info being overwritten
 - Partitions within regions in the storage layer are now calculated on total size (`columns * rows`) instead of just number of rows. This should reduce partition sizes in the case of wide tables
+- Corruption detection for region info cache in the storage layer added in the case of job failures during previous writes
+- Optimised Waimak flow validator in the case of large/complex flows
 - Upgraded the Scala 2.11 compiler version due to a vulnerability in earlier versions
 
 ## 1.5.2 - 2018-10-09
