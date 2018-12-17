@@ -97,13 +97,15 @@ trait AuditTable {
     *                                Adjust this to control output file size. Default is 1000000
     * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
     *                                Adjust this to control output file size. Default is 2500000
+    * @param recompactAll            Whether to recompact all regions regardless of size (i.e. ignore smallRegionRowThreshold
     * @return new state of the AuditTable
     */
   def compact(compactTS: Timestamp
               , trashMaxAge: Duration
               , smallRegionRowThreshold: Int = 50000000
               , hotCellsPerPartition: Int = 1000000
-              , coldCellsPerPartition: Int = 2500000): Try[AuditTable]
+              , coldCellsPerPartition: Int = 2500000
+              , recompactAll: Boolean = false): Try[AuditTable]
 
   /**
     * Returns latest timestamp of records stored in the audit table.

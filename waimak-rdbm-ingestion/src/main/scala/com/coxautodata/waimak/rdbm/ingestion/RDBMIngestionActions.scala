@@ -47,8 +47,7 @@ object RDBMIngestionActions {
                                  , extractDateTime: ZonedDateTime
                                  , lastUpdatedOffset: Long = 0
                                  , forceFullLoad: Boolean = false
-                                 , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false
-                                 , trashMaxAge: Duration = Duration.ofHours(24))(tables: String*): SparkDataFlow = {
+                                 , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false)(tables: String*): SparkDataFlow = {
 
       val basePath = new Path(storageBasePath)
 
@@ -87,7 +86,7 @@ object RDBMIngestionActions {
           , table.tableName
           , tableConfigs(table.tableName).maxRowsPerPartition
           , forceFullLoad)
-          .writeToStorage(table.tableName, table, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction, trashMaxAge)
+          .writeToStorage(table.tableName, table, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction)
       })
     }
 

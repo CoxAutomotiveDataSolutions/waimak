@@ -254,6 +254,10 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       fourthCompact.regions(0).store_region should be("6")
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq()
 
+      //Request to recompact all should force single cold region to be recompacted
+      val fifthCompact = fourthCompact.compact(lastTS_7, d3d, recompactAll = true).get
+      fifthCompact.regions.size should be(1)
+      fifthCompact.regions(0).store_region should be("7")
     }
 
     it("single compact into new with schema evolution on hot") {
