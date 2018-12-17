@@ -88,18 +88,24 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     * @param compactTS               timestamp of when the compaction is requested, will not be used for any filtering of the data
     * @param trashMaxAge             Maximum age of old region files kept in the .Trash folder
     *                                after a compaction has happened.
-    * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted.
+    * @param smallRegionRowThreshold the row number threshold to use for determining small regions to be compacted.
     *                                Default is 50000000
     * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
     *                                Adjust this to control output file size. Default is 1000000
     * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
     *                                Adjust this to control output file size. Default is 2500000
+    * @param recompactAll            Whether to recompact all regions regardless of size (i.e. ignore smallRegionRowThreshold)
     * @return new state of the AuditTable
     */
-  override def compact(compactTS: Timestamp, trashMaxAge: Duration, smallRegionRowThreshold: Int, hotCellsPerPartition: Int, coldCellsPerPartition: Int): Try[AuditTable] = {
+  override def compact(compactTS: Timestamp
+                       , trashMaxAge: Duration
+                       , smallRegionRowThreshold: Int
+                       , hotCellsPerPartition: Int
+                       , coldCellsPerPartition: Int
+                       , recompactAll: Boolean): Try[AuditTable] = {
     val res: Try[AuditTableFile] = Try(markToUpdate())
       .flatMap(_ => commitHotToCold(compactTS, hotCellsPerPartition))
-      .flatMap(_.compactCold(compactTS, smallRegionRowThreshold, coldCellsPerPartition))
+      .flatMap(_.compactCold(compactTS, smallRegionRowThreshold, coldCellsPerPartition, recompactAll))
       .map { f =>
         f.storageOps.purgeTrash(f.tableName, compactTS, trashMaxAge)
         f
@@ -159,10 +165,15 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     *                                Adjust this to control output file size.
     * @return
     */
-  protected def compactCold(compactTS: Timestamp, smallRegionRowThreshold: Int, cellsPerPartition: Int): Try[AuditTableFile] = {
-    val smallerRegions = regions.filter(r => r.store_type == COLD_PARTITION && r.count < smallRegionRowThreshold)
+  protected def compactCold(compactTS: Timestamp
+                            , smallRegionRowThreshold: Int
+                            , cellsPerPartition: Int
+                            , recompactAll: Boolean): Try[AuditTableFile] = {
+    val smallerRegions =
+      if (recompactAll) regions
+      else regions.filter(r => r.store_type == COLD_PARTITION && r.count < smallRegionRowThreshold)
     // No use compacting a single small region into itself
-    compactRegions(coldPath, if (smallerRegions.length < 2) Seq.empty else smallerRegions, compactTS, cellsPerPartition)
+    compactRegions(coldPath, if (smallerRegions.length < 2 && !recompactAll) Seq.empty else smallerRegions, compactTS, cellsPerPartition)
   }
 
   protected def compactRegions(typePath: Path
