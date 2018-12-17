@@ -25,7 +25,7 @@
     <version>2.0</version>
 
     <name>Waimak</name>
-    <description>An open-source tool that helps data teams row their own boats. Copyright 2018 Cox Automotive UK
+    <description>Waimak is an open-source framework that makes it easier to create complex data flows in Apache Spark. Copyright 2018 Cox Automotive UK
         Limited; Licensed under the Apache License, Version 2.0.
     </description>
     <url>https://github.com/CoxAutomotiveDataSolutions/waimak</url>

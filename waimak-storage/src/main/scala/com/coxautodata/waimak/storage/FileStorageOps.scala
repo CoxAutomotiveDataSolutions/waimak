@@ -55,6 +55,14 @@ trait FileStorageOps {
   def pathExists(path: Path): Boolean
 
   /**
+    * Delete a given path
+    *
+    * @param path      File or directory to delete
+    * @param recursive Recurse into directories
+    */
+  def deletePath(path: Path, recursive: Boolean): Unit
+
+  /**
     * Creates folders on the physical storage.
     *
     * @param path path to create
@@ -263,4 +271,9 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
     results.collect(parFun)
   }
 
+  override def deletePath(path: Path, recursive: Boolean): Unit = {
+    if (pathExists(path) && !fs.delete(path, recursive)) {
+      throw StorageException(s"Failed to delete path [$path]")
+    }
+  }
 }
