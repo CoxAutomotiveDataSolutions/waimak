@@ -98,6 +98,42 @@ object StorageActions extends Logging {
 
   implicit class StorageActionImplicits(sparkDataFlow: SparkDataFlow) {
 
+    def getOrCreateAuditTable(storageBasePath: String, labelPrefix: String = "audittable", includeHot: Boolean = true)(tableInfo: AuditTableInfo): SparkDataFlow = {
+
+
+      val run: DataFlowEntities => ActionResult = _ => {
+
+
+        val basePath = new Path(storageBasePath)
+
+        val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq)
+
+        val newTableMetadata = newTables.map(t => {
+          val tableConfig = tableConfigs(t)
+          (t,
+            rdbmExtractor.getTableMetadata(dbSchema, t, tableConfig.pkCols, tableConfig.lastUpdatedColumn)
+              .map(_.copy(table_name = t)))
+        }).toMap
+
+        handleTableErrors(newTableMetadata, "Unable to fetch metadata")
+
+        val createdTables = newTableMetadata.values.map(_.get).map(tableInfo => {
+          logInfo(s"Creating table ${tableInfo.table_name} with metadata $tableInfo")
+          tableInfo.table_name -> Storage.createFileTable(sparkDataFlow.flowContext.spark, basePath, tableInfo)
+        }).toMap
+
+        handleTableErrors(createdTables, "Unable to perform create")
+
+        handleTableErrors(existingTables, "Unable to perform read")
+
+        val allTables = existingTables.values.map(_.get) ++ createdTables.values.map(_.get)
+
+      }
+
+
+      ???
+    }
+
     /**
       * Writes a Dataset to to the storage layer
       *
