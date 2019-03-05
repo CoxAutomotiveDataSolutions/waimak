@@ -84,14 +84,14 @@ case class ParquetDataCommitter(outputBaseFolder: String,
           case f if labelCommitEntry.cache => optionallyCacheLabel(f, labelCommitEntry)
           case f => f
         }
-        .writePartitionedParquet(commitTempBase, labelCommitEntry.repartition)(labelCommitEntry.label, labelCommitEntry.partitions: _*)
+        .writeRepartitionedPartitionedParquet(commitTempBase, labelCommitEntry.partitions, labelCommitEntry.repartition)(labelCommitEntry.label)
     }
   }
 
   override protected[dataflow] def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder)
-    val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(outputBaseFolder, snapshotFolder, ce.partitions, hadoopDBConnector))).toMap
+    val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(outputBaseFolder, snapshotFolder, ce.partitions.flatMap(_.left.toOption).getOrElse(Seq.empty), hadoopDBConnector))).toMap
     sparkFlow.addAction(CommitAction(commitLabels, commitTempBase, labels.map(_.label).toList))
   }
 
