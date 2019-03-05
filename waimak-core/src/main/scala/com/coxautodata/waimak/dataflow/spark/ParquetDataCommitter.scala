@@ -66,7 +66,7 @@ case class ParquetDataCommitter(outputBaseFolder: String,
 
   private def optionallyCacheLabel(flow: SparkDataFlow, commitEntry: CommitEntry): SparkDataFlow = {
     if (flow.actions.exists(_.inputLabels.contains(commitEntry.label)))
-      flow.cacheAsPartitionedParquet(commitEntry.partitions, commitEntry.repartition)(commitEntry.label)
+      SparkInterceptors.addCacheAsParquet(flow, commitEntry.label, commitEntry.partitions, commitEntry.repartition)
     else {
       logInfo(s"Committed label [${commitEntry.label}] will not be cached even though cacheLabels hint was given as it is not used " +
         s"as input for any other actions")

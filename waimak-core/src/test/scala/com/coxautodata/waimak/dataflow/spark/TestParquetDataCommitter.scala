@@ -3,11 +3,13 @@ package com.coxautodata.waimak.dataflow.spark
 import java.io.File
 
 import com.coxautodata.waimak.dataflow._
+import com.coxautodata.waimak.dataflow.DataFlow._
 import com.coxautodata.waimak.dataflow.spark.ParquetDataCommitter._
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.TestSparkData.{basePath, purchases}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
+import com.coxautodata.waimak.filesystem.FSUtils._
 
 import scala.util.{Failure, Success}
 
@@ -201,6 +203,52 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should be(purchases)
       }
 
+      it("commit a repartitioned parquet and make sure one label is cached if it is used as input elsewhere") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit", 3)("items")
+          .push("commit")(ParquetDataCommitter(baseDest))
+          .alias("items", "items_aliased")
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should contain theSameElementsAs purchases
+
+        // Check repartition count
+        flow.flowContext.fileSystem.listStatus(new Path(baseDest, "tmp")).exists(_.getPath.getName == "items") should be (true)
+        flow.flowContext.fileSystem.listFiles(new Path(baseDest, "items"), true).count(_.getPath.getName.startsWith("part")) should be (3)
+        flow.flowContext.fileSystem.listFiles(new Path(new Path(baseDest, "tmp"), "items"), true).count(_.getPath.getName.startsWith("part")) should be (3)
+
+      }
+
+      it("commit a repartitioned parquet and make sure one label is not cached if it is not used as input elsewhere") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit", 3)("items")
+          .push("commit")(ParquetDataCommitter(baseDest))
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should contain theSameElementsAs purchases
+
+        // Check labels written out and count
+        flow.flowContext.fileSystem.listStatus(new Path(baseDest, "tmp")).exists(_.getPath.getName == "items") should be (false)
+        flow.flowContext.fileSystem.listFiles(new Path(baseDest, "items"), true).count(_.getPath.getName.startsWith("part")) should be (3)
+
+      }
+
       it("commit a parquet and make sure one label is cached if it is used in multiple commit groups") {
         val spark = sparkSession
         import spark.implicits._
@@ -258,6 +306,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("commit a parquet and make sure one label is not cached as the hint was false") {
         val spark = sparkSession
+        spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
         val baseDest = testingBaseDir + "/dest"
@@ -279,6 +328,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("commit a parquet and make sure one label is not cached as the hint was false but the label is used as input to another commit group") {
         val spark = sparkSession
+        spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
         val baseDest = testingBaseDir + "/dest"
@@ -301,6 +351,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("commit a parquet and make sure one label is not cached as the hint was false but the label is used in multiple commit groups") {
         val spark = sparkSession
+        spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
         val baseDest1 = testingBaseDir + "/dest1"

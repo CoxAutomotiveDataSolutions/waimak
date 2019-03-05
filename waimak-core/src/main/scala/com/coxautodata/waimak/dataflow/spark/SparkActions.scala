@@ -650,10 +650,10 @@ object SparkActions {
       * @param labels - list of labels to snapshot
       * @return
       */
-    def cacheAsPartitionedParquet(partitions: Option[Either[Seq[String], Int]], repartition: Boolean = true)(labels: String*): SparkDataFlow = {
+    def cacheAsPartitionedParquet(partitions: Seq[String], repartition: Boolean = true)(labels: String*): SparkDataFlow = {
       if (labels.isEmpty) throw new DataFlowException(s"At least one label must be specified for cacheAsParquet")
 
-      labels.foldLeft(sparkDataFlow) { (flow, label) => SparkInterceptors.addCacheAsParquet(flow, label, partitions, repartition) }
+      labels.foldLeft(sparkDataFlow) { (flow, label) => SparkInterceptors.addCacheAsParquet(flow, label, Some(Left(partitions)), repartition) }
     }
 
     /**
