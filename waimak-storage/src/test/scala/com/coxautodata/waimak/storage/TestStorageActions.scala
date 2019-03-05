@@ -69,7 +69,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
     }
 
-    it("should write with commit read everything") {
+    it("should write with compaction in window, and read everything") {
       val spark = sparkSession
       import spark.implicits._
       val records = Seq(
@@ -103,6 +103,43 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       regions.map(_.created_on) should be(Seq(Timestamp.valueOf("2018-05-08 17:55:12")))
     }
+
+    it("should write with force recompaction, and read everything") {
+      val spark = sparkSession
+      spark.conf.set(RECOMPACT_ALL, true)
+      import spark.implicits._
+      val records = Seq(
+        TRecord(1, "a", ts1)
+        , TRecord(2, "b", ts2)
+        , TRecord(1, "c", ts3)
+      )
+
+      val executor = Waimak.sparkExecutor()
+
+      val auditTable = Storage.createFileTable(spark, new Path(testingBaseDirName), AuditTableInfo("t_record", Seq("id"), Map.empty))
+        .get.asInstanceOf[AuditTableFile]
+
+      val laZts = zdt1.withZoneSameLocal(ZoneId.of("America/Los_Angeles"))
+
+      val writeFlow = Waimak.sparkFlow(spark)
+        .addInput("t_record", Some(records.toDS()))
+        .writeToStorage("t_record", auditTable, "lastUpdated", laZts)
+
+      executor.execute(writeFlow)
+
+      val readEverythingFlow = Waimak.sparkFlow(spark)
+        .loadFromStorage(testingBaseDirName)("t_record")
+
+      val res1 = executor.execute(readEverythingFlow)
+      res1._2.inputs.get[Dataset[_]]("t_record").sort("lastUpdated").as[TRecord].collect() should be(records)
+
+      // Should be a single cold region
+      val regions = AuditTableFile.inferRegionsWithStats(spark, auditTable.storageOps, auditTable.baseFolder, Seq("t_record"))
+      regions.map(_.store_type) should be(Seq("cold"))
+
+      regions.map(_.created_on) should be(Seq(Timestamp.valueOf("2018-05-08 17:55:12")))
+    }
+
   }
 
   describe("runSingleCompactionDuringWindow") {
