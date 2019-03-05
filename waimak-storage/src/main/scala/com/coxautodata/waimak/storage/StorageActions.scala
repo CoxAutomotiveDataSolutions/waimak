@@ -117,20 +117,22 @@ object StorageActions extends Logging {
                        , appendDateTime: ZonedDateTime
                        , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false): SparkDataFlow = {
       val run: DataFlowEntities => ActionResult = m => {
-        val sparkSession = sparkDataFlow.flowContext.spark
-        val sparkConf = sparkSession.sparkContext.getConf
+        val flowContext = sparkDataFlow.flowContext
+        val sparkSession = flowContext.spark
         import sparkSession.implicits._
 
+        val recompactAll = flowContext.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
         val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
 
         table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
-          case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
+          case Success((t, c)) if recompactAll || doCompaction(t.regions, c, appendDateTime) =>
             logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
-            val trashMaxAge = Duration.ofMillis(sparkConf.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
-            val smallRegionRowThreshold = sparkConf.getLong(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
-            val hotBytesPerPartition = sparkConf.getLong(HOT_BYTES_PER_PARTITION, HOT_BYTES_PER_PARTITION_DEFAULT)
-            val coldBytesPerPartition = sparkConf.getLong(COLD_BYTES_PER_PARTITION, COLD_BYTES_PER_PARTITION_DEFAULT)
-            val recompactAll = sparkConf.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
+
+            val trashMaxAge = Duration.ofMillis(flowContext.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
+            val smallRegionRowThreshold = flowContext.getLong(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
+            val hotBytesPerPartition = flowContext.getLong(HOT_BYTES_PER_PARTITION, HOT_BYTES_PER_PARTITION_DEFAULT)
+            val coldBytesPerPartition = flowContext.getLong(COLD_BYTES_PER_PARTITION, COLD_BYTES_PER_PARTITION_DEFAULT)
+
             t.compact(compactTS = appendTimestamp
               , trashMaxAge = trashMaxAge
               , coldBytesPerPartition = coldBytesPerPartition
