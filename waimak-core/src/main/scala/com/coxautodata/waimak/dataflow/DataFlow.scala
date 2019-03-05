@@ -20,6 +20,8 @@ import scala.util.{Failure, Success, Try}
   */
 trait DataFlow extends Logging {
 
+  import DataFlow._
+
   def flowContext: FlowContext
 
   def schedulingMeta: SchedulingMeta
@@ -278,18 +280,59 @@ trait DataFlow extends Logging {
     * Can be called multiple times with same same commit name, thus adding labels to it.
     * There can be multiple commit names defined in a single data flow.
     *
+    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
+    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
+    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
+    *
     * @param commitName  name of the commit, which will be used to define its push implementation
     * @param partitions  list of partition columns for the labels specified in this commit invocation. It will not
     *                    impact labels from previous or following invocations of the commit with same commit name.
     * @param repartition to repartition the data
-    * @param cacheLabels request the committer to cache the underlying labels on the flow before writing them out
-    *                    if caching is supported by the data committer. If caching is not supported this parameter is ignored.
     * @param labels      labels added to the commit name with partitions config
     * @return
     */
-  def commit(commitName: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true, cacheLabels: Boolean = true)(labels: String*): this.type = {
-    val toRepartition = partitions.nonEmpty && repartition
-    commitMeta(commitMeta.addCommits(commitName, labels, partitions, toRepartition, cacheLabels))
+  def commit(commitName: String, partitions: Seq[String], repartition: Boolean = true)(labels: String*): this.type = {
+    commit(commitName, Some(Left(partitions)), repartition = partitions.nonEmpty && repartition)(labels: _*)
+  }
+
+  /**
+    * Groups labels to commit under a commit name.
+    * Can be called multiple times with same same commit name, thus adding labels to it.
+    * There can be multiple commit names defined in a single data flow.
+    *
+    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
+    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
+    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
+    *
+    * @param commitName  name of the commit, which will be used to define its push implementation
+    * @param repartition how many partitions to repartition the data by
+    * @param labels      labels added to the commit name with partitions config
+    * @return
+    */
+  def commit(commitName: String, repartition: Int)(labels: String*): this.type = {
+    commit(commitName, Some(Right(repartition)), repartition = true)(labels: _*)
+  }
+
+  /**
+    * Groups labels to commit under a commit name.
+    * Can be called multiple times with same same commit name, thus adding labels to it.
+    * There can be multiple commit names defined in a single data flow.
+    *
+    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
+    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
+    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
+    *
+    * @param commitName name of the commit, which will be used to define its push implementation
+    * @param labels     labels added to the commit name with partitions config
+    * @return
+    */
+  def commit(commitName: String)(labels: String*): this.type = {
+    commit(commitName, None, repartition = false)(labels: _*)
+  }
+
+  private def commit(commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean)(labels: String*): this.type = {
+    val cacheLabels = flowContext.getBoolean(CACHE_REUSED_COMMITTED_LABELS, CACHE_REUSED_COMMITTED_LABELS_DEFAULT)
+    commitMeta(commitMeta.addCommits(commitName, labels, partitions, repartition, cacheLabels))
   }
 
   /**
@@ -461,6 +504,18 @@ trait DataFlow extends Logging {
 
 }
 
+object DataFlow {
+
+  val dataFlowParamPrefix: String = "spark.waimak.dataflow"
+
+  /**
+    * Whether to cache labels before they are committed if they are reused
+    * elsewhere in the flow.
+    */
+  val CACHE_REUSED_COMMITTED_LABELS: String = s"$dataFlowParamPrefix.cacheReusedCommittedLabels"
+  val CACHE_REUSED_COMMITTED_LABELS_DEFAULT: Boolean = true
+}
+
 /**
   * Represents the tag state on a given action
   *
@@ -555,7 +610,7 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
   */
 case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter]]) {
 
-  def addCommits(commitName: String, labels: Seq[String], partitions: Seq[String], repartition: Boolean, cacheLabels: Boolean): CommitMeta = {
+  def addCommits(commitName: String, labels: Seq[String], partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cacheLabels: Boolean): CommitMeta = {
     val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition, cacheLabels))
     this.copy(commits = commits + (commitName -> nextCommits))
   }
@@ -619,4 +674,4 @@ object CommitMeta {
 
 }
 
-case class CommitEntry(label: String, commitName: String, partitions: Seq[String], repartition: Boolean, cache: Boolean)
+case class CommitEntry(label: String, commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cache: Boolean)

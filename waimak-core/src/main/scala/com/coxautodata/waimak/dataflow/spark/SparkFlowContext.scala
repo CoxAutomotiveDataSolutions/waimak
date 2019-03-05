@@ -15,7 +15,7 @@ import org.apache.spark.sql.SparkSession
   */
 case class SparkFlowContext(spark: SparkSession) extends FlowContext {
 
-  val uriUsed: String = spark.conf.get("spark.waimak.fs.defaultFS", spark.sparkContext.hadoopConfiguration.get("fs.defaultFS"))
+  val uriUsed: String = getString("spark.waimak.fs.defaultFS", spark.sparkContext.hadoopConfiguration.get("fs.defaultFS"))
 
   lazy val fileSystem: FileSystem = FileSystem.get(new URI(uriUsed), spark.sparkContext.hadoopConfiguration)
 
@@ -24,4 +24,6 @@ case class SparkFlowContext(spark: SparkSession) extends FlowContext {
   override def reportActionStarted(action: DataFlowAction): Unit = spark.sparkContext.setJobGroup(action.guid, action.description)
 
   override def reportActionFinished(action: DataFlowAction): Unit = spark.sparkContext.clearJobGroup()
+
+  override def getOption(key: String): Option[String] = spark.conf.getOption(key)
 }

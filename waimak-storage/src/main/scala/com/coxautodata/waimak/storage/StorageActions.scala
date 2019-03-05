@@ -117,8 +117,8 @@ object StorageActions extends Logging {
                        , appendDateTime: ZonedDateTime
                        , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false): SparkDataFlow = {
       val run: DataFlowEntities => ActionResult = m => {
-        val sparkSession = sparkDataFlow.flowContext.spark
-        val sparkConf = sparkSession.sparkContext.getConf
+        val flowContext = sparkDataFlow.flowContext
+        val sparkSession = flowContext.spark
         import sparkSession.implicits._
 
         val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
@@ -126,11 +126,11 @@ object StorageActions extends Logging {
         table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
           case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
             logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
-            val trashMaxAge = Duration.ofMillis(sparkConf.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
-            val smallRegionRowThreshold = sparkConf.getInt(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
-            val hotCellsPerPartition = sparkConf.getInt(HOT_CELLS_PER_PARTITION, HOT_CELLS_PER_PARTITION_DEFAULT)
-            val coldCellsPerPartition = sparkConf.getInt(COLD_CELLS_PER_PARTITION, COLD_CELLS_PER_PARTITION_DEFAULT)
-            val recompactAll = sparkConf.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
+            val trashMaxAge = Duration.ofMillis(flowContext.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
+            val smallRegionRowThreshold = flowContext.getInt(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
+            val hotCellsPerPartition = flowContext.getInt(HOT_CELLS_PER_PARTITION, HOT_CELLS_PER_PARTITION_DEFAULT)
+            val coldCellsPerPartition = flowContext.getInt(COLD_CELLS_PER_PARTITION, COLD_CELLS_PER_PARTITION_DEFAULT)
+            val recompactAll = flowContext.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
             t.compact(compactTS = appendTimestamp
               , trashMaxAge = trashMaxAge
               , coldCellsPerPartition = coldCellsPerPartition
