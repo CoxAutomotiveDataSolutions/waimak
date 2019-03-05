@@ -92,19 +92,18 @@ trait AuditTable {
     * @param trashMaxAge             Maximum age of old region files kept in the .Trash folder
     *                                after a compaction has happened.
     * @param smallRegionRowThreshold the row number threshold to use for determining small regions to be compacted.
-    *                                Default is 50000000
-    * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
-    *                                Adjust this to control output file size. Default is 1000000
-    * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
-    *                                Adjust this to control output file size. Default is 2500000
+    * @param hotBytesPerPartition    approximate maximum number of bytes to be in each hot partition file.
+    *                                Adjust this to control output file size.
+    * @param coldBytesPerPartition   approximate maximum number of bytes to be in each cold partition file.
+    *                                Adjust this to control output file size.
     * @param recompactAll            Whether to recompact all regions regardless of size (i.e. ignore smallRegionRowThreshold)
     * @return new state of the AuditTable
     */
   def compact(compactTS: Timestamp
               , trashMaxAge: Duration
-              , smallRegionRowThreshold: Int = 50000000
-              , hotCellsPerPartition: Int = 1000000
-              , coldCellsPerPartition: Int = 2500000
+              , smallRegionRowThreshold: Long
+              , hotBytesPerPartition: Long
+              , coldBytesPerPartition: Long
               , recompactAll: Boolean = false): Try[AuditTable]
 
   /**

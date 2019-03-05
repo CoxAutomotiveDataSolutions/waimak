@@ -7,6 +7,7 @@ import java.time.Duration
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPersonEvolved}
 import com.coxautodata.waimak.storage.AuditTableFile._
+import com.coxautodata.waimak.storage.StorageActions._
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.TimestampType
@@ -211,7 +212,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val onlyColdRegion_empty = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
       onlyColdRegion_empty should be(Seq.empty)
 
-      val compactedTable = table_s2.compact(lastTS_3, d3d).get
+      val compactedTable = table_s2.compact(lastTS_3, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
 
       val onlyColdRegion = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
       onlyColdRegion should be(Seq(AuditTableRegionInfo("person", "cold", "3", lastTS_3, false, 8, lastTS_2)))
@@ -235,7 +236,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       // Should be one trashed compaction
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_3.getTime.toString)
 
-      val secondCompact = table_s3.compact(lastTS_4, d12h).get
+      val secondCompact = table_s3.compact(lastTS_4, d12h, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
       secondCompact.regions.size should be(1)
       secondCompact.regions(0).store_region should be("6")
 
@@ -243,19 +244,19 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_4.getTime.toString)
 
       // Empty compaction with previous in range should not delete trash
-      val thirdCompact = secondCompact.compact(lastTS_5, d3d).get
+      val thirdCompact = secondCompact.compact(lastTS_5, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
       thirdCompact.regions.size should be(1)
       thirdCompact.regions(0).store_region should be("6")
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_4.getTime.toString)
 
       // Empty compaction with previous not in range should delete trash
-      val fourthCompact = thirdCompact.compact(lastTS_6, d12h).get
+      val fourthCompact = thirdCompact.compact(lastTS_6, d12h, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
       fourthCompact.regions.size should be(1)
       fourthCompact.regions(0).store_region should be("6")
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq()
 
       //Request to recompact all should force single cold region to be recompacted
-      val fifthCompact = fourthCompact.compact(lastTS_7, d3d, recompactAll = true).get
+      val fifthCompact = fourthCompact.compact(lastTS_7, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT, recompactAll = true).get
       fifthCompact.regions.size should be(1)
       fifthCompact.regions(0).store_region should be("7")
     }
@@ -275,7 +276,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       table_s2.regions(0).store_region should be("0")
       table_s2.regions(1).store_region should be("1")
 
-      val compacted_table = table_s2.compact(compactTS_1, d3d).get
+      val compacted_table = table_s2.compact(compactTS_1, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
       compacted_table.regions.size should be(1)
       compacted_table.regions(0).count should be(8)
       compacted_table.regions(0).store_type should be("cold")
@@ -334,7 +335,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val finalPerson = person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2, d3d))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
         .get._1.asInstanceOf[AuditTableFile]
 
@@ -358,7 +359,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       )
 
       val reopenedTable = AuditTableFile.openTables(sparkSession, finalPerson.storageOps, basePath, Seq("prsn"), true)(finalPerson.newRegionID)._1("prsn")
-      reopenedTable.map(_.compact(lastTS_3, d3d))
+      reopenedTable.map(_.compact(lastTS_3, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT))
 
       val inferredCachedRegionsAfterCompaction = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq("prsn"), true)
       inferredCachedRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "5", lastTS_3, false, 11, lastTS_3)))
@@ -552,7 +553,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2, d3d))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
 
       reportTable.append(rep1, lastUpdated(rep1), lastTS_2)
@@ -600,7 +601,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val finalPerson = person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2, d3d))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
 
       val finalReport = reportTable.append(rep1, lastUpdated(rep1), lastTS_2)
@@ -660,25 +661,26 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val spark = sparkSession
       import spark.implicits._
 
-      val purchasesTable = createADTable("purchase", createFops()).initNewTable().get
+      val personTable = createADTable("person", createFops()).initNewTable().get
       val reportTable = createADTable("rep", createFops()).initNewTable().get
 
 
       val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
       val reportData = report.toDS().withColumn("lastTS", lit("2018-01-01"))
 
-      val cellsPerPartition = 18
+      // Person approx 1090 per row, report approx 1540 per row (_de_last_updated column is added in storage layer)
+      val bytesPerPartition = 3030L
 
-      val finalPurchase = purchasesTable
+      val finalPurchase = personTable
         .append(personData, lastUpdated(personData), lastTS_1)
-        .flatMap(_._1.compact(lastTS_2, d3d, hotCellsPerPartition = cellsPerPartition, coldCellsPerPartition = cellsPerPartition))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, hotBytesPerPartition = bytesPerPartition, coldBytesPerPartition = bytesPerPartition))
 
 
       val finalReport = reportTable.append(reportData, lastUpdated(reportData), lastTS_2)
-        .flatMap(_._1.compact(lastTS_2, d3d, hotCellsPerPartition = cellsPerPartition, coldCellsPerPartition = cellsPerPartition))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, hotBytesPerPartition = bytesPerPartition, coldBytesPerPartition = bytesPerPartition))
 
       val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-      fs.globStatus(new Path(basePath, "purchase/*/*/part-*")).length should be(2)
+      fs.globStatus(new Path(basePath, "person/*/*/part-*")).length should be(2)
       fs.globStatus(new Path(basePath, "rep/*/*/part-*")).length should be(3)
     }
   }

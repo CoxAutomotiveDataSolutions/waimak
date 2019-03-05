@@ -22,24 +22,24 @@ object StorageActions extends Logging {
     * after a compaction has happened.
     */
   val TRASH_MAX_AGE_MS: String = s"$storageParamPrefix.trashMaxAgeMs"
-  val TRASH_MAX_AGE_MS_DEFAULT: Int = 86400000
+  val TRASH_MAX_AGE_MS_DEFAULT: Long = 86400000
   /**
     * The row number threshold to use for determining small regions to be compacted.
     */
   val SMALL_REGION_ROW_THRESHOLD: String = s"$storageParamPrefix.smallRegionRowThreshold"
-  val SMALL_REGION_ROW_THRESHOLD_DEFAULT = 50000000
+  val SMALL_REGION_ROW_THRESHOLD_DEFAULT: Long = 50000000
   /**
-    * Approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
+    * Approximate maximum number of bytes to be in each hot partition file.
     * Adjust this to control output file size
     */
-  val HOT_CELLS_PER_PARTITION = s"$storageParamPrefix.hotCellsPerPartition"
-  val HOT_CELLS_PER_PARTITION_DEFAULT = 1000000
+  val HOT_BYTES_PER_PARTITION = s"$storageParamPrefix.hotBytesPerPartition"
+  val HOT_BYTES_PER_PARTITION_DEFAULT: Long = 100000000
   /**
-    * Approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
+    * Approximate maximum number of bytes to be in each cold partition file.
     * Adjust this to control output file size
     */
-  val COLD_CELLS_PER_PARTITION = s"$storageParamPrefix.coldCellsPerPartition"
-  val COLD_CELLS_PER_PARTITION_DEFAULT = 2500000
+  val COLD_BYTES_PER_PARTITION = s"$storageParamPrefix.coldBytesPerPartition"
+  val COLD_BYTES_PER_PARTITION_DEFAULT: Long = 250000000
   /**
     * Whether to recompact all regions regardless of size (i.e. ignore [[SMALL_REGION_ROW_THRESHOLD]])
     */
@@ -127,14 +127,14 @@ object StorageActions extends Logging {
           case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
             logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
             val trashMaxAge = Duration.ofMillis(sparkConf.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
-            val smallRegionRowThreshold = sparkConf.getInt(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
-            val hotCellsPerPartition = sparkConf.getInt(HOT_CELLS_PER_PARTITION, HOT_CELLS_PER_PARTITION_DEFAULT)
-            val coldCellsPerPartition = sparkConf.getInt(COLD_CELLS_PER_PARTITION, COLD_CELLS_PER_PARTITION_DEFAULT)
+            val smallRegionRowThreshold = sparkConf.getLong(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
+            val hotBytesPerPartition = sparkConf.getLong(HOT_BYTES_PER_PARTITION, HOT_BYTES_PER_PARTITION_DEFAULT)
+            val coldBytesPerPartition = sparkConf.getLong(COLD_BYTES_PER_PARTITION, COLD_BYTES_PER_PARTITION_DEFAULT)
             val recompactAll = sparkConf.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
             t.compact(compactTS = appendTimestamp
               , trashMaxAge = trashMaxAge
-              , coldCellsPerPartition = coldCellsPerPartition
-              , hotCellsPerPartition = hotCellsPerPartition
+              , coldBytesPerPartition = coldBytesPerPartition
+              , hotBytesPerPartition = hotBytesPerPartition
               , smallRegionRowThreshold = smallRegionRowThreshold
               , recompactAll = recompactAll) match {
               case Success(_) => Seq.empty
