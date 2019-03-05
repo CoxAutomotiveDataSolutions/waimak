@@ -15,9 +15,9 @@ import org.apache.spark.sql.SparkSession
   */
 case class SparkFlowContext(spark: SparkSession) extends FlowContext {
 
-  private val uriToUse = spark.conf.get("spark.waimak.fs.defaultFS", spark.sparkContext.hadoopConfiguration.get("fs.defaultFS"))
+  val uriUsed: String = spark.conf.get("spark.waimak.fs.defaultFS", spark.sparkContext.hadoopConfiguration.get("fs.defaultFS"))
 
-  lazy val fileSystem: FileSystem = FileSystem.get(new URI(uriToUse), spark.sparkContext.hadoopConfiguration)
+  lazy val fileSystem: FileSystem = FileSystem.get(new URI(uriUsed), spark.sparkContext.hadoopConfiguration)
 
   override def setPoolIntoContext(poolName: String): Unit = spark.sparkContext.setLocalProperty("spark.scheduler.pool", poolName)
 
