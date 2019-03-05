@@ -3,11 +3,13 @@ package com.coxautodata.waimak.dataflow.spark
 import java.io.File
 
 import com.coxautodata.waimak.dataflow._
+import com.coxautodata.waimak.dataflow.DataFlow._
 import com.coxautodata.waimak.dataflow.spark.ParquetDataCommitter._
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.TestSparkData.{basePath, purchases}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
+import com.coxautodata.waimak.filesystem.FSUtils._
 
 import scala.util.{Failure, Success}
 
@@ -128,9 +130,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         initSnapshotFolders(new File(baseDest, "label_ok"), Seq("snap=2000"))
 
         val res = committer.validate(flow, "f1", Seq(
-          CommitEntry("label_fail_1", "f1", Seq.empty, repartition = false, cache = true)
-          , CommitEntry("label_fail_2", "f1", Seq.empty, repartition = false, cache = true)
-          , CommitEntry("label_ok", "f1", Seq.empty, repartition = false, cache = true))
+          CommitEntry("label_fail_1", "f1", None, repartition = false, cache = true)
+          , CommitEntry("label_fail_2", "f1", None, repartition = false, cache = true)
+          , CommitEntry("label_ok", "f1", None, repartition = false, cache = true))
         )
         res shouldBe a[Failure[_]]
         res.failed.get.getMessage should be("ParquetDataCommitter [f1], snapshot folder [snap=2001] is already present for labels: [label_fail_1, label_fail_2]")
@@ -143,14 +145,14 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", Seq.empty, repartition = false, cache = true))) should be(Success())
+        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", None, repartition = false, cache = true))) should be(Success())
       }
 
       it("with snapshot and no cleanup") {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest).withSnapshotFolder("ts=777777")
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", Seq.empty, repartition = false, cache = true))) should be(Success())
+        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", None, repartition = false, cache = true))) should be(Success())
       }
 
       it("multiple labels, no clash of the snapshot folders of committed labels") {
@@ -166,10 +168,10 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         initSnapshotFolders(new File(baseDest, "label_3"), Seq("snap=2000"))
 
         val res = committer.validate(flow, "f1", Seq(
-          CommitEntry("label_1", "f1", Seq.empty, repartition = false, cache = true)
-          , CommitEntry("label_2", "f1", Seq.empty, repartition = false, cache = true)
-          , CommitEntry("label_3", "f1", Seq.empty, repartition = false, cache = true)
-          , CommitEntry("label_no_init", "f1", Seq.empty, repartition = false, cache = true))
+          CommitEntry("label_1", "f1", None, repartition = false, cache = true)
+          , CommitEntry("label_2", "f1", None, repartition = false, cache = true)
+          , CommitEntry("label_3", "f1", None, repartition = false, cache = true)
+          , CommitEntry("label_no_init", "f1", None, repartition = false, cache = true))
         )
         res should be(Success())
       }
@@ -199,6 +201,52 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         typedInterceptorAction.postActions.head shouldBe a[CachePostAction[_]]
 
         spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should be(purchases)
+      }
+
+      it("commit a repartitioned parquet and make sure one label is cached if it is used as input elsewhere") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit", 3)("items")
+          .push("commit")(ParquetDataCommitter(baseDest))
+          .alias("items", "items_aliased")
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should contain theSameElementsAs purchases
+
+        // Check repartition count
+        flow.flowContext.fileSystem.listStatus(new Path(baseDest, "tmp")).exists(_.getPath.getName == "items") should be (true)
+        flow.flowContext.fileSystem.listFiles(new Path(baseDest, "items"), true).count(_.getPath.getName.startsWith("part")) should be (3)
+        flow.flowContext.fileSystem.listFiles(new Path(new Path(baseDest, "tmp"), "items"), true).count(_.getPath.getName.startsWith("part")) should be (3)
+
+      }
+
+      it("commit a repartitioned parquet and make sure one label is not cached if it is not used as input elsewhere") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val baseDest = testingBaseDir + "/dest"
+
+        val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
+          .openCSV(basePath)("csv_1")
+          .alias("csv_1", "items")
+          .commit("commit", 3)("items")
+          .push("commit")(ParquetDataCommitter(baseDest))
+
+        val (ex, _) = Waimak.sparkExecutor().execute(flow)
+
+        spark.read.parquet(s"$baseDest/items").as[TPurchase].collect() should contain theSameElementsAs purchases
+
+        // Check labels written out and count
+        flow.flowContext.fileSystem.listStatus(new Path(baseDest, "tmp")).exists(_.getPath.getName == "items") should be (false)
+        flow.flowContext.fileSystem.listFiles(new Path(baseDest, "items"), true).count(_.getPath.getName.startsWith("part")) should be (3)
+
       }
 
       it("commit a parquet and make sure one label is cached if it is used in multiple commit groups") {
@@ -258,6 +306,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("commit a parquet and make sure one label is not cached as the hint was false") {
         val spark = sparkSession
+        spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
         val baseDest = testingBaseDir + "/dest"
@@ -265,7 +314,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
           .alias("csv_1", "items")
-          .commit("commit", cacheLabels = false)("items")
+          .commit("commit")("items")
           .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
 
         val (ex, _) = Waimak.sparkExecutor().execute(flow)
@@ -279,6 +328,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("commit a parquet and make sure one label is not cached as the hint was false but the label is used as input to another commit group") {
         val spark = sparkSession
+        spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
         val baseDest = testingBaseDir + "/dest"
@@ -286,7 +336,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
           .alias("csv_1", "items")
-          .commit("commit", cacheLabels = false)("items")
+          .commit("commit")("items")
           .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
           .alias("items", "items_aliased")
 
@@ -301,6 +351,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
       it("commit a parquet and make sure one label is not cached as the hint was false but the label is used in multiple commit groups") {
         val spark = sparkSession
+        spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
         val baseDest1 = testingBaseDir + "/dest1"
@@ -309,8 +360,8 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val flow = Waimak.sparkFlow(spark, s"$baseDest1/tmp")
           .openCSV(basePath)("csv_1")
           .alias("csv_1", "items")
-          .commit("commit1", cacheLabels = false)("items")
-          .commit("commit2", cacheLabels = false)("items")
+          .commit("commit1")("items")
+          .commit("commit2")("items")
           .push("commit1")(ParquetDataCommitter(baseDest1).withSnapshotFolder("generated_timestamp=20180509094500"))
           .push("commit2")(ParquetDataCommitter(baseDest2).withSnapshotFolder("generated_timestamp=20180509094500"))
 
