@@ -129,7 +129,7 @@ object StorageActions extends Logging {
         val (existingTables, missingTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tableNames, includeHot)
 
         if (missingTables.nonEmpty && metadataRetrieval.isEmpty) {
-          throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined")
+          throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined: ${missingTables.mkString(",")}")
         }
 
         val createdTables = missingTables.map { tableName =>

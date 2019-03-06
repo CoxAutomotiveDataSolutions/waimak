@@ -3,8 +3,8 @@ package com.coxautodata.waimak.storage
 import java.sql.Timestamp
 import java.time.{ZoneId, ZoneOffset}
 
-import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
+import com.coxautodata.waimak.dataflow.{DataFlowException, Waimak}
 import com.coxautodata.waimak.storage.AuditTableFile.lowTimestamp
 import com.coxautodata.waimak.storage.StorageActions._
 import org.apache.spark.sql.Dataset
@@ -133,6 +133,20 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       regions.map(_.store_type) should be(Seq("cold"))
 
       regions.map(_.created_on) should be(Seq(Timestamp.valueOf("2018-05-08 17:55:12")))
+    }
+
+    it("should fail if a table was not found in the storage layer") {
+      val spark = sparkSession
+
+      val executor = Waimak.sparkExecutor()
+
+      val writeFlow = Waimak.sparkFlow(spark)
+        .getOrCreateAuditTable(testingBaseDirName, None)("t_record")
+
+      intercept[DataFlowException](
+        executor.execute(writeFlow)
+      ).cause.getMessage should be("The following tables were not found in the storage layer and could not be created as no metadata function was defined: t_record")
+
     }
 
   }
