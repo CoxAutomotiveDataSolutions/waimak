@@ -1,15 +1,15 @@
 package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.Timestamp
-import java.time.{Duration, ZonedDateTime}
+import java.time.ZonedDateTime
+import java.util.UUID
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.storage.StorageActions._
-import com.coxautodata.waimak.storage.{AuditTable, AuditTableRegionInfo, Storage}
-import org.apache.hadoop.fs.Path
+import com.coxautodata.waimak.storage.{AuditTable, AuditTableInfo, AuditTableRegionInfo}
 
 /**
   * Created by Vicky Avison on 08/05/18.
@@ -27,17 +27,15 @@ object RDBMIngestionActions {
       * @param dbSchema          The database schema (namespace) to read from
       * @param storageBasePath   The base path for the storage layer
       * @param tableConfigs      table configuration
+      * @param extractDateTime   Datetime of the append, zoned to a timezone, should be the datetime the flow was executed
       * @param lastUpdatedOffset Number of seconds to subtract from the last updated timestamp before reason
       *                          (for safety/contingency)
       * @param forceFullLoad     If set to true, ignore the last updated and read everything
-      * @param tables            The tables to read
       * @param doCompaction      a lambda used to decide whether a compaction should happen after an append.
       *                          Takes list of table regions, the count of records added in this batch and
       *                          the compaction timestamp.
       *                          Default is not to trigger a compaction
-      * @param trashMaxAge       Maximum age of old region files kept in the .Trash folder
-      *                          after a compaction has happened.
-      *                          Default is 24 hours.
+      * @param tables            The tables to read
       * @return A new SparkDataFlow with the extraction actions added
       */
     def extractToStorageFromRDBM(rdbmExtractor: RDBMExtractor
@@ -49,69 +47,60 @@ object RDBMIngestionActions {
                                  , forceFullLoad: Boolean = false
                                  , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false)(tables: String*): SparkDataFlow = {
 
-      val basePath = new Path(storageBasePath)
+      def metadataFunction(tableName: String): AuditTableInfo = {
+        val tableConfig = tableConfigs(tableName)
+        rdbmExtractor.getTableMetadata(dbSchema, tableName, tableConfig.pkCols, tableConfig.lastUpdatedColumn).get
+      }
 
-      val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq)
+      val randomPrefix = UUID.randomUUID().toString
 
-      val newTableMetadata = newTables.map(t => {
-        val tableConfig = tableConfigs(t)
-        (t,
-          rdbmExtractor.getTableMetadata(dbSchema, t, tableConfig.pkCols, tableConfig.lastUpdatedColumn)
-            .map(_.copy(table_name = t)))
-      }).toMap
+      val openFlow = sparkDataFlow
+        .getOrCreateAuditTable(storageBasePath, Some(metadataFunction), Some(randomPrefix), true)(tables: _*)
 
-      handleTableErrors(newTableMetadata, "Unable to fetch metadata")
+      tables.foldLeft(openFlow) { (flow, tableName) =>
+        flow
+          .extractFromRDBM(rdbmExtractor, lastUpdatedOffset, tableName, randomPrefix, tableConfigs(tableName).maxRowsPerPartition, forceFullLoad)
+          .writeToStorage(tableName, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction, randomPrefix)
+      }
 
-      val createdTables = newTableMetadata.values.map(_.get).map(tableInfo => {
-        logInfo(s"Creating table ${tableInfo.table_name} with metadata $tableInfo")
-        tableInfo.table_name -> Storage.createFileTable(sparkDataFlow.flowContext.spark, basePath, tableInfo)
-      }).toMap
-
-      handleTableErrors(createdTables, "Unable to perform create")
-
-      handleTableErrors(existingTables, "Unable to perform read")
-
-      val allTables = existingTables.values.map(_.get) ++ createdTables.values.map(_.get)
-
-      allTables.foldLeft(sparkDataFlow)((flow, table) => {
-        val lastUpdatedToUseOnRead = table.getLatestTimestamp()
-          .map(_.toLocalDateTime.minusSeconds(lastUpdatedOffset))
-          .map(Timestamp.valueOf)
-
-        logInfo(s"Extracting table ${table.tableName} with last updated $lastUpdatedToUseOnRead and metadata ${table.meta}")
-
-        flow.extractFromRDBM(rdbmExtractor
-          , table.meta
-          , lastUpdatedToUseOnRead
-          , table.tableName
-          , tableConfigs(table.tableName).maxRowsPerPartition
-          , forceFullLoad)
-          .writeToStorage(table.tableName, table, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction)
-      })
     }
 
     /**
       * Extract a table from a RDBM
       *
-      * @param rdbmExtractor       The RDBMExtractor to use for extraction
-      * @param tableMetadata       Table metadata
-      * @param lastUpdated         The last updated timestamp from which we wish to read data (if None, then we read everything)
-      * @param label               The waimak label for this table
-      * @param maxRowsPerPartition Optionally, the maximum number of rows to be read per Dataset partition
-      * @param forceFullLoad       If set to true, ignore the last updated and read everything
+      * @param rdbmExtractor         The RDBMExtractor to use for extraction
+      * @param lastUpdatedOffset     Number of seconds to subtract from the last updated timestamp before reason
+      *                              (for safety/contingency)
+      * @param label                 The waimak label for this table
+      * @param auditTableLabelPrefix the prefix of the audit table entity on the flow. The AuditTable will be
+      *                              found with `s"${auditTableLabelPrefix}_$label"`
+      * @param maxRowsPerPartition   Optionally, the maximum number of rows to be read per Dataset partition
+      * @param forceFullLoad         If set to true, ignore the last updated and read everything
       * @return A new SparkDataFlow with the extraction actions added
       */
     def extractFromRDBM(rdbmExtractor: RDBMExtractor
-                        , tableMetadata: Map[String, String]
-                        , lastUpdated: Option[Timestamp]
+                        , lastUpdatedOffset: Long
                         , label: String
+                        , auditTableLabelPrefix: String
                         , maxRowsPerPartition: Option[Int] = None
                         , forceFullLoad: Boolean = false): SparkDataFlow = {
 
-      val run: DataFlowEntities => ActionResult =
-        _ => Seq(Some(rdbmExtractor.getTableDataset(tableMetadata, lastUpdated, maxRowsPerPartition, forceFullLoad)))
+      val auditTableLabel = s"${auditTableLabelPrefix}_$label"
 
-      sparkDataFlow.addAction(new SimpleAction(List.empty, List(label), run))
+      val run: DataFlowEntities => ActionResult = {
+        m =>
+          val auditTable = m.get[AuditTable](auditTableLabel)
+          val lastUpdated = auditTable.getLatestTimestamp()
+            .map(_.toLocalDateTime.minusSeconds(lastUpdatedOffset))
+            .map(Timestamp.valueOf)
+
+          logInfo(s"Extracting table $label with last updated $lastUpdated and metadata ${auditTable.meta}")
+
+
+          Seq(Some(rdbmExtractor.getTableDataset(auditTable.meta, lastUpdated, maxRowsPerPartition, forceFullLoad)))
+      }
+
+      sparkDataFlow.addAction(new SimpleAction(List(auditTableLabel), List(label), run, "extractFromRDBM"))
     }
 
 
@@ -129,24 +118,25 @@ object RDBMIngestionActions {
       * @return A new SparkDataFlow with the read actions added
       */
     def snapshotTemporalTablesFromStorage(storageBasePath: String, snapshotTimestamp: Timestamp)(tables: String*): SparkDataFlow = {
-      val basePath = new Path(storageBasePath)
 
-      val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq)
-      if (newTables.nonEmpty) throw new RuntimeException(s"Tables do not exist: $newTables")
-
-      handleTableErrors(existingTables, "Unable to perform read")
-
-
-      def run(table: AuditTable): DataFlowEntities => ActionResult = _ => {
+      def run(auditTableLabel: String): DataFlowEntities => ActionResult = m => {
+        val table = m.get[AuditTable](auditTableLabel)
         val temporalTableMetadata = CaseClassConfigParser.fromMap[SQLServerTemporalTableMetadata](table.meta)
         if (!temporalTableMetadata.isTemporal) Seq(table.snapshot(snapshotTimestamp))
         else Seq(table.allBetween(None, Some(snapshotTimestamp))
           .map(ds => RDBMIngestionUtils.snapshotTemporalTableDataset(ds, snapshotTimestamp, temporalTableMetadata)))
       }
 
-      existingTables.values.map(_.get).foldLeft(sparkDataFlow)((flow, table) => {
-        flow.addAction(new SimpleAction(List.empty, List(table.tableName), run(table)))
+      val randomPrefix = UUID.randomUUID().toString
+
+      val openFlow = sparkDataFlow
+        .getOrCreateAuditTable(storageBasePath, None, Some(randomPrefix), true)(tables: _*)
+
+      tables.foldLeft(openFlow)((flow, table) => {
+        val auditTableLabel = s"${randomPrefix}_$table"
+        flow.addAction(new SimpleAction(List(auditTableLabel), List(table), run(auditTableLabel), "snapshotTemporalTablesFromStorage"))
       })
+
     }
   }
 
