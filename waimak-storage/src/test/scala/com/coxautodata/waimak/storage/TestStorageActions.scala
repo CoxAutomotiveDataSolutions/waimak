@@ -7,7 +7,6 @@ import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.storage.AuditTableFile.lowTimestamp
 import com.coxautodata.waimak.storage.StorageActions._
-import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
 
 /**
@@ -35,12 +34,10 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val executor = Waimak.sparkExecutor()
 
-      val auditTable = Storage.createFileTable(spark, new Path(testingBaseDirName), AuditTableInfo("t_record", Seq("id"), Map.empty))
-        .get
-
       val writeFlow = Waimak.sparkFlow(spark)
         .addInput("t_record", Some(records.toDS()))
-        .writeToStorage("t_record", auditTable, "lastUpdated", zdt1)
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty)))("t_record")
+        .writeToStorage("t_record", "lastUpdated", zdt1)
 
       executor.execute(writeFlow)
 
@@ -80,14 +77,12 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val executor = Waimak.sparkExecutor()
 
-      val auditTable = Storage.createFileTable(spark, new Path(testingBaseDirName), AuditTableInfo("t_record", Seq("id"), Map.empty))
-        .get.asInstanceOf[AuditTableFile]
-
       val laZts = zdt1.withZoneSameLocal(ZoneId.of("America/Los_Angeles"))
 
       val writeFlow = Waimak.sparkFlow(spark)
         .addInput("t_record", Some(records.toDS()))
-        .writeToStorage("t_record", auditTable, "lastUpdated", laZts, runSingleCompactionDuringWindow(10, 11))
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty)))("t_record")
+        .writeToStorage("t_record", "lastUpdated", laZts, runSingleCompactionDuringWindow(10, 11))
 
       executor.execute(writeFlow)
 
@@ -98,6 +93,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       res1._2.inputs.get[Dataset[_]]("t_record").sort("lastUpdated").as[TRecord].collect() should be(records)
 
       // Should be a single cold region
+      val auditTable = res1._2.inputs.getAllOfType[AuditTableFile].head
       val regions = AuditTableFile.inferRegionsWithStats(spark, auditTable.storageOps, auditTable.baseFolder, Seq("t_record"))
       regions.map(_.store_type) should be(Seq("cold"))
 
