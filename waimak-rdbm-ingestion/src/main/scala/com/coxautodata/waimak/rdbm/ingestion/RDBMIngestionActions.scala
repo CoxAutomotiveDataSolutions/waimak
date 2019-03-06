@@ -9,8 +9,7 @@ import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.storage.StorageActions._
-import com.coxautodata.waimak.storage.{AuditTable, AuditTableInfo, AuditTableRegionInfo, Storage}
-import org.apache.hadoop.fs.Path
+import com.coxautodata.waimak.storage.{AuditTable, AuditTableInfo, AuditTableRegionInfo}
 
 /**
   * Created by Vicky Avison on 08/05/18.
@@ -28,17 +27,15 @@ object RDBMIngestionActions {
       * @param dbSchema          The database schema (namespace) to read from
       * @param storageBasePath   The base path for the storage layer
       * @param tableConfigs      table configuration
+      * @param extractDateTime   Datetime of the append, zoned to a timezone, should be the datetime the flow was executed
       * @param lastUpdatedOffset Number of seconds to subtract from the last updated timestamp before reason
       *                          (for safety/contingency)
       * @param forceFullLoad     If set to true, ignore the last updated and read everything
-      * @param tables            The tables to read
       * @param doCompaction      a lambda used to decide whether a compaction should happen after an append.
       *                          Takes list of table regions, the count of records added in this batch and
       *                          the compaction timestamp.
       *                          Default is not to trigger a compaction
-      * @param trashMaxAge       Maximum age of old region files kept in the .Trash folder
-      *                          after a compaction has happened.
-      *                          Default is 24 hours.
+      * @param tables            The tables to read
       * @return A new SparkDataFlow with the extraction actions added
       */
     def extractToStorageFromRDBM(rdbmExtractor: RDBMExtractor
@@ -71,12 +68,14 @@ object RDBMIngestionActions {
     /**
       * Extract a table from a RDBM
       *
-      * @param rdbmExtractor       The RDBMExtractor to use for extraction
-      * @param tableMetadata       Table metadata
-      * @param lastUpdated         The last updated timestamp from which we wish to read data (if None, then we read everything)
-      * @param label               The waimak label for this table
-      * @param maxRowsPerPartition Optionally, the maximum number of rows to be read per Dataset partition
-      * @param forceFullLoad       If set to true, ignore the last updated and read everything
+      * @param rdbmExtractor         The RDBMExtractor to use for extraction
+      * @param lastUpdatedOffset     Number of seconds to subtract from the last updated timestamp before reason
+      *                              (for safety/contingency)
+      * @param label                 The waimak label for this table
+      * @param auditTableLabelPrefix the prefix of the audit table entity on the flow. The AuditTable will be
+      *                              found with `s"${auditTableLabelPrefix}_$label"`
+      * @param maxRowsPerPartition   Optionally, the maximum number of rows to be read per Dataset partition
+      * @param forceFullLoad         If set to true, ignore the last updated and read everything
       * @return A new SparkDataFlow with the extraction actions added
       */
     def extractFromRDBM(rdbmExtractor: RDBMExtractor

@@ -7,7 +7,6 @@ import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.storage.AuditTableFile.lowTimestamp
 import com.coxautodata.waimak.storage.StorageActions._
-import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
 
 /**
