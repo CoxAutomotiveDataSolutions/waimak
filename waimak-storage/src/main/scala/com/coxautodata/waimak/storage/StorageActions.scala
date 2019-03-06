@@ -2,6 +2,7 @@ package com.coxautodata.waimak.storage
 
 import java.sql.Timestamp
 import java.time.{Duration, ZoneOffset, ZonedDateTime}
+import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
@@ -98,47 +99,53 @@ object StorageActions extends Logging {
 
   implicit class StorageActionImplicits(sparkDataFlow: SparkDataFlow) {
 
-    def getOrCreateAuditTable(storageBasePath: String, labelPrefix: String = "audittable", includeHot: Boolean = true)(tableInfo: AuditTableInfo): SparkDataFlow = {
-
+    def getOrCreateAuditTable(storageBasePath: String,
+                              metadataRetrieval: Option[String => AuditTableInfo] = None,
+                              labelPrefix: Option[String] = Some("audittable"),
+                              includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
 
       val run: DataFlowEntities => ActionResult = _ => {
 
-
         val basePath = new Path(storageBasePath)
 
-        val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq)
+        val (existingTables, missingTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tableNames, includeHot)
 
-        val newTableMetadata = newTables.map(t => {
-          val tableConfig = tableConfigs(t)
-          (t,
-            rdbmExtractor.getTableMetadata(dbSchema, t, tableConfig.pkCols, tableConfig.lastUpdatedColumn)
-              .map(_.copy(table_name = t)))
-        }).toMap
+        if (missingTables.nonEmpty && metadataRetrieval.isEmpty) {
+          throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined")
+        }
 
-        handleTableErrors(newTableMetadata, "Unable to fetch metadata")
-
-        val createdTables = newTableMetadata.values.map(_.get).map(tableInfo => {
+        val createdTables = missingTables.map { tableName =>
+          val tableInfo = metadataRetrieval.get.apply(tableName)
           logInfo(s"Creating table ${tableInfo.table_name} with metadata $tableInfo")
-          tableInfo.table_name -> Storage.createFileTable(sparkDataFlow.flowContext.spark, basePath, tableInfo)
-        }).toMap
+          tableName -> Storage.createFileTable(sparkDataFlow.flowContext.spark, basePath, tableInfo)
+        }.toMap
 
         handleTableErrors(createdTables, "Unable to perform create")
 
         handleTableErrors(existingTables, "Unable to perform read")
 
-        val allTables = existingTables.values.map(_.get) ++ createdTables.values.map(_.get)
+        val allTables = (existingTables.values.map(_.get) ++ createdTables.values.map(_.get)).map(t => t.tableName -> t).toMap
+
+        tableNames.map(allTables).map(Some(_))
 
       }
 
+      val labelNames = tableNames.map(t => labelPrefix.map(p => p + "_" + t).getOrElse(t)).toList
 
-      ???
+      sparkDataFlow.addAction(new SimpleAction(List.empty, labelNames, run, "getOrCreateAuditTable"))
+
+    }
+
+    def getAuditTable(storageBasePath: String, labelPrefix: Option[String] = Some("audittable"), includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
+
+      sparkDataFlow.getOrCreateAuditTable(storageBasePath, None, labelPrefix, includeHot)(tableNames:_*)
+
     }
 
     /**
       * Writes a Dataset to to the storage layer
       *
       * @param labelName      the label whose Dataset we wish to write
-      * @param table          the AuditTable object to use for writing
       * @param lastUpdatedCol the last updated column in the Dataset
       * @param appendDateTime timestamp of the append, zoned to a timezone
       * @param doCompaction   a lambda used to decide whether a compaction should happen after an append.
@@ -148,16 +155,21 @@ object StorageActions extends Logging {
       * @return a new SparkDataFlow with the write action added
       */
     def writeToStorage(labelName: String
-                       , table: AuditTable
                        , lastUpdatedCol: String
                        , appendDateTime: ZonedDateTime
-                       , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false): SparkDataFlow = {
+                       , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false
+                       , auditTableLabelPrefix: String = "audittable"): SparkDataFlow = {
+
+      val auditTableLabel = s"${auditTableLabelPrefix}_$labelName"
+
       val run: DataFlowEntities => ActionResult = m => {
         val flowContext = sparkDataFlow.flowContext
         val sparkSession = flowContext.spark
         import sparkSession.implicits._
 
         val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
+
+        val table: AuditTable = m.get[AuditTable](auditTableLabel)
 
         table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
           case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
@@ -181,7 +193,7 @@ object StorageActions extends Logging {
         }
         Seq.empty
       }
-      sparkDataFlow.addAction(new SimpleAction(List(labelName), List.empty, run))
+      sparkDataFlow.addAction(new SimpleAction(List(labelName, auditTableLabel), List.empty, run, "writeToStorage"))
     }
 
 
@@ -195,17 +207,16 @@ object StorageActions extends Logging {
       * @return a new SparkDataFlow with the snapshot actions added
       */
     def snapshotFromStorage(storageBasePath: String, snapshotTimestamp: Timestamp, includeHot: Boolean = true, outputPrefix: Option[String] = None)(tables: String*): SparkDataFlow = {
-      val basePath = new Path(storageBasePath)
 
-      val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq, includeHot)
-      if (newTables.nonEmpty) throw new RuntimeException(s"Tables do not exist: $newTables")
+      val randomPrefix = UUID.randomUUID().toString
+      val openedFlow = sparkDataFlow.getAuditTable(storageBasePath, Some(randomPrefix), includeHot)(tables:_*)
 
-      handleTableErrors(existingTables, "Unable to perform read")
-
-      existingTables.values.map(_.get).foldLeft(sparkDataFlow)((flow, table) => {
-        val outputLabel = outputPrefix.map(p => s"${p}_${table.tableName}").getOrElse(table.tableName)
-        flow.addAction(new SimpleAction(List.empty, List(outputLabel), _ => List(table.snapshot(snapshotTimestamp))))
+      tables.foldLeft(openedFlow)((flow, table) => {
+        val auditTableLabel = s"${randomPrefix}_$table"
+        val outputLabel = outputPrefix.map(p => s"${p}_$table").getOrElse(table)
+        flow.addAction(new SimpleAction(List(auditTableLabel), List(outputLabel), m => List(m.get[AuditTable](auditTableLabel).snapshot(snapshotTimestamp)), "snapshotFromStorage"))
       })
+
     }
 
     /**
@@ -220,17 +231,15 @@ object StorageActions extends Logging {
       * @param tables          the tables to load
       * @return a new SparkDataFlow with the read actions added
       */
-    def loadFromStorage(storageBasePath: String, from: Option[Timestamp] = None, to: Option[Timestamp] = None, outputPrefix: Option[String] = None)(tables: String*): SparkDataFlow = {
-      val basePath = new Path(storageBasePath)
+    def loadFromStorage(storageBasePath: String, from: Option[Timestamp] = None, to: Option[Timestamp] = None, includeHot: Boolean = true, outputPrefix: Option[String] = None)(tables: String*): SparkDataFlow = {
 
-      val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq)
-      if (newTables.nonEmpty) throw new RuntimeException(s"Tables do not exist: $newTables")
+      val randomPrefix = UUID.randomUUID().toString
+      val openedFlow = sparkDataFlow.getAuditTable(storageBasePath, Some(randomPrefix), includeHot)(tables:_*)
 
-      handleTableErrors(existingTables, "Unable to perform read")
-
-      existingTables.values.map(_.get).foldLeft(sparkDataFlow)((flow, table) => {
-        val outputLabel = outputPrefix.map(p => s"${p}_${table.tableName}").getOrElse(table.tableName)
-        flow.addAction(new SimpleAction(List.empty, List(outputLabel), _ => List(table.allBetween(from, to))))
+      tables.foldLeft(openedFlow)((flow, table) => {
+        val auditTableLabel = s"${randomPrefix}_$table"
+        val outputLabel = outputPrefix.map(p => s"${p}_$table").getOrElse(table)
+        flow.addAction(new SimpleAction(List(auditTableLabel), List(outputLabel), m => List(m.get[AuditTable](auditTableLabel).allBetween(from, to)), "loadFromStorage"))
       })
     }
 
