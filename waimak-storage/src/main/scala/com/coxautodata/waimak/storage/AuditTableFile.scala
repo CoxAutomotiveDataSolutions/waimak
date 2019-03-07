@@ -4,6 +4,7 @@ import java.sql.Timestamp
 import java.time.Duration
 
 import com.coxautodata.waimak.log.Logging
+import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.spark.sql._
 import org.apache.spark.sql.expressions.Window
@@ -89,22 +90,19 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     *                                after a compaction has happened.
     * @param smallRegionRowThreshold the row number threshold to use for determining small regions to be compacted.
     *                                Default is 50000000
-    * @param hotBytesPerPartition    approximate maximum number of bytes to be in each hot partition file.
-    *                                Adjust this to control output file size. Default is 1000000
-    * @param coldBytesPerPartition   approximate maximum number of bytes to be in each cold partition file.
-    *                                Adjust this to control output file size. Default is 2500000
+    * @param compactionPartitioner   a partitioner object that dictates how many partitions should be generated
+    *                                for a given region
     * @param recompactAll            Whether to recompact all regions regardless of size (i.e. ignore smallRegionRowThreshold)
     * @return new state of the AuditTable
     */
   override def compact(compactTS: Timestamp
                        , trashMaxAge: Duration
                        , smallRegionRowThreshold: Long
-                       , hotBytesPerPartition: Long
-                       , coldBytesPerPartition: Long
+                       , compactionPartitioner: CompactionPartitioner
                        , recompactAll: Boolean): Try[AuditTable] = {
     val res: Try[AuditTableFile] = Try(markToUpdate())
-      .flatMap(_ => commitHotToCold(compactTS, hotBytesPerPartition))
-      .flatMap(_.compactCold(compactTS, smallRegionRowThreshold, coldBytesPerPartition, recompactAll))
+      .flatMap(_ => commitHotToCold(compactTS, compactionPartitioner))
+      .flatMap(_.compactCold(compactTS, smallRegionRowThreshold, compactionPartitioner, recompactAll))
       .map { f =>
         f.storageOps.purgeTrash(f.tableName, compactTS, trashMaxAge)
         f
@@ -145,14 +143,14 @@ class AuditTableFile(val tableInfo: AuditTableInfo
   /**
     * Compacts all hot regions into one cold.
     *
-    * @param compactTS         the compaction timestamp
-    * @param bytesPerPartition approximate maximum number of bytes to be in each partition file.
-    *                          Adjust this to control output file size,
+    * @param compactTS             the compaction timestamp
+    * @param compactionPartitioner a partitioner object that dictates how many partitions should be generated
+    *                              for a given region
     * @return
     */
-  protected def commitHotToCold(compactTS: Timestamp, bytesPerPartition: Long): Try[AuditTableFile] = {
+  protected def commitHotToCold(compactTS: Timestamp, compactionPartitioner: CompactionPartitioner): Try[AuditTableFile] = {
     val hotRegions = regions.filter(r => !r.is_deprecated && r.store_type == HOT_PARTITION)
-    compactRegions(hotPath, hotRegions, compactTS, bytesPerPartition)
+    compactRegions(hotPath, hotRegions, compactTS, compactionPartitioner)
   }
 
   /**
@@ -160,25 +158,25 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     *
     * @param compactTS               the compaction timestamp
     * @param smallRegionRowThreshold the row number threshold to use for determinining small regions to be compacted
-    * @param bytesPerPartition       approximate maximum number of bytes to be in each partition file.
-    *                                Adjust this to control output file size.
+    * @param compactionPartitioner   a partitioner object that dictates how many partitions should be generated
+    *                                for a given region
     * @return
     */
   protected def compactCold(compactTS: Timestamp
                             , smallRegionRowThreshold: Long
-                            , bytesPerPartition: Long
+                            , compactionPartitioner: CompactionPartitioner
                             , recompactAll: Boolean): Try[AuditTableFile] = {
     val smallerRegions =
       if (recompactAll) regions
       else regions.filter(r => r.store_type == COLD_PARTITION && r.count < smallRegionRowThreshold)
     // No use compacting a single small region into itself
-    compactRegions(coldPath, if (smallerRegions.length < 2 && !recompactAll) Seq.empty else smallerRegions, compactTS, bytesPerPartition)
+    compactRegions(coldPath, if (smallerRegions.length < 2 && !recompactAll) Seq.empty else smallerRegions, compactTS, compactionPartitioner)
   }
 
   protected def compactRegions(typePath: Path
                                , toCompact: Seq[AuditTableRegionInfo]
                                , compactTS: Timestamp
-                               , bytesPerPartition: Long): Try[AuditTableFile] = {
+                               , compactionPartitioner: CompactionPartitioner): Try[AuditTableFile] = {
     Try {
       val res = if (toCompact.isEmpty) new AuditTableFile(this.tableInfo, this.regions, this.storageOps, this.baseFolder, this.newRegionID)
       else {
@@ -194,7 +192,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
           clearTableRegionCache(this)
           val currentNumPartitions = rows.rdd.getNumPartitions
           val rowsToCompact = rows.filter(rows(STORE_REGION_COLUMN).isin(ids: _*)).drop(STORE_REGION_COLUMN)
-          val newNumPartitions = calculateNumPartitions(rowsToCompact, toCompact.map(_.count).sum, bytesPerPartition)
+          val newNumPartitions = compactionPartitioner(rowsToCompact, toCompact.map(_.count).sum)
           val rowsToCompactRepartitioned = if (newNumPartitions > currentNumPartitions) {
             rowsToCompact.repartition(newNumPartitions)
           } else rowsToCompact.coalesce(newNumPartitions)
@@ -210,12 +208,6 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       }
       res
     }
-  }
-
-  protected def calculateNumPartitions(ds: Dataset[_], numRows: Long, bytesPerPartition: Long): Int = {
-    import org.apache.spark.util.SizeEstimator
-    val averageBytesPerRow = ds.toDF().rdd.map(SizeEstimator.estimate).mean()
-    ((numRows * averageBytesPerRow) / bytesPerPartition).toInt + 1
   }
 
   protected def calcRegionStats(ds: Dataset[_]): (Long, Timestamp) = {

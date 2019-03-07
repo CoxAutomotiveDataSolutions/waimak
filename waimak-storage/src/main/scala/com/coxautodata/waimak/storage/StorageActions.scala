@@ -5,8 +5,9 @@ import java.time.{Duration, ZoneOffset, ZonedDateTime}
 import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
-import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
+import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, FlowContext}
 import com.coxautodata.waimak.log.Logging
+import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
 
@@ -30,17 +31,31 @@ object StorageActions extends Logging {
   val SMALL_REGION_ROW_THRESHOLD: String = s"$storageParamPrefix.smallRegionRowThreshold"
   val SMALL_REGION_ROW_THRESHOLD_DEFAULT: Long = 50000000
   /**
-    * Approximate maximum number of bytes to be in each hot partition file.
-    * Adjust this to control output file size
+    * The class name of the compaction partitioner implementation to use
     */
-  val HOT_BYTES_PER_PARTITION = s"$storageParamPrefix.hotBytesPerPartition"
-  val HOT_BYTES_PER_PARTITION_DEFAULT: Long = 100000000
+  val COMPACTION_PARTITIONER_IMPLEMENTATION = s"$storageParamPrefix.compactionPartitionerImplementation"
+  val COMPACTION_PARTITIONER_IMPLEMENTATION_DEFAULT: String = "com.coxautodata.waimak.storage.TotalBytesPartitioner"
   /**
-    * Approximate maximum number of bytes to be in each cold partition file.
-    * Adjust this to control output file size
+    * Approximate maximum number of bytes to be in each partition file.
+    * Adjust this to control output file size.
+    * Use with the [[TotalBytesPartitioner]]
     */
-  val COLD_BYTES_PER_PARTITION = s"$storageParamPrefix.coldBytesPerPartition"
-  val COLD_BYTES_PER_PARTITION_DEFAULT: Long = 250000000
+  val BYTES_PER_PARTITION = s"$storageParamPrefix.bytesPerPartition"
+  val BYTES_PER_PARTITION_DEFAULT: Long = 250000000
+  /**
+    * Maximum records to when calculating the number of bytes in a partition.
+    * Use -1 for no sampling.
+    * Use with the [[TotalBytesPartitioner]]
+    */
+  val MAX_RECORDS_TO_SAMPLE = s"$storageParamPrefix.maxRecordsToSample"
+  val MAX_RECORDS_TO_SAMPLE_DEFAULT: Long = 1000
+  /**
+    * Approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
+    * Adjust this to control output file size.
+    * Use with the [[TotalCellsPartitioner]]
+    */
+  val CELLS_PER_PARTITION = s"$storageParamPrefix.cellsPerPartition"
+  val CELLS_PER_PARTITION_DEFAULT: Long = 2500000
   /**
     * Whether to recompact all regions regardless of size (i.e. ignore [[SMALL_REGION_ROW_THRESHOLD]])
     */
@@ -201,6 +216,7 @@ object StorageActions extends Logging {
         import sparkSession.implicits._
 
         val recompactAll = flowContext.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
+        val compactionPartitioner = CompactionPartitionerGenerator.getImplementation(flowContext)
         val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
 
         val table: AuditTable = m.get[AuditTable](auditTableLabel)
@@ -211,13 +227,10 @@ object StorageActions extends Logging {
 
             val trashMaxAge = Duration.ofMillis(flowContext.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
             val smallRegionRowThreshold = flowContext.getLong(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
-            val hotBytesPerPartition = flowContext.getLong(HOT_BYTES_PER_PARTITION, HOT_BYTES_PER_PARTITION_DEFAULT)
-            val coldBytesPerPartition = flowContext.getLong(COLD_BYTES_PER_PARTITION, COLD_BYTES_PER_PARTITION_DEFAULT)
 
             t.compact(compactTS = appendTimestamp
               , trashMaxAge = trashMaxAge
-              , coldBytesPerPartition = coldBytesPerPartition
-              , hotBytesPerPartition = hotBytesPerPartition
+              , compactionPartitioner = compactionPartitioner
               , smallRegionRowThreshold = smallRegionRowThreshold
               , recompactAll = recompactAll) match {
               case Success(_) => Seq.empty
@@ -282,4 +295,63 @@ object StorageActions extends Logging {
 
   }
 
+}
+
+trait CompactionPartitionerGenerator {
+  def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner
+}
+
+object CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+
+  def getImplementation(flowContext: FlowContext): CompactionPartitioner = {
+    import scala.reflect.runtime.{universe => ru}
+    val m = ru.runtimeMirror(getClass.getClassLoader)
+    val module = m.staticModule(flowContext.getString(COMPACTION_PARTITIONER_IMPLEMENTATION, COMPACTION_PARTITIONER_IMPLEMENTATION_DEFAULT))
+    m.reflectModule(module).instance.asInstanceOf[CompactionPartitionerGenerator].getCompactionPartitioner(flowContext)
+  }
+
+}
+
+/**
+  * A compaction partitioner that partitions on the
+  * approximate maximum number of bytes to be in each partition file
+  */
+object TotalBytesPartitioner extends CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+
+  override def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner = {
+    val bytesPerPartition = flowContext.getLong(BYTES_PER_PARTITION, BYTES_PER_PARTITION_DEFAULT)
+    val maxRecordsToSample = flowContext.getLong(MAX_RECORDS_TO_SAMPLE, MAX_RECORDS_TO_SAMPLE_DEFAULT)
+    (ds: Dataset[_], numRows: Long) => {
+      val sampled = {
+        if (numRows <= maxRecordsToSample || maxRecordsToSample == -1) ds
+        else
+          ds.sample(withReplacement = false, maxRecordsToSample / numRows.toDouble)
+      }
+      import org.apache.spark.util.SizeEstimator
+      val averageBytesPerRow = sampled.toDF().rdd.map(SizeEstimator.estimate).mean()
+      ((numRows * averageBytesPerRow) / bytesPerPartition).toInt + 1
+    }
+  }
+}
+
+/**
+  * A compaction partitioner that partitions on the
+  * approximate maximum number of cells (numRows * numColumns) to be in each partition file
+  */
+object TotalCellsPartitioner extends CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+
+  override def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner = {
+    val cellsPerPartition = flowContext.getLong(CELLS_PER_PARTITION, CELLS_PER_PARTITION_DEFAULT)
+    (ds: Dataset[_], numRows: Long) => {
+      val cellsPerRow = ds.schema.size
+      val rowsPerPartition = cellsPerPartition / cellsPerRow
+      (numRows / rowsPerPartition).toInt + 1
+    }
+  }
 }

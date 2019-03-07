@@ -4,8 +4,10 @@ import java.io.File
 import java.sql.Timestamp
 import java.time.Duration
 
+import com.coxautodata.waimak.dataflow.EmptyFlowContext
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPersonEvolved}
+import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import com.coxautodata.waimak.storage.AuditTableFile._
 import com.coxautodata.waimak.storage.StorageActions._
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -53,6 +55,8 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
   def createADTable(tableName: String, fosp: FileStorageOps): AuditTableFile = {
     new AuditTableFile(AuditTableInfo(tableName, Seq("id"), Map.empty), Seq.empty, fosp, basePath, sequence())
   }
+
+  val defaultCompactionPartitioner: CompactionPartitioner = (_, _) => 1
 
   val lastUpdated = (d: Dataset[_]) => unix_timestamp(d("lastTS"), "yyyy-MM-dd").cast(TimestampType)
 
@@ -212,7 +216,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val onlyColdRegion_empty = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
       onlyColdRegion_empty should be(Seq.empty)
 
-      val compactedTable = table_s2.compact(lastTS_3, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
+      val compactedTable = table_s2.compact(lastTS_3, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner).get
 
       val onlyColdRegion = AuditTableFile.inferRegionsWithStats(sparkSession, table.storageOps, basePath, Seq(tableName), false).sortBy(_.store_region)
       onlyColdRegion should be(Seq(AuditTableRegionInfo("person", "cold", "3", lastTS_3, false, 8, lastTS_2)))
@@ -236,7 +240,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       // Should be one trashed compaction
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_3.getTime.toString)
 
-      val secondCompact = table_s3.compact(lastTS_4, d12h, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
+      val secondCompact = table_s3.compact(lastTS_4, d12h, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner).get
       secondCompact.regions.size should be(1)
       secondCompact.regions(0).store_region should be("6")
 
@@ -244,19 +248,19 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_4.getTime.toString)
 
       // Empty compaction with previous in range should not delete trash
-      val thirdCompact = secondCompact.compact(lastTS_5, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
+      val thirdCompact = secondCompact.compact(lastTS_5, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner).get
       thirdCompact.regions.size should be(1)
       thirdCompact.regions(0).store_region should be("6")
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_4.getTime.toString)
 
       // Empty compaction with previous not in range should delete trash
-      val fourthCompact = thirdCompact.compact(lastTS_6, d12h, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
+      val fourthCompact = thirdCompact.compact(lastTS_6, d12h, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner).get
       fourthCompact.regions.size should be(1)
       fourthCompact.regions(0).store_region should be("6")
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq()
 
       //Request to recompact all should force single cold region to be recompacted
-      val fifthCompact = fourthCompact.compact(lastTS_7, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT, recompactAll = true).get
+      val fifthCompact = fourthCompact.compact(lastTS_7, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner, recompactAll = true).get
       fifthCompact.regions.size should be(1)
       fifthCompact.regions(0).store_region should be("7")
     }
@@ -276,7 +280,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       table_s2.regions(0).store_region should be("0")
       table_s2.regions(1).store_region should be("1")
 
-      val compacted_table = table_s2.compact(compactTS_1, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT).get
+      val compacted_table = table_s2.compact(compactTS_1, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner).get
       compacted_table.regions.size should be(1)
       compacted_table.regions(0).count should be(8)
       compacted_table.regions(0).store_type should be("cold")
@@ -335,7 +339,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val finalPerson = person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
         .get._1.asInstanceOf[AuditTableFile]
 
@@ -359,7 +363,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       )
 
       val reopenedTable = AuditTableFile.openTables(sparkSession, finalPerson.storageOps, basePath, Seq("prsn"), true)(finalPerson.newRegionID)._1("prsn")
-      reopenedTable.map(_.compact(lastTS_3, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT))
+      reopenedTable.map(_.compact(lastTS_3, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
 
       val inferredCachedRegionsAfterCompaction = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq("prsn"), true)
       inferredCachedRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "5", lastTS_3, false, 11, lastTS_3)))
@@ -553,7 +557,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
 
       reportTable.append(rep1, lastUpdated(rep1), lastTS_2)
@@ -601,7 +605,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val finalPerson = person
         .append(r1Data, lastUpdated(r1Data), lastTS_1)
         .flatMap(_._1.append(r2Data, lastUpdated(r2Data), lastTS_2))
-        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, HOT_BYTES_PER_PARTITION_DEFAULT, COLD_BYTES_PER_PARTITION_DEFAULT))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
         .flatMap(_.append(r3Data, lastUpdated(r3Data), lastTS_3))
 
       val finalReport = reportTable.append(rep1, lastUpdated(rep1), lastTS_2)
@@ -657,9 +661,15 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
   }
 
   describe("compact") {
-    it("should take width into account when generating output partitions") {
+    it("should use a default partitioner (byte partitioner) for output partitions") {
       val spark = sparkSession
       import spark.implicits._
+
+      val context = new EmptyFlowContext
+      // Person approx 1090 per row, report approx 1540 per row (_de_last_updated column is added in storage layer)
+      context.conf.setProperty(BYTES_PER_PARTITION, "3030")
+
+      val compactionPartitioner = CompactionPartitionerGenerator.getImplementation(context)
 
       val personTable = createADTable("person", createFops()).initNewTable().get
       val reportTable = createADTable("rep", createFops()).initNewTable().get
@@ -668,21 +678,49 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
       val reportData = report.toDS().withColumn("lastTS", lit("2018-01-01"))
 
-      // Person approx 1090 per row, report approx 1540 per row (_de_last_updated column is added in storage layer)
-      val bytesPerPartition = 3030L
-
       val finalPurchase = personTable
         .append(personData, lastUpdated(personData), lastTS_1)
-        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, hotBytesPerPartition = bytesPerPartition, coldBytesPerPartition = bytesPerPartition))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, compactionPartitioner))
 
 
       val finalReport = reportTable.append(reportData, lastUpdated(reportData), lastTS_2)
-        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, hotBytesPerPartition = bytesPerPartition, coldBytesPerPartition = bytesPerPartition))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, compactionPartitioner))
 
       val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
       fs.globStatus(new Path(basePath, "person/*/*/part-*")).length should be(2)
       fs.globStatus(new Path(basePath, "rep/*/*/part-*")).length should be(3)
     }
+
+    it("should use a cell partitioner for output partitions") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val context = new EmptyFlowContext
+      context.conf.setProperty(CELLS_PER_PARTITION, "18")
+      context.conf.setProperty(COMPACTION_PARTITIONER_IMPLEMENTATION, "com.coxautodata.waimak.storage.TotalCellsPartitioner")
+
+      val compactionPartitioner = CompactionPartitionerGenerator.getImplementation(context)
+
+      val personTable = createADTable("person", createFops()).initNewTable().get
+      val reportTable = createADTable("rep", createFops()).initNewTable().get
+
+
+      val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
+      val reportData = report.toDS().withColumn("lastTS", lit("2018-01-01"))
+
+      val finalPurchase = personTable
+        .append(personData, lastUpdated(personData), lastTS_1)
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, compactionPartitioner))
+
+
+      val finalReport = reportTable.append(reportData, lastUpdated(reportData), lastTS_2)
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, compactionPartitioner))
+
+      val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+      fs.globStatus(new Path(basePath, "person/*/*/part-*")).length should be(2)
+      fs.globStatus(new Path(basePath, "rep/*/*/part-*")).length should be(3)
+    }
+
   }
 
   describe("clearTableRegionCache") {

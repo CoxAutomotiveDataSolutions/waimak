@@ -3,6 +3,7 @@ package com.coxautodata.waimak.storage
 import java.sql.Timestamp
 import java.time.Duration
 
+import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import org.apache.spark.sql.{Column, Dataset}
 
 import scala.util.Try
@@ -92,18 +93,15 @@ trait AuditTable {
     * @param trashMaxAge             Maximum age of old region files kept in the .Trash folder
     *                                after a compaction has happened.
     * @param smallRegionRowThreshold the row number threshold to use for determining small regions to be compacted.
-    * @param hotBytesPerPartition    approximate maximum number of bytes to be in each hot partition file.
-    *                                Adjust this to control output file size.
-    * @param coldBytesPerPartition   approximate maximum number of bytes to be in each cold partition file.
-    *                                Adjust this to control output file size.
+    * @param compactionPartitioner   a partitioner function that dictates how many partitions should be generated
+    *                                for a given region
     * @param recompactAll            Whether to recompact all regions regardless of size (i.e. ignore smallRegionRowThreshold)
     * @return new state of the AuditTable
     */
   def compact(compactTS: Timestamp
               , trashMaxAge: Duration
               , smallRegionRowThreshold: Long
-              , hotBytesPerPartition: Long
-              , coldBytesPerPartition: Long
+              , compactionPartitioner: CompactionPartitioner
               , recompactAll: Boolean = false): Try[AuditTable]
 
   /**
@@ -120,4 +118,11 @@ trait AuditTable {
     */
   def tableName: String
 
+}
+
+object AuditTable {
+  /**
+    * Given a Dataset and row count, calculate how many partitions to partition the output by
+    */
+  type CompactionPartitioner = (Dataset[_], Long) => Int
 }
