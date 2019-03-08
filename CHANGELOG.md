@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 2.1 - 2019-03-08
+
+### Added
+- Additional definitions of the `commit` and `writePartitionedParquet` actions have been added that now take an integer to repartition by
+- Added a generic mechanism for calculating the number of files to generate during a recompaction. The default implementation (`TotalBytesPartitioner`) partitions by the estimated final output size, and an alternative implementation (`TotalCellsPartitioner`) partitions by the number of cells (numRows * numColumns)
+- The URI used to create the FileSystem in the `SparkFlowContext` object is now also exposed in the object
+
+### Changed
+- Breaking changes to the storage action API to simplify their use. Storage tables are now opened as Waimak actions and are stored as entities on the flow. As a result, the `getOrCreateAuditTable`, `writeToStorage` and `snapshotFromStorage` actions can now be done in the same flow
+
+### Fixed
+- The force recompaction flag no longer requires an open compaction window
+- Test Jar source artifacts are now generated and deployed
 
 ## 2.0 - 2018-12-17
 
@@ -75,7 +87,7 @@
 - Impala queries to the same connection object now reuse connections to improve query submission performance
 
 ### Fixed
-- Spark 2.0, 2.1 and 2.3 compatability
+- Spark 2.0, 2.1 and 2.3 compatibility
 
 ## 1.3.1 - 2018-07-02
 
