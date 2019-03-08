@@ -4,7 +4,7 @@ import java.sql.Timestamp
 import java.time.{ZoneId, ZoneOffset}
 
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
-import com.coxautodata.waimak.dataflow.{DataFlowException, Waimak}
+import com.coxautodata.waimak.dataflow.{DataFlowException, EmptyFlowContext, Waimak}
 import com.coxautodata.waimak.storage.AuditTableFile.lowTimestamp
 import com.coxautodata.waimak.storage.StorageActions._
 import org.apache.spark.sql.Dataset
@@ -224,6 +224,42 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       )
       runSingleCompactionDuringWindow(12, 13)(regionsWithCold, 0, zts) should be(false)
     }
+  }
+
+  describe("CompactionPartitioner") {
+
+    it("TotalBytesPartitioner should create partition differently depending on total bytes") {
+      val spark = sparkSession
+      import spark.implicits._
+      val context = new EmptyFlowContext
+
+      val df = Seq.fill(10)(1).toDF()
+      val rowSize = org.apache.spark.util.SizeEstimator.estimate(df.head().asInstanceOf[AnyRef])
+
+      context.conf.setProperty(BYTES_PER_PARTITION, (5*rowSize).toString)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (2)
+
+      context.conf.setProperty(BYTES_PER_PARTITION, (4*rowSize).toString)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (3)
+
+    }
+
+    it("TotalCellsPartitioner should create partition differently depending on total cells") {
+      val spark = sparkSession
+      import spark.implicits._
+      val context = new EmptyFlowContext
+      context.conf.setProperty(COMPACTION_PARTITIONER_IMPLEMENTATION, "com.coxautodata.waimak.storage.TotalCellsPartitioner")
+
+      val df = Seq.fill(10)(1).toDF()
+
+      context.conf.setProperty(CELLS_PER_PARTITION, "5")
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (2)
+
+      context.conf.setProperty(CELLS_PER_PARTITION, "4")
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (3)
+
+    }
+
   }
 }
 

@@ -321,6 +321,7 @@ object CompactionPartitionerGenerator {
 object TotalBytesPartitioner extends CompactionPartitionerGenerator {
 
   import com.coxautodata.waimak.storage.StorageActions._
+  import org.apache.spark.util.SizeEstimator
 
   override def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner = {
     val bytesPerPartition = flowContext.getLong(BYTES_PER_PARTITION, BYTES_PER_PARTITION_DEFAULT)
@@ -328,14 +329,13 @@ object TotalBytesPartitioner extends CompactionPartitionerGenerator {
     (ds: Dataset[_], numRows: Long) => {
       val sampled = {
         if (numRows <= maxRecordsToSample || maxRecordsToSample == -1) ds
-        else
-          ds.sample(withReplacement = false, maxRecordsToSample / numRows.toDouble)
+        else ds.sample(withReplacement = false, maxRecordsToSample / numRows.toDouble)
       }
-      import org.apache.spark.util.SizeEstimator
       val averageBytesPerRow = sampled.toDF().rdd.map(SizeEstimator.estimate).mean()
-      ((numRows * averageBytesPerRow) / bytesPerPartition).toInt + 1
+      Math.ceil((numRows * averageBytesPerRow) / bytesPerPartition).toInt
     }
   }
+
 }
 
 /**
@@ -350,8 +350,7 @@ object TotalCellsPartitioner extends CompactionPartitionerGenerator {
     val cellsPerPartition = flowContext.getLong(CELLS_PER_PARTITION, CELLS_PER_PARTITION_DEFAULT)
     (ds: Dataset[_], numRows: Long) => {
       val cellsPerRow = ds.schema.size
-      val rowsPerPartition = cellsPerPartition / cellsPerRow
-      (numRows / rowsPerPartition).toInt + 1
+      Math.ceil((numRows * cellsPerRow.toDouble) / cellsPerPartition).toInt
     }
   }
 }
