@@ -5,8 +5,9 @@ import java.time.{Duration, ZoneOffset, ZonedDateTime}
 import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
-import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
+import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, FlowContext}
 import com.coxautodata.waimak.log.Logging
+import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
 
@@ -23,24 +24,38 @@ object StorageActions extends Logging {
     * after a compaction has happened.
     */
   val TRASH_MAX_AGE_MS: String = s"$storageParamPrefix.trashMaxAgeMs"
-  val TRASH_MAX_AGE_MS_DEFAULT: Int = 86400000
+  val TRASH_MAX_AGE_MS_DEFAULT: Long = 86400000
   /**
     * The row number threshold to use for determining small regions to be compacted.
     */
   val SMALL_REGION_ROW_THRESHOLD: String = s"$storageParamPrefix.smallRegionRowThreshold"
-  val SMALL_REGION_ROW_THRESHOLD_DEFAULT = 50000000
+  val SMALL_REGION_ROW_THRESHOLD_DEFAULT: Long = 50000000
   /**
-    * Approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
-    * Adjust this to control output file size
+    * The class name of the compaction partitioner implementation to use
     */
-  val HOT_CELLS_PER_PARTITION = s"$storageParamPrefix.hotCellsPerPartition"
-  val HOT_CELLS_PER_PARTITION_DEFAULT = 1000000
+  val COMPACTION_PARTITIONER_IMPLEMENTATION = s"$storageParamPrefix.compactionPartitionerImplementation"
+  val COMPACTION_PARTITIONER_IMPLEMENTATION_DEFAULT: String = "com.coxautodata.waimak.storage.TotalBytesPartitioner"
+  /**
+    * Approximate maximum number of bytes to be in each partition file.
+    * Adjust this to control output file size.
+    * Use with the [[TotalBytesPartitioner]]
+    */
+  val BYTES_PER_PARTITION = s"$storageParamPrefix.bytesPerPartition"
+  val BYTES_PER_PARTITION_DEFAULT: Long = 250000000
+  /**
+    * Maximum records to when calculating the number of bytes in a partition.
+    * Use -1 for no sampling.
+    * Use with the [[TotalBytesPartitioner]]
+    */
+  val MAX_RECORDS_TO_SAMPLE = s"$storageParamPrefix.maxRecordsToSample"
+  val MAX_RECORDS_TO_SAMPLE_DEFAULT: Long = 1000
   /**
     * Approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
-    * Adjust this to control output file size
+    * Adjust this to control output file size.
+    * Use with the [[TotalCellsPartitioner]]
     */
-  val COLD_CELLS_PER_PARTITION = s"$storageParamPrefix.coldCellsPerPartition"
-  val COLD_CELLS_PER_PARTITION_DEFAULT = 2500000
+  val CELLS_PER_PARTITION = s"$storageParamPrefix.cellsPerPartition"
+  val CELLS_PER_PARTITION_DEFAULT: Long = 2500000
   /**
     * Whether to recompact all regions regardless of size (i.e. ignore [[SMALL_REGION_ROW_THRESHOLD]])
     */
@@ -129,7 +144,7 @@ object StorageActions extends Logging {
         val (existingTables, missingTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tableNames, includeHot)
 
         if (missingTables.nonEmpty && metadataRetrieval.isEmpty) {
-          throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined")
+          throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined: ${missingTables.mkString(",")}")
         }
 
         val createdTables = missingTables.map { tableName =>
@@ -200,22 +215,22 @@ object StorageActions extends Logging {
         val sparkSession = flowContext.spark
         import sparkSession.implicits._
 
+        val recompactAll = flowContext.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
+        val compactionPartitioner = CompactionPartitionerGenerator.getImplementation(flowContext)
         val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
 
         val table: AuditTable = m.get[AuditTable](auditTableLabel)
 
         table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
-          case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
+          case Success((t, c)) if recompactAll || doCompaction(t.regions, c, appendDateTime) =>
             logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
+
             val trashMaxAge = Duration.ofMillis(flowContext.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
-            val smallRegionRowThreshold = flowContext.getInt(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
-            val hotCellsPerPartition = flowContext.getInt(HOT_CELLS_PER_PARTITION, HOT_CELLS_PER_PARTITION_DEFAULT)
-            val coldCellsPerPartition = flowContext.getInt(COLD_CELLS_PER_PARTITION, COLD_CELLS_PER_PARTITION_DEFAULT)
-            val recompactAll = flowContext.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
+            val smallRegionRowThreshold = flowContext.getLong(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
+
             t.compact(compactTS = appendTimestamp
               , trashMaxAge = trashMaxAge
-              , coldCellsPerPartition = coldCellsPerPartition
-              , hotCellsPerPartition = hotCellsPerPartition
+              , compactionPartitioner = compactionPartitioner
               , smallRegionRowThreshold = smallRegionRowThreshold
               , recompactAll = recompactAll) match {
               case Success(_) => Seq.empty
@@ -280,4 +295,62 @@ object StorageActions extends Logging {
 
   }
 
+}
+
+trait CompactionPartitionerGenerator {
+  def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner
+}
+
+object CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+
+  def getImplementation(flowContext: FlowContext): CompactionPartitioner = {
+    import scala.reflect.runtime.{universe => ru}
+    val m = ru.runtimeMirror(getClass.getClassLoader)
+    val module = m.staticModule(flowContext.getString(COMPACTION_PARTITIONER_IMPLEMENTATION, COMPACTION_PARTITIONER_IMPLEMENTATION_DEFAULT))
+    m.reflectModule(module).instance.asInstanceOf[CompactionPartitionerGenerator].getCompactionPartitioner(flowContext)
+  }
+
+}
+
+/**
+  * A compaction partitioner that partitions on the
+  * approximate maximum number of bytes to be in each partition file
+  */
+object TotalBytesPartitioner extends CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+  import org.apache.spark.util.SizeEstimator
+
+  override def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner = {
+    val bytesPerPartition = flowContext.getLong(BYTES_PER_PARTITION, BYTES_PER_PARTITION_DEFAULT)
+    val maxRecordsToSample = flowContext.getLong(MAX_RECORDS_TO_SAMPLE, MAX_RECORDS_TO_SAMPLE_DEFAULT)
+    (ds: Dataset[_], numRows: Long) => {
+      val sampled = {
+        if (numRows <= maxRecordsToSample || maxRecordsToSample == -1) ds
+        else ds.sample(withReplacement = false, maxRecordsToSample / numRows.toDouble)
+      }
+      val averageBytesPerRow = sampled.toDF().rdd.map(SizeEstimator.estimate).mean()
+      Math.ceil((numRows * averageBytesPerRow) / bytesPerPartition).toInt
+    }
+  }
+
+}
+
+/**
+  * A compaction partitioner that partitions on the
+  * approximate maximum number of cells (numRows * numColumns) to be in each partition file
+  */
+object TotalCellsPartitioner extends CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+
+  override def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner = {
+    val cellsPerPartition = flowContext.getLong(CELLS_PER_PARTITION, CELLS_PER_PARTITION_DEFAULT)
+    (ds: Dataset[_], numRows: Long) => {
+      val cellsPerRow = ds.schema.size
+      Math.ceil((numRows * cellsPerRow.toDouble) / cellsPerPartition).toInt
+    }
+  }
 }
