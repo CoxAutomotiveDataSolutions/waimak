@@ -790,6 +790,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       // Test the flow filesystem differs from what the default one would be
       emptyFlow.flowContext.fileSystem.getUri.toString should be("file:///")
+      emptyFlow.flowContext.uriUsed.toString should be("file:///")
       FileSystem.get(spark.sparkContext.hadoopConfiguration).getUri.toString should be("hdfs://localhost")
     }
   }

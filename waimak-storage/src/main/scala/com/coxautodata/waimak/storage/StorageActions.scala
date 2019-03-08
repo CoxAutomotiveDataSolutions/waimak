@@ -2,10 +2,12 @@ package com.coxautodata.waimak.storage
 
 import java.sql.Timestamp
 import java.time.{Duration, ZoneOffset, ZonedDateTime}
+import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
-import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
+import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, FlowContext}
 import com.coxautodata.waimak.log.Logging
+import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
 
@@ -22,24 +24,38 @@ object StorageActions extends Logging {
     * after a compaction has happened.
     */
   val TRASH_MAX_AGE_MS: String = s"$storageParamPrefix.trashMaxAgeMs"
-  val TRASH_MAX_AGE_MS_DEFAULT: Int = 86400000
+  val TRASH_MAX_AGE_MS_DEFAULT: Long = 86400000
   /**
     * The row number threshold to use for determining small regions to be compacted.
     */
   val SMALL_REGION_ROW_THRESHOLD: String = s"$storageParamPrefix.smallRegionRowThreshold"
-  val SMALL_REGION_ROW_THRESHOLD_DEFAULT = 50000000
+  val SMALL_REGION_ROW_THRESHOLD_DEFAULT: Long = 50000000
   /**
-    * Approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
-    * Adjust this to control output file size
+    * The class name of the compaction partitioner implementation to use
     */
-  val HOT_CELLS_PER_PARTITION = s"$storageParamPrefix.hotCellsPerPartition"
-  val HOT_CELLS_PER_PARTITION_DEFAULT = 1000000
+  val COMPACTION_PARTITIONER_IMPLEMENTATION = s"$storageParamPrefix.compactionPartitionerImplementation"
+  val COMPACTION_PARTITIONER_IMPLEMENTATION_DEFAULT: String = "com.coxautodata.waimak.storage.TotalBytesPartitioner"
+  /**
+    * Approximate maximum number of bytes to be in each partition file.
+    * Adjust this to control output file size.
+    * Use with the [[TotalBytesPartitioner]]
+    */
+  val BYTES_PER_PARTITION = s"$storageParamPrefix.bytesPerPartition"
+  val BYTES_PER_PARTITION_DEFAULT: Long = 250000000
+  /**
+    * Maximum records to when calculating the number of bytes in a partition.
+    * Use -1 for no sampling.
+    * Use with the [[TotalBytesPartitioner]]
+    */
+  val MAX_RECORDS_TO_SAMPLE = s"$storageParamPrefix.maxRecordsToSample"
+  val MAX_RECORDS_TO_SAMPLE_DEFAULT: Long = 1000
   /**
     * Approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
-    * Adjust this to control output file size
+    * Adjust this to control output file size.
+    * Use with the [[TotalCellsPartitioner]]
     */
-  val COLD_CELLS_PER_PARTITION = s"$storageParamPrefix.coldCellsPerPartition"
-  val COLD_CELLS_PER_PARTITION_DEFAULT = 2500000
+  val CELLS_PER_PARTITION = s"$storageParamPrefix.cellsPerPartition"
+  val CELLS_PER_PARTITION_DEFAULT: Long = 2500000
   /**
     * Whether to recompact all regions regardless of size (i.e. ignore [[SMALL_REGION_ROW_THRESHOLD]])
     */
@@ -99,42 +115,122 @@ object StorageActions extends Logging {
   implicit class StorageActionImplicits(sparkDataFlow: SparkDataFlow) {
 
     /**
-      * Writes a Dataset to to the storage layer
+      * Opens or creates a storage layer table and adds the [[AuditTable]] object to the flow with a given label.
+      * This can then be used with the [[writeToStorage]] action.
+      * Creates a table if it does not already exist in the storage layer and the optional `metadataRetrieval`
+      * function is given.
+      * Fails if the table does not exist in the storage layer and the optional `metadataRetrieval`
+      * function is not given.
       *
-      * @param labelName      the label whose Dataset we wish to write
-      * @param table          the AuditTable object to use for writing
-      * @param lastUpdatedCol the last updated column in the Dataset
-      * @param appendDateTime timestamp of the append, zoned to a timezone
-      * @param doCompaction   a lambda used to decide whether a compaction should happen after an append.
-      *                       Takes list of table regions, the count of records added in this batch and
-      *                       the compaction zoned date time.
-      *                       Default is not to trigger a compaction.
+      * @param storageBasePath   the base path of the storage layer
+      * @param metadataRetrieval an optional function that generates table metadata from a table name.
+      *                          This function is used during table creation if a table does not exist in the storage
+      *                          layer
+      * @param labelPrefix       optionally prefix the output label for the AuditTable.
+      *                          If set, the label of the AuditTable will be `s"${labelPrefix}_$table"`
+      * @param includeHot        whether or not to include hot partitions in the read
+      * @param tableNames        the tables we want to open in the storage layer
+      * @return a new SparkDataFlow with the get action added
+      */
+    def getOrCreateAuditTable(storageBasePath: String,
+                              metadataRetrieval: Option[String => AuditTableInfo] = None,
+                              labelPrefix: Option[String] = Some("audittable"),
+                              includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
+
+      val run: DataFlowEntities => ActionResult = _ => {
+
+        val basePath = new Path(storageBasePath)
+
+        val (existingTables, missingTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tableNames, includeHot)
+
+        if (missingTables.nonEmpty && metadataRetrieval.isEmpty) {
+          throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined: ${missingTables.mkString(",")}")
+        }
+
+        val createdTables = missingTables.map { tableName =>
+          val tableInfo = metadataRetrieval.get.apply(tableName)
+          logInfo(s"Creating table ${tableInfo.table_name} with metadata $tableInfo")
+          tableName -> Storage.createFileTable(sparkDataFlow.flowContext.spark, basePath, tableInfo)
+        }.toMap
+
+        handleTableErrors(createdTables, "Unable to perform create")
+
+        handleTableErrors(existingTables, "Unable to perform read")
+
+        val allTables = (existingTables.values.map(_.get) ++ createdTables.values.map(_.get)).map(t => t.tableName -> t).toMap
+
+        tableNames.map(allTables).map(Some(_))
+
+      }
+
+      val labelNames = tableNames.map(t => labelPrefix.map(p => p + "_" + t).getOrElse(t)).toList
+
+      sparkDataFlow.addAction(new SimpleAction(List.empty, labelNames, run, "getOrCreateAuditTable"))
+
+    }
+
+    /**
+      * Opens a storage layer table and adds the [[AuditTable]] object to the flow with a given label.
+      * This can then be used with the [[writeToStorage]] action.
+      * Fails if the table does not exist in the storage layer.
+      *
+      * @param storageBasePath the base path of the storage layer
+      * @param labelPrefix     optionally prefix the output label for the AuditTable.
+      *                        If set, the label of the AuditTable will be `s"${labelPrefix}_$table"`
+      * @param includeHot      whether or not to include hot partitions in the read
+      * @param tableNames      the tables we want to open in the storage layer
+      * @return a new SparkDataFlow with the get action added
+      */
+    def getAuditTable(storageBasePath: String, labelPrefix: Option[String] = Some("audittable"), includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
+
+      sparkDataFlow.getOrCreateAuditTable(storageBasePath, None, labelPrefix, includeHot)(tableNames: _*)
+
+    }
+
+    /**
+      * Writes a Dataset to the storage layer. The table must have been already opened on the flow by using either
+      * the [[getOrCreateAuditTable]] or [[getAuditTable]] actions.
+      *
+      * @param labelName             the label whose Dataset we wish to write
+      * @param lastUpdatedCol        the last updated column in the Dataset
+      * @param appendDateTime        timestamp of the append, zoned to a timezone
+      * @param doCompaction          a lambda used to decide whether a compaction should happen after an append.
+      *                              Takes list of table regions, the count of records added in this batch and
+      *                              the compaction zoned date time.
+      *                              Default is not to trigger a compaction.
+      * @param auditTableLabelPrefix the prefix of the audit table entity on the flow. The AuditTable will be
+      *                              found with `s"${auditTableLabelPrefix}_$labelName"`
       * @return a new SparkDataFlow with the write action added
       */
     def writeToStorage(labelName: String
-                       , table: AuditTable
                        , lastUpdatedCol: String
                        , appendDateTime: ZonedDateTime
-                       , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false): SparkDataFlow = {
+                       , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false
+                       , auditTableLabelPrefix: String = "audittable"): SparkDataFlow = {
+
+      val auditTableLabel = s"${auditTableLabelPrefix}_$labelName"
+
       val run: DataFlowEntities => ActionResult = m => {
-        val sparkSession = sparkDataFlow.flowContext.spark
-        val sparkConf = sparkSession.sparkContext.getConf
+        val flowContext = sparkDataFlow.flowContext
+        val sparkSession = flowContext.spark
         import sparkSession.implicits._
 
+        val recompactAll = flowContext.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
+        val compactionPartitioner = CompactionPartitionerGenerator.getImplementation(flowContext)
         val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
 
+        val table: AuditTable = m.get[AuditTable](auditTableLabel)
+
         table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
-          case Success((t, c)) if doCompaction(t.regions, c, appendDateTime) =>
+          case Success((t, c)) if recompactAll || doCompaction(t.regions, c, appendDateTime) =>
             logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
-            val trashMaxAge = Duration.ofMillis(sparkConf.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
-            val smallRegionRowThreshold = sparkConf.getInt(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
-            val hotCellsPerPartition = sparkConf.getInt(HOT_CELLS_PER_PARTITION, HOT_CELLS_PER_PARTITION_DEFAULT)
-            val coldCellsPerPartition = sparkConf.getInt(COLD_CELLS_PER_PARTITION, COLD_CELLS_PER_PARTITION_DEFAULT)
-            val recompactAll = sparkConf.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
+
+            val trashMaxAge = Duration.ofMillis(flowContext.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
+            val smallRegionRowThreshold = flowContext.getLong(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
+
             t.compact(compactTS = appendTimestamp
               , trashMaxAge = trashMaxAge
-              , coldCellsPerPartition = coldCellsPerPartition
-              , hotCellsPerPartition = hotCellsPerPartition
+              , compactionPartitioner = compactionPartitioner
               , smallRegionRowThreshold = smallRegionRowThreshold
               , recompactAll = recompactAll) match {
               case Success(_) => Seq.empty
@@ -145,7 +241,7 @@ object StorageActions extends Logging {
         }
         Seq.empty
       }
-      sparkDataFlow.addAction(new SimpleAction(List(labelName), List.empty, run))
+      sparkDataFlow.addAction(new SimpleAction(List(labelName, auditTableLabel), List.empty, run, "writeToStorage"))
     }
 
 
@@ -155,21 +251,22 @@ object StorageActions extends Logging {
       * @param storageBasePath   the base path of the storage layer
       * @param snapshotTimestamp the snapshot timestamp
       * @param includeHot        whether or not to include hot partitions in the read
+      * @param outputPrefix      optionally prefix the output label for the Dataset.
+      *                          If set, the label of the snapshot Dataset will be `s"${outputPrefix}_$table"`
       * @param tables            the tables we want to snapshot
       * @return a new SparkDataFlow with the snapshot actions added
       */
     def snapshotFromStorage(storageBasePath: String, snapshotTimestamp: Timestamp, includeHot: Boolean = true, outputPrefix: Option[String] = None)(tables: String*): SparkDataFlow = {
-      val basePath = new Path(storageBasePath)
 
-      val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq, includeHot)
-      if (newTables.nonEmpty) throw new RuntimeException(s"Tables do not exist: $newTables")
+      val randomPrefix = UUID.randomUUID().toString
+      val openedFlow = sparkDataFlow.getAuditTable(storageBasePath, Some(randomPrefix), includeHot)(tables: _*)
 
-      handleTableErrors(existingTables, "Unable to perform read")
-
-      existingTables.values.map(_.get).foldLeft(sparkDataFlow)((flow, table) => {
-        val outputLabel = outputPrefix.map(p => s"${p}_${table.tableName}").getOrElse(table.tableName)
-        flow.addAction(new SimpleAction(List.empty, List(outputLabel), _ => List(table.snapshot(snapshotTimestamp))))
+      tables.foldLeft(openedFlow)((flow, table) => {
+        val auditTableLabel = s"${randomPrefix}_$table"
+        val outputLabel = outputPrefix.map(p => s"${p}_$table").getOrElse(table)
+        flow.addAction(new SimpleAction(List(auditTableLabel), List(outputLabel), m => List(m.get[AuditTable](auditTableLabel).snapshot(snapshotTimestamp)), "snapshotFromStorage"))
       })
+
     }
 
     /**
@@ -184,20 +281,76 @@ object StorageActions extends Logging {
       * @param tables          the tables to load
       * @return a new SparkDataFlow with the read actions added
       */
-    def loadFromStorage(storageBasePath: String, from: Option[Timestamp] = None, to: Option[Timestamp] = None, outputPrefix: Option[String] = None)(tables: String*): SparkDataFlow = {
-      val basePath = new Path(storageBasePath)
+    def loadFromStorage(storageBasePath: String, from: Option[Timestamp] = None, to: Option[Timestamp] = None, includeHot: Boolean = true, outputPrefix: Option[String] = None)(tables: String*): SparkDataFlow = {
 
-      val (existingTables, newTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tables.toSeq)
-      if (newTables.nonEmpty) throw new RuntimeException(s"Tables do not exist: $newTables")
+      val randomPrefix = UUID.randomUUID().toString
+      val openedFlow = sparkDataFlow.getAuditTable(storageBasePath, Some(randomPrefix), includeHot)(tables: _*)
 
-      handleTableErrors(existingTables, "Unable to perform read")
-
-      existingTables.values.map(_.get).foldLeft(sparkDataFlow)((flow, table) => {
-        val outputLabel = outputPrefix.map(p => s"${p}_${table.tableName}").getOrElse(table.tableName)
-        flow.addAction(new SimpleAction(List.empty, List(outputLabel), _ => List(table.allBetween(from, to))))
+      tables.foldLeft(openedFlow)((flow, table) => {
+        val auditTableLabel = s"${randomPrefix}_$table"
+        val outputLabel = outputPrefix.map(p => s"${p}_$table").getOrElse(table)
+        flow.addAction(new SimpleAction(List(auditTableLabel), List(outputLabel), m => List(m.get[AuditTable](auditTableLabel).allBetween(from, to)), "loadFromStorage"))
       })
     }
 
   }
 
+}
+
+trait CompactionPartitionerGenerator {
+  def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner
+}
+
+object CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+
+  def getImplementation(flowContext: FlowContext): CompactionPartitioner = {
+    import scala.reflect.runtime.{universe => ru}
+    val m = ru.runtimeMirror(getClass.getClassLoader)
+    val module = m.staticModule(flowContext.getString(COMPACTION_PARTITIONER_IMPLEMENTATION, COMPACTION_PARTITIONER_IMPLEMENTATION_DEFAULT))
+    m.reflectModule(module).instance.asInstanceOf[CompactionPartitionerGenerator].getCompactionPartitioner(flowContext)
+  }
+
+}
+
+/**
+  * A compaction partitioner that partitions on the
+  * approximate maximum number of bytes to be in each partition file
+  */
+object TotalBytesPartitioner extends CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+  import org.apache.spark.util.SizeEstimator
+
+  override def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner = {
+    val bytesPerPartition = flowContext.getLong(BYTES_PER_PARTITION, BYTES_PER_PARTITION_DEFAULT)
+    val maxRecordsToSample = flowContext.getLong(MAX_RECORDS_TO_SAMPLE, MAX_RECORDS_TO_SAMPLE_DEFAULT)
+    (ds: Dataset[_], numRows: Long) => {
+      val sampled = {
+        if (numRows <= maxRecordsToSample || maxRecordsToSample == -1) ds
+        else ds.sample(withReplacement = false, maxRecordsToSample / numRows.toDouble)
+      }
+      val averageBytesPerRow = sampled.toDF().rdd.map(SizeEstimator.estimate).mean()
+      Math.ceil((numRows * averageBytesPerRow) / bytesPerPartition).toInt
+    }
+  }
+
+}
+
+/**
+  * A compaction partitioner that partitions on the
+  * approximate maximum number of cells (numRows * numColumns) to be in each partition file
+  */
+object TotalCellsPartitioner extends CompactionPartitionerGenerator {
+
+  import com.coxautodata.waimak.storage.StorageActions._
+
+  override def getCompactionPartitioner(flowContext: FlowContext): CompactionPartitioner = {
+    val cellsPerPartition = flowContext.getLong(CELLS_PER_PARTITION, CELLS_PER_PARTITION_DEFAULT)
+    (ds: Dataset[_], numRows: Long) => {
+      val cellsPerRow = ds.schema.size
+      Math.ceil((numRows * cellsPerRow.toDouble) / cellsPerPartition).toInt
+    }
+  }
 }

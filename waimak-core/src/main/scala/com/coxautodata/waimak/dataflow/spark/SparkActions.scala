@@ -2,7 +2,6 @@ package com.coxautodata.waimak.dataflow.spark
 
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, DataFlowException}
 import com.coxautodata.waimak.log.Logging
-import com.coxautodata.waimak.metastore.HadoopDBConnector
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql._
 
@@ -532,6 +531,18 @@ object SparkActions {
     }
 
     /**
+      * Writes out data set as parquet, can have partitioned columns.
+      *
+      * @param label       - label whose data set will be written out
+      * @param repartition - repartition dataframe by a number of partitions
+      * @param basePath    - base path of the label, label will be added to it
+      * @return
+      */
+    def writePartitionedParquet(basePath: String, repartition: Int)(label: String): SparkDataFlow = {
+      write(label, applyRepartition(repartition), applyWriteParquet(new Path(basePath, label).toString))
+    }
+
+    /**
       * Writes multiple datasets as parquet files into basePath. Names of the labels will become names of the folders
       * under the basePath.
       *
@@ -627,7 +638,7 @@ object SparkActions {
     def cacheAsParquet(labels: String*): SparkDataFlow = {
       if (labels.isEmpty) throw new DataFlowException(s"At least one label must be specified for cacheAsParquet")
 
-      labels.foldLeft(sparkDataFlow) { (flow, label) => SparkInterceptors.addCacheAsParquet(flow, label) }
+      labels.foldLeft(sparkDataFlow) { (flow, label) => SparkInterceptors.addCacheAsParquet(flow, label, None, repartition = false) }
     }
 
     /**
@@ -642,7 +653,7 @@ object SparkActions {
     def cacheAsPartitionedParquet(partitions: Seq[String], repartition: Boolean = true)(labels: String*): SparkDataFlow = {
       if (labels.isEmpty) throw new DataFlowException(s"At least one label must be specified for cacheAsParquet")
 
-      labels.foldLeft(sparkDataFlow) { (flow, label) => SparkInterceptors.addCacheAsParquet(flow, label, partitions, repartition) }
+      labels.foldLeft(sparkDataFlow) { (flow, label) => SparkInterceptors.addCacheAsParquet(flow, label, Some(Left(partitions)), repartition) }
     }
 
     /**
@@ -655,6 +666,15 @@ object SparkActions {
       * @return
       */
     def inPlaceTransform(label: String)(post: Dataset[_] => Dataset[_]): SparkDataFlow = SparkInterceptors.addPostTransform(sparkDataFlow, label)(post)
+
+  }
+
+  private[dataflow] implicit class SparkDataFlowInternal(sparkDataFlow: SparkDataFlow) extends Logging {
+
+    def writeRepartitionedPartitionedParquet(basePath: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean)(label: String): SparkDataFlow = {
+      val (df, dfw) = applyRepartitionAndPartitionBy(partitions, repartition)
+      sparkDataFlow.write(label, df, dfw andThen applyWriteParquet(new Path(basePath, label).toString))
+    }
 
   }
 
@@ -689,12 +709,22 @@ object SparkActionHelpers {
     ds => if (repartition && partitionCols.nonEmpty) ds.repartition(partitionCols.map(ds(_)): _*) else ds
   }
 
+  def applyRepartition(repartition: Int): Dataset[_] => Dataset[_] = {
+    ds => ds.repartition(repartition)
+  }
+
   def applyFileReduce(numFiles: Option[Int]): Dataset[_] => Dataset[_] = {
     ds => numFiles.map(ds.repartition).getOrElse(ds)
   }
 
   def applyPartitionBy(partitionCols: Seq[String]): DataFrameWriter[_] => DataFrameWriter[_] = {
     dfw => if (partitionCols.nonEmpty) dfw.partitionBy(partitionCols: _*) else dfw
+  }
+
+  def applyRepartitionAndPartitionBy(partitions: Option[Either[Seq[String], Int]], repartition: Boolean): (Dataset[_] => Dataset[_], DataFrameWriter[_] => DataFrameWriter[_]) = partitions match {
+    case None => (e => e, w => w)
+    case Some(Left(p)) => (applyRepartition(p, repartition), applyPartitionBy(p))
+    case Some(Right(p)) => (applyRepartition(p), w => w)
   }
 
   def applyMode(mode: SaveMode): DataFrameWriter[_] => DataFrameWriter[_] = dfw => dfw.mode(mode)

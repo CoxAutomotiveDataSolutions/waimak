@@ -2,6 +2,7 @@ package com.coxautodata.waimak.dataflow
 
 import java.util.UUID
 
+import com.coxautodata.waimak.dataflow.DataFlow._
 import org.scalatest.{FunSpec, Matchers}
 
 import scala.util.{Success, Try}
@@ -1059,7 +1060,7 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       it("one label, no partitions") {
         val testFlow = flow.commit("commit_1")("com_1")
         testFlow.commitMeta.commits.size should be(1)
-        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq.empty, repartition = false, cache = true))))
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", None, repartition = false, cache = true))))
         testFlow.commitMeta.pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
@@ -1067,7 +1068,7 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       it("one label, partitions, no repartition") {
         val testFlow = flow.commit("commit_1", Seq("id", "cntry"), repartition = false)("com_1")
         testFlow.commitMeta.commits.size should be(1)
-        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), repartition = false, cache = true))))
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = false, cache = true))))
         testFlow.commitMeta.pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
@@ -1075,15 +1076,16 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       it("one label, partitions, repartition") {
         val testFlow = flow.commit("commit_1", Seq("id", "cntry"))("com_1")
         testFlow.commitMeta.commits.size should be(1)
-        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), repartition = true, cache = true))))
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = true, cache = true))))
         testFlow.commitMeta.pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
 
       it("one label, partitions, repartition, no cache") {
-        val testFlow = flow.commit("commit_1", Seq("id", "cntry"), cacheLabels = false)("com_1")
+        flow.flowContext.asInstanceOf[EmptyFlowContext].conf.setProperty(CACHE_REUSED_COMMITTED_LABELS, "false")
+        val testFlow = flow.commit("commit_1", Seq("id", "cntry"))("com_1")
         testFlow.commitMeta.commits.size should be(1)
-        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Seq("id", "cntry"), repartition = true, cache = false))))
+        testFlow.commitMeta.commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = true, cache = false))))
         testFlow.commitMeta.pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }

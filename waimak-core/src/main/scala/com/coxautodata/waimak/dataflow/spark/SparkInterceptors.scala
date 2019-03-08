@@ -4,7 +4,7 @@ import com.coxautodata.waimak.dataflow._
 import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{DataFrameWriter, Dataset, SaveMode}
-
+import com.coxautodata.waimak.dataflow.spark.SparkActionHelpers._
 /**
   * Defines builder functions that add various interceptors to a [[SparkDataFlow]]
   *
@@ -38,24 +38,17 @@ object SparkInterceptors extends Logging {
         .map(dfFunc)
         .map { ds =>
           val path = new Path(new Path(baseFolder.toString), outputLabel).toString
-          dfwFunc(ds.write).mode(SaveMode.Overwrite).parquet(path)
-          ds.sparkSession.read.parquet(path)
+          dfwFunc andThen applyOverwrite(true) andThen applyWriteParquet(path) apply ds.write
+          applyOpenParquet(path) apply ds.sparkSession.read
         }
     }
 
     addPostAction(sparkFlow, outputLabel, CachePostAction(post, outputLabel))
   }
 
-  def addCacheAsParquet(sparkFlow: SparkDataFlow, outputLabel: String, partitions: Seq[String] = Seq.empty, repartition: Boolean = true): SparkDataFlow = {
-    addPostCacheAsParquet(sparkFlow, outputLabel) {
-      e =>
-        if (partitions.nonEmpty && repartition) e.repartition(partitions.map(e(_)): _*)
-        else e
-    } {
-      w =>
-        if (partitions.nonEmpty) w.partitionBy(partitions: _*)
-        else w
-    }
+  def addCacheAsParquet(sparkFlow: SparkDataFlow, outputLabel: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean): SparkDataFlow = {
+    val (df, dfw) = applyRepartitionAndPartitionBy(partitions, repartition)
+    addPostCacheAsParquet(sparkFlow, outputLabel)(df)(dfw)
   }
 
   def addPostTransform(sparkFlow: SparkDataFlow, outputLabel: String)(transform: Dataset[_] => Dataset[_]): SparkDataFlow = {

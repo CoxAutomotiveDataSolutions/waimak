@@ -3,6 +3,7 @@ package com.coxautodata.waimak.storage
 import java.sql.Timestamp
 import java.time.Duration
 
+import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import org.apache.spark.sql.{Column, Dataset}
 
 import scala.util.Try
@@ -92,19 +93,15 @@ trait AuditTable {
     * @param trashMaxAge             Maximum age of old region files kept in the .Trash folder
     *                                after a compaction has happened.
     * @param smallRegionRowThreshold the row number threshold to use for determining small regions to be compacted.
-    *                                Default is 50000000
-    * @param hotCellsPerPartition    approximate maximum number of cells (numRows * numColumns) to be in each hot partition file.
-    *                                Adjust this to control output file size. Default is 1000000
-    * @param coldCellsPerPartition   approximate maximum number of cells (numRows * numColumns) to be in each cold partition file.
-    *                                Adjust this to control output file size. Default is 2500000
+    * @param compactionPartitioner   a partitioner function that dictates how many partitions should be generated
+    *                                for a given region
     * @param recompactAll            Whether to recompact all regions regardless of size (i.e. ignore smallRegionRowThreshold)
     * @return new state of the AuditTable
     */
   def compact(compactTS: Timestamp
               , trashMaxAge: Duration
-              , smallRegionRowThreshold: Int = 50000000
-              , hotCellsPerPartition: Int = 1000000
-              , coldCellsPerPartition: Int = 2500000
+              , smallRegionRowThreshold: Long
+              , compactionPartitioner: CompactionPartitioner
               , recompactAll: Boolean = false): Try[AuditTable]
 
   /**
@@ -121,4 +118,11 @@ trait AuditTable {
     */
   def tableName: String
 
+}
+
+object AuditTable {
+  /**
+    * Given a Dataset and row count, calculate how many partitions to partition the output by
+    */
+  type CompactionPartitioner = (Dataset[_], Long) => Int
 }
