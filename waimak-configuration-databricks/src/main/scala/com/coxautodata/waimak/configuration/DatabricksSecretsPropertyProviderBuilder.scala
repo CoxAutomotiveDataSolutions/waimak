@@ -6,6 +6,17 @@ import com.databricks.dbutils_v1.DBUtilsHolder.dbutils
 
 import scala.util.{Success, Try}
 
+/**
+  * A [[PropertyProviderBuilder]] object that reads property key-values from
+  * Databricks secret scopes.
+  *
+  * A comma separated list of Databricks secret scopes to check can be set
+  * using [[DatabricksSecretsPropertyProviderBuilder.CONFIG_DATABRICKS_SECRET_SCOPES]].
+  * If none are set, all available secret scopes are checked.
+  *
+  * Include `com.coxautodata.waimak.configuration.DatabricksSecretsPropertyProviderBuilder` in
+  * [[CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES]] to use this provider.
+  */
 object DatabricksSecretsPropertyProviderBuilder extends PropertyProviderBuilder {
   /**
     * A comma separated list of Databricks secret scopes to check when searching for
