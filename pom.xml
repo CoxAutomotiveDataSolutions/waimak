@@ -75,6 +75,7 @@
         <module>waimak-azure-table</module>
         <module>waimak-rdbm-ingestion</module>
         <module>waimak-hive</module>
+        <module>waimak-configuration-databricks</module>
     </modules>
     <profiles>
         <!-- Spark profiles -->
@@ -258,6 +259,7 @@
         <jgitflow.maven.plugin.version>1.0-m5.1</jgitflow.maven.plugin.version>
         <scoverage.plugin.version>1.3.0</scoverage.plugin.version>
         <coveralls.plugin.version>4.3.0</coveralls.plugin.version>
+        <databricks.dbutils.version>0.0.3</databricks.dbutils.version>
         <skipTests>false</skipTests>
         <skipUTs>${skipTests}</skipUTs>
         <skipITs>${skipTests}</skipITs>

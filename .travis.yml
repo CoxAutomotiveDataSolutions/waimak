@@ -17,20 +17,20 @@ matrix:
     - env: MAVEN_PROFILE="apache-2.2.0_2.11" DEPLOY_PROFILE="true" COVERAGE_PROFILE="true" SCALA_VERSION="2.11"
     - env: MAVEN_PROFILE="apache-2.3.0_2.11" SCALA_VERSION="2.11"
     - env: MAVEN_PROFILE="apache-2.4.0_2.11" SCALA_VERSION="2.11"
-    - env: MAVEN_PROFILE="apache-2.4.0_2.12" DEPLOY_PROFILE="true" SCALA_VERSION="2.12"
+    - env: MAVEN_PROFILE="apache-2.4.0_2.12" DEPLOY_PROFILE="true" SCALA_VERSION="2.12" EXTRA_MAVEN_OPTIONS="-pl '!waimak-configuration-databricks'"
     - env: MAVEN_PROFILE="cloudera-2.2.0.cloudera1_2.11" SCALA_VERSION="2.11"
 
 before_install:
   - bash dev/change-scala-version.sh "$SCALA_VERSION"
 
 install:
-  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE -U
+  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE -U $EXTRA_MAVEN_OPTIONS
 
 script:
   - mvn help:active-profiles -P$MAVEN_PROFILE
   - |
     if [ "$SKIP_TESTS" != "true" ]; then 
-      mvn clean verify -P$MAVEN_PROFILE $( if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then echo -Preport scoverage:integration-report coveralls:report; fi ) -U;
+      mvn clean verify -P$MAVEN_PROFILE $( if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then echo -Preport scoverage:integration-report coveralls:report; fi ) -U $EXTRA_MAVEN_OPTIONS;
     else
       echo "SKIPPING TESTS";
     fi
@@ -38,7 +38,7 @@ script:
     if [ "$DEPLOY_PROFILE" == "true" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ] && ( [ -n "$TRAVIS_TAG" ] || [ "$TRIGGER_DEPLOYMENT" == "true" ] ); then 
       echo $GPG_SECRET_KEYS | base64 --decode | $GPG_EXECUTABLE --import;
       echo $GPG_OWNERTRUST | base64 --decode | $GPG_EXECUTABLE --import-ownertrust;
-      mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease -DskipTests -U;
+      mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease -DskipTests -U $EXTRA_MAVEN_OPTIONS;
     else
       echo "SKIPPING DEPLOYMENT";
     fi
