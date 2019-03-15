@@ -31,7 +31,7 @@ import scala.reflect.runtime.{universe => ru}
   */
 object MultiAppRunner {
 
-  implicit class ApplicationFlow(flow: SparkDataFlow) {
+  implicit class MultiApplicationFlow(flow: SparkDataFlow) {
     def executeApp(dependencies: String*)(app: SparkSession => Any, outputLabel: String): SparkDataFlow = {
       def run(m: DataFlowEntities): ActionResult = {
         val res = app.apply(flow.spark)
