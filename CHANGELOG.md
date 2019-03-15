@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.1.1 - 2019-03-15
+
+### Fixed
+- Bug in `TotalBytesPartitioner` and `TotalCellsPartitioner` where 0 partitions were returned
+
 ## 2.1 - 2019-03-08
 
 ### Added

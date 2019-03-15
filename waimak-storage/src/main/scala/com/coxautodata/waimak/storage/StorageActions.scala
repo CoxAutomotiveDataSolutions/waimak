@@ -332,7 +332,7 @@ object TotalBytesPartitioner extends CompactionPartitionerGenerator {
         else ds.sample(withReplacement = false, maxRecordsToSample / numRows.toDouble)
       }
       val averageBytesPerRow = sampled.toDF().rdd.map(SizeEstimator.estimate).mean()
-      Math.ceil((numRows * averageBytesPerRow) / bytesPerPartition).toInt
+      Math.ceil((numRows * averageBytesPerRow) / bytesPerPartition).toInt.max(1)
     }
   }
 
@@ -350,7 +350,7 @@ object TotalCellsPartitioner extends CompactionPartitionerGenerator {
     val cellsPerPartition = flowContext.getLong(CELLS_PER_PARTITION, CELLS_PER_PARTITION_DEFAULT)
     (ds: Dataset[_], numRows: Long) => {
       val cellsPerRow = ds.schema.size
-      Math.ceil((numRows * cellsPerRow.toDouble) / cellsPerPartition).toInt
+      Math.ceil((numRows * cellsPerRow.toDouble) / cellsPerPartition).toInt.max(1)
     }
   }
 }
