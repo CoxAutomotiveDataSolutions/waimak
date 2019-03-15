@@ -2,12 +2,29 @@ package com.coxautodata.waimak.configuration
 
 import java.util.Properties
 
-import org.apache.spark.SparkConf
+import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
+import com.coxautodata.waimak.log.Logging
 
 import scala.annotation.StaticAnnotation
 import scala.util.Try
 
-object CaseClassConfigParser {
+object CaseClassConfigParser extends Logging {
+
+  val configParamPrefix: String = "spark.waimak.config"
+  /**
+    * Comma separated list of property provider builder object names to instantiate.
+    * Set this to have the config parser use the custom objects to search for configuration
+    * parameter values in these property providers.
+    */
+  val CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES: String = s"$configParamPrefix.propertyProviderBuilderObjects"
+  val CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES_DEFAULT: List[String] = List.empty
+  /**
+    * URI of the properties file used by the [[PropertiesFilePropertyProviderBuilder]] object.
+    * Used when [[CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES]] includes [[PropertiesFilePropertyProviderBuilder]].
+    * File will be opened using an Hadoop FileSystem object, therefore URI must be supported by your
+    * Hadoop libraries and configuration must be present in the HadoopConfiguration on the SparkSession.
+    */
+  val CONFIG_PROPERTIES_FILE_URI: String = s"$configParamPrefix.propertiesFileURI"
 
   final case class separator(s: String) extends StaticAnnotation
 
@@ -63,10 +80,10 @@ object CaseClassConfigParser {
     * @return String value of parameter
     */
   @throws(classOf[NoSuchElementException])
-  private def getValue(conf: Map[String, String], properties: Option[Properties], prefix: String, param: String): String = {
+  private def getValue(conf: Map[String, String], properties: Seq[PropertyProvider], prefix: String, param: String): String = {
     val fullParam = prefix + param
     conf
-      .getOrElse(fullParam, properties.flatMap(p => Option(p.getProperty(fullParam))).getOrElse {
+      .getOrElse(fullParam, properties.toStream.map(p => p.get(fullParam)).collectFirst { case Some(p) => p }.getOrElse {
         throw new NoSuchElementException
       })
   }
@@ -84,7 +101,7 @@ object CaseClassConfigParser {
   @throws(classOf[UnsupportedOperationException])
   @throws(classOf[NumberFormatException])
   @throws(classOf[IllegalArgumentException])
-  private def getParam(conf: Map[String, String], prefix: String, param: ru.Symbol, properties: Option[Properties]): Any = {
+  private def getParam(conf: Map[String, String], prefix: String, param: ru.Symbol, properties: Seq[PropertyProvider]): Any = {
     param.typeSignature match {
       // Option types cast as the inner type of Option
       case t if t <:< typeOf[Option[_]] => Some(getValue(conf, properties, prefix, param.name.toString)).map { v =>
@@ -113,6 +130,16 @@ object CaseClassConfigParser {
     }
   }
 
+  private def getPropertyProviders(context: SparkFlowContext): Seq[PropertyProvider] = {
+    val m = ru.runtimeMirror(getClass.getClassLoader)
+    context
+      .getStringList(CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES, CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES_DEFAULT)
+      .map(m.staticModule)
+      .map(m.reflectModule)
+      .map(_.instance.asInstanceOf[PropertyProviderBuilder])
+      .map(_.getPropertyProvider(context))
+  }
+
   /**
     * Populate a Case Class from an instance of SparkConf. It will attempt to cast the
     * configuration values to the correct types, and most primitive, Option[primitive],
@@ -126,7 +153,7 @@ object CaseClassConfigParser {
     * e.g. for case class Ex(key: String) and prefix="example.prefix.",
     * then the key will have the form "example.prefix.key"
     *
-    * @param conf   Instance of SparkConf containing KeyValue configuration
+    * @param context  Instance of [[SparkFlowContext]] containing a spark session with configuration
     * @param prefix Prefix to assign to a Key when looking in SparkConf
     * @tparam A Case class type to construct
     * @return An instantiated case class populated from the SparkConf instance and default arguments
@@ -135,11 +162,11 @@ object CaseClassConfigParser {
   @throws(classOf[UnsupportedOperationException])
   @throws(classOf[NumberFormatException])
   @throws(classOf[IllegalArgumentException])
-  def apply[A: TypeTag](conf: SparkConf, prefix: String, properties: Option[Properties] = None): A = {
-    fromMap[A](conf.getAll.toMap, prefix, properties)
+  def apply[A: TypeTag](context: SparkFlowContext, prefix: String): A = {
+    fromMap[A](context.spark.conf.getAll, prefix, getPropertyProviders(context))
   }
 
-  def fromMap[A: TypeTag](conf: Map[String, String], prefix: String = "", properties: Option[Properties] = None): A = {
+  def fromMap[A: TypeTag](conf: Map[String, String], prefix: String = "", properties: Seq[PropertyProvider] = Seq.empty): A = {
     val tag = implicitly[TypeTag[A]]
     val runtimeClass = tag.mirror.runtimeClass(tag.tpe)
     val classSymbol = symbolOf[A].asClass
@@ -157,7 +184,7 @@ object CaseClassConfigParser {
         .recover {
           case e: NoSuchElementException =>
             val defarg = companionSymbol.typeSignature.member(ru.TermName(s"apply$$default$$${i + 1}"))
-            if (!defarg.isMethod) throw new NoSuchElementException(s"No SparkConf configuration value, Properties value or default " +
+            if (!defarg.isMethod) throw new NoSuchElementException(s"No SparkConf configuration value, no value in any PropertyProviders or default " +
               s"value found for parameter $prefix${p.name.toString}")
             else im.reflectMethod(defarg.asMethod)()
           case e => throw e
@@ -166,4 +193,38 @@ object CaseClassConfigParser {
     im.reflectMethod(companionApply)(args: _*).asInstanceOf[A]
   }
 
+}
+
+/**
+  * Trait used to define an object that constructs a [[PropertyProvider]].
+  * You should extend this trait with an object to define a custom
+  * property provider builder. This object can then be used to provide a
+  * custom method of retrieving configuration by setting the
+  * [[CaseClassConfigParser.CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES]] property
+  * on the SparkSession.
+  */
+trait PropertyProviderBuilder {
+  def getPropertyProvider(conf: SparkFlowContext): PropertyProvider
+}
+
+/**
+  * Trait used to defined a class/object that is used to retrieve
+  * configuration parameters.
+  * A subtype of this trait is created by the [[PropertyProviderBuilder.getPropertyProvider]]
+  * function and not directly instantiated.
+  */
+trait PropertyProvider {
+
+  /**
+    * Get a given configuration property value given a key.
+    * Should return [[None]] of the property does not exist.
+    */
+  def get(key: String): Option[String]
+}
+
+/**
+  * A property provider implementation that simply wraps around a [[java.util.Properties]] object
+  */
+class JavaPropertiesPropertyProvider(properties: Properties) extends PropertyProvider{
+  override def get(key: String): Option[String] = Option(properties.getProperty(key))
 }
