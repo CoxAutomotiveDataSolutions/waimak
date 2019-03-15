@@ -8,6 +8,7 @@ import com.coxautodata.waimak.dataflow.{DataFlowException, EmptyFlowContext, Wai
 import com.coxautodata.waimak.storage.AuditTableFile.lowTimestamp
 import com.coxautodata.waimak.storage.StorageActions._
 import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.functions._
 
 /**
   * Created by Vicky Avison on 11/05/18.
@@ -242,6 +243,8 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       context.conf.setProperty(BYTES_PER_PARTITION, (4*rowSize).toString)
       CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (3)
 
+      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be (1)
+
     }
 
     it("TotalCellsPartitioner should create partition differently depending on total cells") {
@@ -257,6 +260,8 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       context.conf.setProperty(CELLS_PER_PARTITION, "4")
       CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (3)
+
+      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be (1)
 
     }
 
