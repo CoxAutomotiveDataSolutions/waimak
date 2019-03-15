@@ -2,6 +2,7 @@ package com.coxautodata.waimak.configuration
 
 import java.util.Properties
 
+import com.coxautodata.waimak.configuration.CaseClassConfigParser.CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES
 import com.coxautodata.waimak.configuration.DatabricksSecretsPropertyProviderBuilder._
 import com.coxautodata.waimak.dataflow.spark.{SparkFlowContext, SparkSpec}
 import org.apache.spark.sql.RuntimeConfig
@@ -83,7 +84,39 @@ class TestDatabricksSecretsPropertyProviderBuilder extends SparkSpec {
       propProv.get("key") should be(Some("1"))
     }
 
+    it("should transform the key if it contains special characters") {
+      val context = SparkFlowContext(sparkSession)
+      val conf: RuntimeConfig = sparkSession.conf
+
+      val props1 = new Properties()
+
+      com.databricks.dbutils_v1.DBUtilsHolder.dbutils0.set(new TestDBUtilsV1Secrets(Map("scope1" -> props1)))
+
+      props1.setProperty("test-test--test--test", "2")
+      props1.setProperty("test.test..test!.test", "1")
+
+      val propProv = DatabricksSecretsPropertyProviderBuilder.getPropertyProvider(context)
+      propProv.get("test.test..test!.test") should be(Some("2"))
+
+      conf.set(CONFIG_DATABRICKS_REPLACE_SPECIAL_CHARACTERS_IN_KEY, false)
+      propProv.get("test.test..test!.test") should be(Some("1"))
+    }
   }
+
+  describe("CaseClassConfigParser") {
+
+    it("should run a case class parse with the databricks configuration") {
+      val context = SparkFlowContext(sparkSession)
+      val conf: RuntimeConfig = sparkSession.conf
+      conf.set(CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES, "com.coxautodata.waimak.configuration.DatabricksSecretsPropertyProviderBuilder")
+      val props = new Properties()
+      props.setProperty("key", "value")
+      com.databricks.dbutils_v1.DBUtilsHolder.dbutils0.set(new TestDBUtilsV1Secrets(Map("scope1" -> props)))
+      CaseClassConfigParser[DatabricksTest](context, "") should be(DatabricksTest("value"))
+    }
+
+  }
+
 }
 
 class TestDBUtilsV1Secrets(properties: Map[String, Properties]) extends com.databricks.dbutils_v1.DBUtilsV1 {
@@ -116,3 +149,4 @@ class TestDBUtilsV1Secrets(properties: Map[String, Properties]) extends com.data
   override def help(moduleOrMethod: String): Unit = ???
 }
 
+case class DatabricksTest(key: String)
