@@ -37,7 +37,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val writeFlow = Waimak.sparkFlow(spark)
         .addInput("t_record", Some(records.toDS()))
-        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty)))("t_record")
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
         .writeToStorage("t_record", "lastUpdated", zdt1)
 
       executor.execute(writeFlow)
@@ -82,7 +82,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val writeFlow = Waimak.sparkFlow(spark)
         .addInput("t_record", Some(records.toDS()))
-        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty)))("t_record")
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
         .writeToStorage("t_record", "lastUpdated", laZts, runSingleCompactionDuringWindow(10, 11))
 
       executor.execute(writeFlow)
@@ -117,7 +117,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val writeFlow = Waimak.sparkFlow(spark)
         .addInput("t_record", Some(records.toDS()))
-        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty)))("t_record")
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
         .writeToStorage("t_record", "lastUpdated", laZts)
 
       executor.execute(writeFlow)

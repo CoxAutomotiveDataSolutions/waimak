@@ -467,12 +467,14 @@ object AuditTableFile extends Logging {
 /**
   * Static information about the table, that is persisted when audit table is initialised.
   *
-  * @param table_name   name of the table
-  * @param primary_keys list of columns that make up primary key, these will be used for snapshot generation and
-  *                     record deduplication
-  * @param meta         application/custom metadata that will not be used in this library.
+  * @param table_name     name of the table
+  * @param primary_keys   list of columns that make up primary key, these will be used for snapshot generation and
+  *                       record deduplication
+  * @param retain_history whether to retain history for this table. If set to false, the table will be deduplicated
+  *                       on every compaction
+  * @param meta           application/custom metadata that will not be used in this library.
   */
-case class AuditTableInfo(table_name: String, primary_keys: Seq[String], meta: Map[String, String])
+case class AuditTableInfo(table_name: String, primary_keys: Seq[String], meta: Map[String, String], retain_history: Boolean)
 
 /**
   *

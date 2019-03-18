@@ -5,9 +5,9 @@ import java.util.concurrent.{BlockingQueue, Executors, LinkedBlockingQueue, Time
 
 import com.coxautodata.waimak.log.Logging
 
+import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future}
 import scala.util.{Failure, Success, Try}
-import scala.collection.JavaConverters._
 
 /**
   * Can run multiple actions in parallel with multiple execution pools support.
@@ -20,16 +20,16 @@ import scala.collection.JavaConverters._
   *
   * <?xml version="1.0"?>
   * <allocations>
-  *   <pool name="high">
-  *     <schedulingMode>FAIR</schedulingMode>
-  *      <weight>1000</weight>
-  *      <minShare>0</minShare>
-  *   </pool>
-  *   <pool name="medium">
-  *     <schedulingMode>FAIR</schedulingMode>
-  *       <weight>25</weight>
-  *       <minShare>0</minShare>
-  *   </pool>
+  * <pool name="high">
+  * <schedulingMode>FAIR</schedulingMode>
+  * <weight>1000</weight>
+  * <minShare>0</minShare>
+  * </pool>
+  * <pool name="medium">
+  * <schedulingMode>FAIR</schedulingMode>
+  * <weight>25</weight>
+  * <minShare>0</minShare>
+  * </pool>
   * </allocations>
   *
   * following configuration options need to be specified:
@@ -41,14 +41,14 @@ import scala.collection.JavaConverters._
   *
   * Created by Alexei Perelighin on 2018/07/10
   *
-  * @param pools                            details of the execution pools: name, limits, running actions, thread pool
-  * @param actionFinishedNotificationQueue  thread safe queue through which threads that have finished actions will communicate back to the scheduler
-  * @param poolIntoContext                  callback function that is called to let context know that an action is about to be executed
+  * @param pools                           details of the execution pools: name, limits, running actions, thread pool
+  * @param actionFinishedNotificationQueue thread safe queue through which threads that have finished actions will communicate back to the scheduler
+  * @param poolIntoContext                 callback function that is called to let context know that an action is about to be executed
   * @tparam C
   */
 class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
-                                 , val actionFinishedNotificationQueue: BlockingQueue[(String, DataFlowAction, Try[ActionResult])]
-                                )
+                              , val actionFinishedNotificationQueue: BlockingQueue[(String, DataFlowAction, Try[ActionResult])]
+                             )
   extends ActionScheduler with Logging {
 
   type actionType = DataFlowAction
@@ -56,11 +56,9 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
   type futureResult = (String, actionType, Try[ActionResult])
 
   override def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction]): Seq[DataFlowAction] = {
-    logInfo("dropRunning from:")
     if (from.isEmpty) from
     else {
       val running = pools.filterKeys(poolNames.contains).values.flatMap(_.running).toSet
-      logInfo("dropRunning running:")
       from.filter(a => !running.contains(a.schedulingGuid))
     }
   }
@@ -81,11 +79,9 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
             bucket.asScala :+ oneAction
           }
       } while (finished.isEmpty)
-      logInfo(s"No more waiting for an action. ${finished.isDefined}")
       finished.map { rSet =>
         val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet)
-        logInfo("waitToFinish:")
-        poolActionGuids.foreach(kv => logInfo("waitToFinish finished: " + kv._1 + " " + kv._2.mkString("[", ",", "]")))
+        poolActionGuids.foreach(kv => logDebug("waitToFinish finished: " + kv._1 + " " + kv._2.mkString("[", ",", "]")))
         val newPools = poolActionGuids.foldLeft(pools) { (newPools, kv) =>
           val newPoolDesc = newPools(kv._1).removeActionGUIDS(kv._2)
           newPools + (kv._1 -> newPoolDesc)
@@ -111,7 +107,7 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
       flowReporter.reportActionFinished(action, flowContext)
       res
     }(poolDesc.threadsExecutor.get) // ensureRunning made sure that this is a Some
-    logInfo("Submitted to Pool Action: " + poolName + " : " + action.schedulingGuid + " : " +  action.logLabel)
+    logInfo("Submitted to Pool Action: " + poolName + " : " + action.schedulingGuid + " : " + action.logLabel)
     val newPoolDesc = poolDesc.addActionGUID(action.schedulingGuid)
     new ParallelActionScheduler(pools + (poolName -> newPoolDesc), actionFinishedNotificationQueue)
   }
@@ -154,7 +150,7 @@ object ParallelActionScheduler {
   def apply(maxJobs: Int): ParallelActionScheduler = apply(Map(DEFAULT_POOL_NAME -> maxJobs))
 
   def apply(poolsSpec: Map[String, Int]): ParallelActionScheduler = {
-    val pools = poolsSpec.map( kv => (kv._1, ExecutionPoolDesc(kv._1, kv._2, Set.empty, None)))
+    val pools = poolsSpec.map(kv => (kv._1, ExecutionPoolDesc(kv._1, kv._2, Set.empty, None)))
     new ParallelActionScheduler(pools, new LinkedBlockingQueue[(String, DataFlowAction, Try[ActionResult])]())
   }
 

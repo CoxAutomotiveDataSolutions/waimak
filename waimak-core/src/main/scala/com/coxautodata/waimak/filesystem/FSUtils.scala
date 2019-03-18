@@ -116,7 +116,7 @@ object FSUtils extends Logging {
       fs.delete(toPath, true)
     }
     val committed = fs.rename(toMove, toPath)
-    logInfo(s"${committed} move of [${toMove.toString}] into [${toPath}]")
+    logDebug(s"Move of [${toMove.toString}] into [$toPath] was successful: $committed")
     committed
   }
 
@@ -193,7 +193,7 @@ object FSUtils extends Logging {
         val from = new Path(fromPath, f)
         val to = new Path(toPath, f)
         val res = fs.rename(from, to)
-        logInfo(s"${res} move of [${from.toString}] into [${to}]")
+        logInfo(s"Move of [${from.toString}] into [${to}] was successful: $res")
         res
       }.fold(true)((r, e) => r && e)
     } else false

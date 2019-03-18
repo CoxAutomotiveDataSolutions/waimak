@@ -53,7 +53,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
   )
 
   def createADTable(tableName: String, fosp: FileStorageOps): AuditTableFile = {
-    new AuditTableFile(AuditTableInfo(tableName, Seq("id"), Map.empty), Seq.empty, fosp, basePath, sequence())
+    new AuditTableFile(AuditTableInfo(tableName, Seq("id"), Map.empty, true), Seq.empty, fosp, basePath, sequence())
   }
 
   val defaultCompactionPartitioner: CompactionPartitioner = (_, _) => 1
@@ -87,7 +87,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       inferredRegions should be(Seq.empty)
 
       val infoData = zeroState.storageOps.readAuditTableInfo(basePath, tableName)
-      infoData should be(Success(AuditTableInfo(tableName, Seq("id"), Map.empty)))
+      infoData should be(Success(AuditTableInfo(tableName, Seq("id"), Map.empty, true)))
     }
 
     it("init table fail") {
@@ -102,7 +102,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
     it("init table fail, no keys") {
 
-      val zeroState = new AuditTableFile(AuditTableInfo(tableName, Seq.empty, Map.empty), Seq.empty, createFops(), basePath, sequence())
+      val zeroState = new AuditTableFile(AuditTableInfo(tableName, Seq.empty, Map.empty, true), Seq.empty, createFops(), basePath, sequence())
 
       val res = zeroState.initNewTable()
 
@@ -536,7 +536,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       tables.size should be(1)
       tables.get("prsn").map(_.get.tableName) should be(Some("prsn"))
       tables.get("prsn").map(_.get.regions.size) should be(Some(0))
-      tables.get("prsn").map(_.get.tableInfo) should be(Some(AuditTableInfo("prsn", Seq("id"), Map.empty)))
+      tables.get("prsn").map(_.get.tableInfo) should be(Some(AuditTableInfo("prsn", Seq("id"), Map.empty, true)))
 
       missing should be(Seq("missing"))
     }
