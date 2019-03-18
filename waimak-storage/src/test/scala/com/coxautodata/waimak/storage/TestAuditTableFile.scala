@@ -6,7 +6,7 @@ import java.time.Duration
 
 import com.coxautodata.waimak.dataflow.EmptyFlowContext
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
-import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPersonEvolved}
+import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPerson, TPersonEvolved}
 import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import com.coxautodata.waimak.storage.AuditTableFile._
 import com.coxautodata.waimak.storage.StorageActions._
@@ -52,8 +52,8 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
     , trashBinPath
   )
 
-  def createADTable(tableName: String, fosp: FileStorageOps): AuditTableFile = {
-    new AuditTableFile(AuditTableInfo(tableName, Seq("id"), Map.empty, true), Seq.empty, fosp, basePath, sequence())
+  def createADTable(tableName: String, fosp: FileStorageOps, retainHistory: Boolean = true): AuditTableFile = {
+    new AuditTableFile(AuditTableInfo(tableName, Seq("id"), Map.empty, retainHistory), Seq.empty, fosp, basePath, sequence())
   }
 
   val defaultCompactionPartitioner: CompactionPartitioner = (_, _) => 1
@@ -678,7 +678,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
       val reportData = report.toDS().withColumn("lastTS", lit("2018-01-01"))
 
-      val finalPurchase = personTable
+      val finalPerson = personTable
         .append(personData, lastUpdated(personData), lastTS_1)
         .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, compactionPartitioner))
 
@@ -708,7 +708,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
       val reportData = report.toDS().withColumn("lastTS", lit("2018-01-01"))
 
-      val finalPurchase = personTable
+      val finalPerson = personTable
         .append(personData, lastUpdated(personData), lastTS_1)
         .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, compactionPartitioner))
 
@@ -719,6 +719,34 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
       fs.globStatus(new Path(basePath, "person/*/*/part-*")).length should be(2)
       fs.globStatus(new Path(basePath, "rep/*/*/part-*")).length should be(3)
+    }
+
+    it("should not deduplicate when retain history is set to true") {
+      val spark = sparkSession
+      import spark.implicits._
+      val personTable = createADTable("person", createFops(), retainHistory = true).initNewTable().get
+      val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
+      personTable
+        .append(personData, lastUpdated(personData), lastTS_1)
+        .flatMap(_._1.append(personData, lastUpdated(personData), lastTS_1))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
+
+      val compactedData = spark.read.parquet(personTable.tablePath.toString)
+      compactedData.as[TPerson].collect() should contain theSameElementsAs (persons ++ persons)
+    }
+
+    it("should deduplicate when retain_history is set to false") {
+      val spark = sparkSession
+      import spark.implicits._
+      val personTable = createADTable("person", createFops(), retainHistory = false).initNewTable().get
+      val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
+      personTable
+        .append(personData, lastUpdated(personData), lastTS_1)
+        .flatMap(_._1.append(personData, lastUpdated(personData), lastTS_1))
+        .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
+
+      val compactedData = spark.read.parquet(personTable.tablePath.toString)
+      compactedData.as[TPerson].collect() should contain theSameElementsAs (persons)
     }
 
   }

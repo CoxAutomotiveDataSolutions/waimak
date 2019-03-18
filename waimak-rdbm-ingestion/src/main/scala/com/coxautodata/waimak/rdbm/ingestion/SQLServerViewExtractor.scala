@@ -21,13 +21,14 @@ class SQLServerViewExtractor(override val sparkSession: SparkSession
 
   override def getTableMetadata(dbSchemaName: String
                                 , tableName: String
-                                , primaryKeys: Option[Seq[String]] = None
-                                , lastUpdatedColumn: Option[String] = None): Try[AuditTableInfo] = {
+                                , primaryKeys: Option[Seq[String]]
+                                , lastUpdatedColumn: Option[String]
+                                , retainStorageHistory: Boolean): Try[AuditTableInfo] = {
     (primaryKeys match {
       case Some(userPKS) => Success(TableExtractionMetadata(dbSchemaName, tableName, userPKS, lastUpdatedColumn))
       case _ => Failure(PKsNotFoundOrProvidedException)
     }).map(meta => {
-      AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString))
+      AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString), retainStorageHistory)
     })
   }
 }

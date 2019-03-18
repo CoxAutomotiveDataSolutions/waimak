@@ -108,11 +108,11 @@ object FSUtils extends Logging {
     */
   def moveOverwriteFolder(fs: FileSystem, toMove: Path, toPath: Path): Boolean = {
     if (!fs.exists(toPath.getParent)) {
-      logInfo("Create parent folder " + toPath.getParent)
+      logDebug("Create parent folder " + toPath.getParent)
       fs.mkdirs(toPath.getParent)
     }
     if (fs.exists(toMove)) {
-      logInfo(s"Removing ${toPath.toString} in order to replace.")
+      logDebug(s"Removing ${toPath.toString} in order to replace.")
       fs.delete(toPath, true)
     }
     val committed = fs.rename(toMove, toPath)

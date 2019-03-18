@@ -72,8 +72,9 @@ trait RDBMExtractor {
     */
   def getTableMetadata(dbSchemaName: String
                        , tableName: String
-                       , primaryKeys: Option[Seq[String]] = None
-                       , lastUpdatedColumn: Option[String] = None): Try[AuditTableInfo]
+                       , primaryKeys: Option[Seq[String]]
+                       , lastUpdatedColumn: Option[String]
+                       , retainStorageHistory: Boolean): Try[AuditTableInfo]
 
   def resolveLastUpdatedColumn(tableMetadata: TableExtractionMetadata, sparkSession: SparkSession): Column = {
     import sparkSession.implicits._

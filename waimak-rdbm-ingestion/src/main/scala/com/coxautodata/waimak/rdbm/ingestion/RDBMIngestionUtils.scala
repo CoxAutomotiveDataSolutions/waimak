@@ -101,4 +101,7 @@ object RDBMIngestionUtils {
 case class RDBMExtractionTableConfig(tableName: String
                                      , pkCols: Option[Seq[String]] = None
                                      , lastUpdatedColumn: Option[String] = None
-                                     , maxRowsPerPartition: Option[Int] = None)
+                                     , maxRowsPerPartition: Option[Int] = None
+                                     , forceRetainStorageHistory: Option[Boolean] = None) {
+  val retainStorageHistory: Boolean = forceRetainStorageHistory.getOrElse(lastUpdatedColumn.isDefined)
+}

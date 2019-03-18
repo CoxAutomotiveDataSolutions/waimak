@@ -37,7 +37,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     */
   protected var wasModified = false
 
-  protected val tablePath = new Path(baseFolder, tableInfo.table_name)
+  protected[storage] val tablePath = new Path(baseFolder, tableInfo.table_name)
 
   protected[storage] val regionInfoBasePath = new Path(baseFolder, AuditTableFile.REGION_INFO_DIRECTORY)
 
@@ -71,13 +71,14 @@ class AuditTableFile(val tableInfo: AuditTableInfo
 
   override def snapshot(ts: Timestamp): Option[Dataset[_]] = {
     //TODO: optimise and explore other solutions with the use of counts, as smaller counts should avoid shuffle, hot applied to cold
-    val auditRows = allBetween(None, Some(ts))
-    auditRows.map { rows =>
-      val primaryKeyColumns = tableInfo.primary_keys.map(rows(_))
-      val windowLatest = Window.partitionBy(primaryKeyColumns: _*).orderBy(rows(DE_LAST_UPDATED_COLUMN).desc)
-      rows.withColumn("_rowNum", row_number().over(windowLatest)).filter("_rowNum = 1").drop("_rowNum")
-        .drop(DE_LAST_UPDATED_COLUMN)
-    }
+    allBetween(None, Some(ts)).map(deduplicate)
+  }
+
+  def deduplicate(ds: Dataset[_]): Dataset[_] = {
+    val primaryKeyColumns = tableInfo.primary_keys.map(ds(_))
+    val windowLatest = Window.partitionBy(primaryKeyColumns: _*).orderBy(ds(DE_LAST_UPDATED_COLUMN).desc)
+    ds.withColumn("_rowNum", row_number().over(windowLatest)).filter("_rowNum = 1").drop("_rowNum")
+      .drop(DE_LAST_UPDATED_COLUMN)
   }
 
   /**
@@ -167,7 +168,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
                             , compactionPartitioner: CompactionPartitioner
                             , recompactAll: Boolean): Try[AuditTableFile] = {
     val smallerRegions =
-      if (recompactAll) regions
+      if (recompactAll || !tableInfo.retain_history) regions
       else regions.filter(r => r.store_type == COLD_PARTITION && r.count < smallRegionRowThreshold)
     // No use compacting a single small region into itself
     compactRegions(coldPath, if (smallerRegions.length < 2 && !recompactAll) Seq.empty else smallerRegions, compactTS, compactionPartitioner)
@@ -186,7 +187,10 @@ class AuditTableFile(val tableInfo: AuditTableInfo
         logInfo(s"Compacting regions ${ids.mkString("[", ", ", "]")} in path [${regionPath.toString}]")
         if (storageOps.pathExists(regionPath)) throw StorageException(s"Can not compact table [$tableName], as path [${regionPath.toString}] already exists")
 
-        val data = storageOps.openParquet(typePath)
+        val data = storageOps.openParquet(typePath).map {
+          case ds if !tableInfo.retain_history => deduplicate(ds)
+          case ds => ds
+        }
         val newRegionSet = data.map { rows =>
           //Clear current region info to prevent corruption on failure
           clearTableRegionCache(this)
