@@ -3,6 +3,7 @@ package com.coxautodata.waimak.dataflow.spark
 import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
+import com.coxautodata.waimak.dataflow.spark.CommitActions._
 import com.coxautodata.waimak.dataflow.{ActionResult, _}
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.metastore.HadoopDBConnector
@@ -91,8 +92,8 @@ case class ParquetDataCommitter(outputBaseFolder: String,
   override protected[dataflow] def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder)
-    val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(outputBaseFolder, snapshotFolder, ce.partitions.flatMap(_.left.toOption).getOrElse(Seq.empty), hadoopDBConnector))).toMap
-    sparkFlow.addAction(CommitAction(commitLabels, commitTempBase, labels.map(_.label).toList))
+    val commitLabels = labels.map(ce => ce.label ->  LabelCommitDefinition(ce.label, outputBaseFolder, snapshotFolder, ce.partitions.flatMap(_.left.toOption).getOrElse(Seq.empty), hadoopDBConnector)).toMap
+    sparkFlow.commitLabels(commitLabels, commitTempBase)
   }
 
   override protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = cleanupStrategy.fold(flow) { strategy =>

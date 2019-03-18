@@ -99,58 +99,9 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow with Logging {
 
 }
 
-case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
-
-private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefinition], tempPath: Path, labelsToWaitFor: List[String]) extends SparkDataFlowAction with Logging {
-  val inputLabels: List[String] = labelsToWaitFor
-  val outputLabels: List[String] = List.empty
-
-  override val requiresAllInputs = false
-
-  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
-
-    // Create path objects
-    val srcDestMap: Map[String, (Path, Path)] = commitLabels.map {
-      e =>
-        val tableName = e._1
-        val destDef = e._2
-        val srcPath = new Path(tempPath, tableName)
-        val destPathBase = new Path(s"${destDef.basePath}/$tableName")
-        val destPath = destDef.timestampFolder.map(new Path(destPathBase, _)).getOrElse(destPathBase)
-        if (!flowContext.fileSystem.exists(srcPath)) throw new FileNotFoundException(s"Cannot commit table $tableName as " +
-          s"the source path does not exist: ${srcPath.toUri.getPath}")
-        if (flowContext.fileSystem.exists(destPath)) throw new FileAlreadyExistsException(s"Cannot commit table $tableName as " +
-          s"the destination path already exists: ${destPath.toUri.getPath}")
-        tableName -> (srcPath, destPath)
-    }
-
-    // Directory moving
-    srcDestMap.foreach {
-      e =>
-        val label = e._1
-        val srcPath = e._2._1
-        val destPath = e._2._2
-        if (!flowContext.fileSystem.exists(destPath.getParent)) {
-          logInfo(s"Creating parent folder ${destPath.getParent.toUri.getPath} for label $label")
-          val res = flowContext.fileSystem.mkdirs(destPath.getParent)
-          if (!res) throw new PathOperationException(s"Could not create parent directory: ${destPath.getParent.toUri.getPath} for label $label")
-        }
-        val res = flowContext.fileSystem.rename(srcPath, destPath)
-        if (!res) throw new PathOperationException(s"Could not move path ${srcPath.toUri.getPath} to ${destPath.toUri.getPath} for label $label")
-    }
-
-    // Table Commits
-    commitLabels.filter(_._2.connection.isDefined)
-      .groupBy(_._2.connection.get)
-      .mapValues(_.map {
-        case (label, commitDefinition) =>
-          commitDefinition.connection.get.updateTableParquetLocationDDLs(label, srcDestMap(label)._2.toUri.getPath, commitDefinition.partitions)
-      }).foreach {
-      case (connection, ddls) => connection.submitAtomicResultlessQueries(ddls.flatten.toSeq)
-    }
-
-    List.empty
-  }
+case class LabelCommitDefinition(labelName: String, basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None){
+  private val destPathBase = new Path(s"$basePath/$labelName")
+  val outputPath: Path = timestampFolder.map(new Path(destPathBase, _)).getOrElse(destPathBase)
 }
 
 case class SparkDataFlowInfo(spark: SparkSession,

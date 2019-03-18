@@ -3,8 +3,10 @@ package com.coxautodata.waimak.metastore
 import java.sql.{Connection, DriverManager, ResultSet}
 
 import com.coxautodata.waimak.dataflow.DataFlowException
+import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.security.alias.CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH
 import org.apache.spark.SparkConf
 
@@ -134,10 +136,16 @@ trait JDBCConnector extends DBConnector {
   */
 trait HadoopDBConnector extends DBConnector {
 
+  import HadoopDBConnector._
+
+  def context: SparkFlowContext
+
+  def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata]
+
   /**
     * Force drop+create of tables even if update is called (necessary in cases of schema change)
     */
-  def forceRecreateTables: Boolean
+  def forceRecreateTables: Boolean= context.getBoolean(FORCE_RECREATE_TABLES, FORCE_RECREATE_TABLES_DEFAULT)
 
   private[metastore] def createTableFromParquetDDL(tableName: String, path: String, external: Boolean = true, partitionColumns: Seq[String] = Seq.empty, ifNotExists: Boolean = true): Seq[String]
 
@@ -166,7 +174,7 @@ trait HadoopDBConnector extends DBConnector {
     * Update the data location of a parquet table.
     * If the table is partitioned, it will be dropped if it exists and recreated.
     * If the table is not partitioned and forceRecreateTables is true, it will be dropped if it exists and recreated.
-    * If the table is not partitioned and forceRecreateTables is false, then the data location will be changed without dropping the table.
+    * If the table is not partitioned and forceRecreateTables is false and the schema has not changed, then the data location will be changed without dropping the table.
     * The table will be created if it does not already exist.
     *
     * @param tableName        name of the table
@@ -174,10 +182,19 @@ trait HadoopDBConnector extends DBConnector {
     * @param partitionColumns optional list of partition columns
     * @return the sql statements which need executing to perform the table update
     */
-  def updateTableParquetLocationDDLs(tableName: String, path: String, partitionColumns: Seq[String] = Seq.empty): Seq[String] = {
+  def updateTableParquetLocationDDLs(tableName: String, path: String, partitionColumns: Seq[String] = Seq.empty, schemaChanged: Boolean = false): Seq[String] = {
     {
-      if (partitionColumns.nonEmpty || forceRecreateTables) recreateTableFromParquetDDLs(tableName, path, partitionColumns)
+      if (partitionColumns.nonEmpty || forceRecreateTables || schemaChanged) recreateTableFromParquetDDLs(tableName, path, partitionColumns)
       else createTableFromParquetDDL(tableName, path) :+ updateTableLocationDDL(tableName, path)
     }
   }
 }
+
+object HadoopDBConnector {
+  val metastoreParamPrefix: String = "spark.waimak.metastore"
+
+  val FORCE_RECREATE_TABLES: String = s"$metastoreParamPrefix.forceRecreateTables"
+  val FORCE_RECREATE_TABLES_DEFAULT: Boolean = false
+}
+
+case class TableMetadata(path: Option[Path], partitions: Seq[String])

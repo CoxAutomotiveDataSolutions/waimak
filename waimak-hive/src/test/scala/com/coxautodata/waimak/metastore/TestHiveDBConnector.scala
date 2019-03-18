@@ -77,7 +77,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
       val connector1 = HiveDummyConnector(SparkFlowContext(spark))
       val connector2 = HiveDummyConnector(SparkFlowContext(spark))
-      val connectorRecreate = HiveDummyConnector(SparkFlowContext(spark), forceRecreateTables = true)
+      val connectorRecreate = HiveDummyConnector(SparkFlowContext(spark))
 
       val baseDest = testingBaseDir + "/dest"
 

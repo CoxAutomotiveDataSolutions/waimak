@@ -80,7 +80,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
       val connector1 = ImpalaDummyConnector(flowContext)
       val connector2 = ImpalaDummyConnector(flowContext)
-      val connectorRecreate = ImpalaDummyConnector(flowContext, forceRecreateTables = true)
+      val connectorRecreate = ImpalaDummyConnector(flowContext)
 
       val baseDest = testingBaseDir + "/dest"
 
@@ -134,7 +134,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
       val baseDest = testingBaseDir + "/dest"
 
-      val connectorRecreate = ImpalaDummyConnector(flowContext, forceRecreateTables = true)
+      val connectorRecreate = ImpalaDummyConnector(flowContext)
 
       val flowPrePush: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
         .openCSV(basePath)("csv_1", "csv_2")

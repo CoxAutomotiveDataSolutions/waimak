@@ -15,10 +15,6 @@ import org.apache.spark.sql.SparkSession
   */
 trait ImpalaDBConnector extends HadoopDBConnector {
 
-  def sparkSession: SparkSession
-
-  def fileSystem: FileSystem
-
   private[metastore] override def createTableFromParquetDDL(tableName: String, path: String, external: Boolean, partitionColumns: Seq[String], ifNotExists: Boolean = true): Seq[String] = {
     //Find glob paths catering for partitions
     val globPath = {
@@ -27,7 +23,7 @@ trait ImpalaDBConnector extends HadoopDBConnector {
     }
 
     logInfo("Get paths for ddls " + globPath.toString)
-    val parquetFile = fileSystem.globStatus(globPath).sortBy(_.getPath.toUri.getPath).headOption.map(_.getPath).getOrElse(throw new DataFlowException(s"Could not find parquet file at " +
+    val parquetFile = context.fileSystem.globStatus(globPath).sortBy(_.getPath.toUri.getPath).headOption.map(_.getPath).getOrElse(throw new DataFlowException(s"Could not find parquet file at " +
       s"'$path' to infer schema for table '$tableName'"))
 
     //Create ddl
@@ -59,21 +55,18 @@ trait ImpalaDBConnector extends HadoopDBConnector {
   *                            is the key of the parameter you want in jdbc properties
   *
   */
-case class ImpalaWaimakJDBCConnector(sparkFlowContext: SparkFlowContext,
+case class ImpalaWaimakJDBCConnector(context: SparkFlowContext,
                                      database: String,
                                      cluster: String = "default",
-                                     forceRecreateTables: Boolean = false,
                                      properties: java.util.Properties = new java.util.Properties(),
                                      secureProperties: Map[String, String] = Map.empty) extends ImpalaDBConnector with WaimakJDBCConnector {
   override val driverName: String = "org.apache.hive.jdbc.HiveDriver"
-  override val sparkConf: SparkConf = sparkSession.sparkContext.getConf
+  override val sparkConf: SparkConf = context.spark.sparkContext.getConf
   override val service: String = "impala"
 
-  override def sparkSession: SparkSession = sparkFlowContext.spark
+  override def hadoopConfiguration: Configuration = context.spark.sparkContext.hadoopConfiguration
 
-  override def fileSystem: FileSystem = sparkFlowContext.fileSystem
-
-  override def hadoopConfiguration: Configuration = sparkSession.sparkContext.hadoopConfiguration
+  override def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata] = ???
 }
 
 /**
@@ -88,18 +81,16 @@ case class ImpalaWaimakJDBCConnector(sparkFlowContext: SparkFlowContext,
   *                            First value is the key of the parameter in the jceks file and the second parameter
   *                            is the key of the parameter you want in jdbc properties
   */
-case class ImpalaJDBCConnector(sparkFlowContext: SparkFlowContext,
+case class ImpalaJDBCConnector(context: SparkFlowContext,
                                jdbcString: String,
-                               forceRecreateTables: Boolean = false,
                                properties: java.util.Properties = new java.util.Properties(),
                                secureProperties: Map[String, String] = Map.empty) extends ImpalaDBConnector with JDBCConnector {
   override val driverName: String = "org.apache.hive.jdbc.HiveDriver"
 
-  override def sparkSession: SparkSession = sparkFlowContext.spark
+  override def hadoopConfiguration: Configuration = context.spark.sparkContext.hadoopConfiguration
 
-  override def fileSystem: FileSystem = sparkFlowContext.fileSystem
+  override def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata] = ???
 
-  override def hadoopConfiguration: Configuration = sparkSession.sparkContext.hadoopConfiguration
 }
 
 /**
@@ -111,7 +102,7 @@ case class ImpalaJDBCConnector(sparkFlowContext: SparkFlowContext,
   * @param sparkFlowContext    The flow context object containing the SparkSession and FileSystem
   * @param forceRecreateTables Force drop+create of tables even if update is called (necessary in cases of schema change)
   */
-case class ImpalaDummyConnector(sparkFlowContext: SparkFlowContext, forceRecreateTables: Boolean = false) extends ImpalaDBConnector {
+case class ImpalaDummyConnector(context: SparkFlowContext) extends ImpalaDBConnector {
   var ranDDLs: List[List[String]] = List.empty
 
   override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {
@@ -119,8 +110,5 @@ case class ImpalaDummyConnector(sparkFlowContext: SparkFlowContext, forceRecreat
     Seq(None)
   }
 
-  override def sparkSession: SparkSession = sparkFlowContext.spark
-
-  override def fileSystem: FileSystem = sparkFlowContext.fileSystem
-
+  override def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata] = ???
 }
