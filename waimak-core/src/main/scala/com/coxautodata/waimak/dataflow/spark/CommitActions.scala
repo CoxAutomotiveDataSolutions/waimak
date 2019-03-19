@@ -5,11 +5,15 @@ import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
 import com.coxautodata.waimak.log.Logging
+import com.coxautodata.waimak.metastore.HadoopDBConnector._
 import com.coxautodata.waimak.metastore.{HadoopDBConnector, TablePathAndPartitions}
 import org.apache.hadoop.fs.{FileAlreadyExistsException, Path, PathOperationException}
 
 import scala.util.Try
 
+/**
+  * Internal Waimak actions relating to the commit flow
+  */
 private[spark] object CommitActions {
 
   implicit class CommitActionImplicits(sparkDataFlow: SparkDataFlow) {
@@ -30,21 +34,28 @@ private[spark] object CommitActions {
         }
     }
 
-    private[spark] def commitConnectorLabelGroup(connector: HadoopDBConnector, labels: Map[String, LabelCommitDefinition]): SparkDataFlow = {
+    private[CommitActionImplicits] def commitConnectorLabelGroup(connector: HadoopDBConnector, labels: Map[String, LabelCommitDefinition]): SparkDataFlow = {
       sparkDataFlow
-        .addAction(CurrentPathsAndPartitionsQuery(connector, labels.keys.toList))
-        .addNewTableMetadata(labels)
-        .compareTableSchemas(labels.keys.toList)
+        .map {
+          case f if f.flowContext.getBoolean(AUTODETECT_SCHEMA_CHANGES, AUTODETECT_SCHEMA_CHANGES_DEFAULT) =>
+            f.addAction(CurrentPathsAndPartitionsQuery(connector, labels.keys.toList))
+              .addNewTableMetadata(labels)
+              .compareTableSchemas(labels.keys.toList)
+          case f =>
+            f.applyFoldLeft(labels.keys) {
+              case (z, l) => z.addInput(s"${l}_SCHEMA_CHANGED", Some(false))
+            }
+        }
         .addAction(CommitDDLs(connector, labels))
     }
 
-    private[spark] def addNewTableMetadata(labels: Map[String, LabelCommitDefinition]): SparkDataFlow = {
+    private[CommitActionImplicits] def addNewTableMetadata(labels: Map[String, LabelCommitDefinition]): SparkDataFlow = {
       sparkDataFlow.applyFoldLeft(labels) {
         case (z, (table, definition)) => z.addInput(s"${table}_NEW_TABLE_PATH_AND_PARTITIONS", Some(TablePathAndPartitions(Some(definition.outputPath(sparkDataFlow.flowContext)), definition.partitions)))
       }
     }
 
-    private[spark] def compareTableSchemas(labels: List[String]): SparkDataFlow = {
+    private[CommitActionImplicits] def compareTableSchemas(labels: List[String]): SparkDataFlow = {
       sparkDataFlow.applyFoldLeft(labels) {
         case (z, t) => z.addAction(CompareTableSchemas(t))
       }

@@ -192,9 +192,20 @@ trait HadoopDBConnector extends DBConnector {
 
 object HadoopDBConnector {
   val metastoreParamPrefix: String = "spark.waimak.metastore"
-
+  /**
+    * Force recreate (drop+create) of all tables submitted through connector objects.
+    * This should be done in case of underlying schema changes to data files.
+    * Default: false
+    */
   val FORCE_RECREATE_TABLES: String = s"$metastoreParamPrefix.forceRecreateTables"
   val FORCE_RECREATE_TABLES_DEFAULT: Boolean = false
+  /**
+    * Whether to auto-detect schema changes to tables and automatically recreate the
+    * tables where necessary.
+    * Default: true
+    */
+  val AUTODETECT_SCHEMA_CHANGES: String = s"$metastoreParamPrefix.autodetectSchemaChanges"
+  val AUTODETECT_SCHEMA_CHANGES_DEFAULT: Boolean = true
 }
 
-case class TablePathAndPartitions(path: Option[Path], partitions: Seq[String])
+private[waimak] case class TablePathAndPartitions(path: Option[Path], partitions: Seq[String])

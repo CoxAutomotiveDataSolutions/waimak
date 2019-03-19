@@ -2,10 +2,11 @@ package com.coxautodata.waimak.metastore
 
 import java.io.File
 
-import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark._
+import com.coxautodata.waimak.dataflow.{DataFlowException, Waimak}
+import com.coxautodata.waimak.metastore.HadoopDBConnector._
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.{NoSuchDatabaseException, NoSuchTableException}
@@ -653,6 +654,52 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
         "drop table if exists table",
         s"create external table if not exists table (id integer) partitioned by (amount string, item string) stored as parquet location 'file:$baseDest/table/snap=2'",
         "alter table table recover partitions")
+      )
+
+    }
+
+    it("end-to-end with a schema that changes by changing column ordering however detection is disabled") {
+      val spark = sparkSession
+      spark.conf.set(AUTODETECT_SCHEMA_CHANGES, false)
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+      import spark.implicits._
+      df.write.parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1"))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df.select('item, 'id, 'amount)))
+        .commit("commit")("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      intercept[DataFlowException] {
+        resFlow.inputs.get[TablePathAndPartitions]("table_CURRENT_TABLE_PATH_AND_PARTITIONS")
+      }.text should be("Label table_CURRENT_TABLE_PATH_AND_PARTITIONS does not exist")
+
+      intercept[DataFlowException] {
+        resFlow.inputs.get[TablePathAndPartitions]("table_NEW_TABLE_PATH_AND_PARTITIONS")
+      }.text should be("Label table_NEW_TABLE_PATH_AND_PARTITIONS does not exist")
+
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(false)
+
+      ranDDLs should be(List(
+        s"create external table if not exists table (item integer, id integer, amount integer) stored as parquet location 'file:$baseDest/table/snap=2'",
+        s"alter table table set location 'file:$baseDest/table/snap=2'")
       )
 
     }

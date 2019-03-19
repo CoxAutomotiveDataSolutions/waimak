@@ -72,9 +72,8 @@ case class ImpalaWaimakJDBCConnector(context: SparkFlowContext,
 /**
   * Impala Database connector that is constructed from a JDBC connection string
   *
-  * @param sparkFlowContext    The flow context object containing the SparkSession and FileSystem
+  * @param context    The flow context object containing the SparkSession and FileSystem
   * @param jdbcString          the JDBC connection string
-  * @param forceRecreateTables Force drop+create of tables even if update is called (necessary in cases of schema change)
   * @param properties          Key value pairs passed as connection arguments to the DriverManager during connection
   * @param secureProperties    Key value set of parameters used to get parameter values for JDBC properties
   *                            from a secure jceks file at CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH.
@@ -99,8 +98,7 @@ case class ImpalaJDBCConnector(context: SparkFlowContext,
   * This is useful for testing or using in flows where you wish to collect
   * the DDLs and run them manually.
   *
-  * @param sparkFlowContext    The flow context object containing the SparkSession and FileSystem
-  * @param forceRecreateTables Force drop+create of tables even if update is called (necessary in cases of schema change)
+  * @param context    The flow context object containing the SparkSession and FileSystem
   */
 case class ImpalaDummyConnector(context: SparkFlowContext) extends ImpalaDBConnector {
   var ranDDLs: List[List[String]] = List.empty
@@ -110,5 +108,5 @@ case class ImpalaDummyConnector(context: SparkFlowContext) extends ImpalaDBConne
     Seq(None)
   }
 
-  override def getPathsAndPartitionsForTables(tables: Seq[String]): Map[String, TablePathAndPartitions] = ???
+  override def getPathsAndPartitionsForTables(tables: Seq[String]): Map[String, TablePathAndPartitions] = tables.map(t => t -> TablePathAndPartitions(None, Seq.empty)).toMap
 }
