@@ -1,47 +1,15 @@
 package com.coxautodata.waimak.spark.app
 
-import java.nio.file.Files
-
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.SparkDataFlow
-import org.apache.commons.io.FileUtils
-import org.apache.hadoop.fs.Path
-import org.apache.spark.sql.SparkSession
-import org.scalatest.{BeforeAndAfterEach, FunSpec, Matchers}
 
-class TestMultiAppRunner extends FunSpec with Matchers with BeforeAndAfterEach {
+class TestMultiAppRunner extends AppRunnerSpec {
 
-  var testingBaseDir: java.nio.file.Path = _
-  var testingBaseDirName: String = _
-  var tmpDir: Path = _
-
-  override def beforeEach(): Unit = {
-    super.beforeEach()
-    testingBaseDir = Files.createTempDirectory("test_output")
-    testingBaseDirName = testingBaseDir.toString
-    tmpDir = new Path(testingBaseDir.toAbsolutePath.toString + "/tmp")
-  }
-
-  override def afterEach(): Unit = {
-    super.afterEach()
-    FileUtils.deleteDirectory(testingBaseDir.toFile)
-  }
-
-  val appName: String = "TestMultiAppRunner"
-
-  def buildSparkSession(extraConfig: Map[String, String]): SparkSession =
-    extraConfig.foldLeft(SparkSession
-      .builder()
-      .appName(appName)
-      .master("local[2]")
-      .config("spark.executor.memory", "2g")
-      .config("spark.ui.enabled", "false"))((session, kv) => {
-      session.config(kv._1, kv._2)
-    }).getOrCreate()
+  override def appName: String = "TestMultiAppRUnner"
 
   describe("runAll") {
     it("should run a single application") {
-      val spark = buildSparkSession(Map(
+      sparkSession = buildSparkSession(Map(
         "spark.waimak.apprunner.apps" -> "no_dependency_app"
         , "spark.waimak.apprunner.no_dependency_app.appClassName" -> "com.coxautodata.waimak.spark.app.WaimakAppWithNoDependency"
         , "spark.waimak.environment.no_dependency_app.project" -> "app_1"
@@ -49,6 +17,7 @@ class TestMultiAppRunner extends FunSpec with Matchers with BeforeAndAfterEach {
         , "spark.waimak.environment.no_dependency_app.branch" -> "feature/test-multi-app-runner"
         , "spark.waimak.environment.no_dependency_app.uri" -> testingBaseDirName
       ))
+      val spark = sparkSession
       import spark.implicits._
       MultiAppRunner.runAll(spark)
       spark.read.parquet(s"$testingBaseDirName/data/dev/app_1/feature_test_multi_app_runner/output/test")
@@ -59,7 +28,7 @@ class TestMultiAppRunner extends FunSpec with Matchers with BeforeAndAfterEach {
     }
 
     it("should run two applications with no dependencies") {
-      val spark = buildSparkSession(Map(
+      sparkSession = buildSparkSession(Map(
         "spark.waimak.apprunner.apps" -> "no_dependency_app_1,no_dependency_app_2"
         , "spark.waimak.apprunner.no_dependency_app_1.appClassName" -> "com.coxautodata.waimak.spark.app.WaimakAppWithNoDependency"
         , "spark.waimak.apprunner.no_dependency_app_2.appClassName" -> "com.coxautodata.waimak.spark.app.WaimakAppWithNoDependency"
@@ -72,6 +41,7 @@ class TestMultiAppRunner extends FunSpec with Matchers with BeforeAndAfterEach {
         , "spark.waimak.environment.no_dependency_app_2.branch" -> "feature/another-test"
         , "spark.waimak.environment.no_dependency_app_2.uri" -> testingBaseDirName
       ))
+      val spark = sparkSession
       import spark.implicits._
       MultiAppRunner.runAll(spark)
       spark.read.parquet(s"$testingBaseDirName/data/dev/app_1/feature_test_multi_app_runner/output/test")
@@ -87,7 +57,7 @@ class TestMultiAppRunner extends FunSpec with Matchers with BeforeAndAfterEach {
     }
 
     it("should run two applications with a dependency") {
-      val spark = buildSparkSession(Map(
+      sparkSession = buildSparkSession(Map(
         "spark.waimak.apprunner.apps" -> "no_dependency_app,dependency_app"
         , "spark.waimak.apprunner.no_dependency_app.appClassName" -> "com.coxautodata.waimak.spark.app.WaimakAppWithNoDependency"
         , "spark.waimak.apprunner.dependency_app.appClassName" -> "com.coxautodata.waimak.spark.app.WaimakAppWithDependency"
@@ -102,6 +72,7 @@ class TestMultiAppRunner extends FunSpec with Matchers with BeforeAndAfterEach {
         , "spark.waimak.environment.dependency_app.uri" -> testingBaseDirName
         , "spark.dependency_app.inputPath" -> s"$testingBaseDirName/data/dev/app_1/feature_test_multi_app_runner/output"
       ))
+      val spark = sparkSession
       import spark.implicits._
       MultiAppRunner.runAll(spark)
       spark.read.parquet(s"$testingBaseDirName/data/dev/app_1/feature_test_multi_app_runner/output/test")

@@ -2,13 +2,14 @@ package com.coxautodata.waimak.spark.app
 
 import java.net.URI
 
+import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.SparkSession
 
 /**
   * Environment defining a sandbox in which an application can write
   */
-trait Env {
+trait Env extends Logging {
 
   /**
     * Creates the environment
@@ -100,7 +101,7 @@ trait BaseEnv extends Env {
   override def tmpDir = s"$basePath/tmp"
 
   override def create(sparkSession: SparkSession): Unit = {
-    println("Creating paths")
+    logInfo("Creating paths")
     val fs = FileSystem.get(new URI(uri), sparkSession.sparkContext.hadoopConfiguration)
     fs.mkdirs(new Path(basePath))
   }
@@ -157,7 +158,7 @@ trait HiveEnv extends BaseEnv {
 
   override def create(sparkSession: SparkSession): Unit = {
     super.create(sparkSession)
-    println("Creating dbs")
+    logInfo("Creating dbs")
     allDBs.foreach(dbName => sparkSession.sql(s"create database $dbName"))
   }
 

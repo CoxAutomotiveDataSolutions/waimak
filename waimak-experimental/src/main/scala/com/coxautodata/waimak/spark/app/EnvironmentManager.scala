@@ -8,7 +8,7 @@ import org.apache.spark.sql.SparkSession
   * The following configuration values should be present in the SparkSession:
   *
   * spark.waimak.environment.appClassName: the application class to use (must extend [[SparkApp]])
-  * spark.waimak.environment.actions: the environment action to perform (create or cleanup)
+  * spark.waimak.environment.action: the environment action to perform (create or cleanup)
   *
   * The [[Env]] implementation expects configuration values prefixed with spark.waimak.environment.
   */
