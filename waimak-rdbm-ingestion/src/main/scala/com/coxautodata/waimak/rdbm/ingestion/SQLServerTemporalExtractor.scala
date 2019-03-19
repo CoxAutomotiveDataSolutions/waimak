@@ -71,7 +71,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
                                 , tableName: String
                                 , primaryKeys: Option[Seq[String]]
                                 , lastUpdatedColumn: Option[String]
-                                , retainStorageHistory: Boolean): Try[AuditTableInfo] = {
+                                , retainStorageHistory: Option[String] => Boolean): Try[AuditTableInfo] = {
     lastUpdatedColumn.foreach(col => logWarning(
       s"Ignoring user-passed value for last updated ($col) " +
         s"as we can get this information from the database"))
@@ -83,7 +83,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
         primaryKeys match {
           case Some(userPks) if userPks.sorted != pkCols.sorted =>
             Failure(IncorrectUserPKException(userPks, pkCols))
-          case _ => Success(AuditTableInfo(m.tableName, pkCols, metaMap, retainStorageHistory))
+          case _ => Success(AuditTableInfo(m.tableName, pkCols, metaMap, retainStorageHistory(m.mainTableMetadata.lastUpdatedColumn)))
         }
       })
   }

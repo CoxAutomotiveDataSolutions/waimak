@@ -13,9 +13,6 @@ import org.scalatest.BeforeAndAfterAll
 
 import scala.util.{Failure, Success}
 
-/**
-  * Created by Vicky Avison on 27/04/18.
-  */
 class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll {
 
   override val appName: String = "PostgresExtractorIntegrationTest"
@@ -82,17 +79,17 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAnd
   describe("getTableMetadata") {
     it("should return the metadata from the database (no user metadata provided)") {
       val postgresExtractor = new PostgresExtractor(sparkSession, postgresConnectionDetails)
-      postgresExtractor.getTableMetadata("public", "table_a", None, None, true) should be(Success(
+      postgresExtractor.getTableMetadata("public", "table_a", None, None, None) should be(Success(
         AuditTableInfo("table_a", Seq("table_a_pk"), Map(
           "schemaName" -> "public"
           , "tableName" -> "table_a"
           , "primaryKeys" -> "table_a_pk")
-          , true
+          , false
         )))
     }
     it("should return the metadata from the database with the provided last updated included") {
       val postgresExtractor = new PostgresExtractor(sparkSession, postgresConnectionDetails)
-      postgresExtractor.getTableMetadata("public", "table_a", None, Some("table_a_last_updated"), true) should be(Success(
+      postgresExtractor.getTableMetadata("public", "table_a", None, Some("table_a_last_updated"), None) should be(Success(
         AuditTableInfo("table_a", Seq("table_a_pk"), Map(
           "schemaName" -> "public"
           , "tableName" -> "table_a"
@@ -102,15 +99,35 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAnd
           , true
         )))
     }
+    it("should apply the forceRetainStorageHistory flag to the retrieved metadata") {
+      val postgresExtractor = new PostgresExtractor(sparkSession, postgresConnectionDetails)
+      postgresExtractor.getTableMetadata("public", "table_a", None, Some("table_a_last_updated"), Some(false)) should be(Success(
+        AuditTableInfo("table_a", Seq("table_a_pk"), Map(
+          "schemaName" -> "public"
+          , "tableName" -> "table_a"
+          , "primaryKeys" -> "table_a_pk"
+          , "lastUpdatedColumn" -> "table_a_last_updated"
+        )
+          , false
+        )))
+      postgresExtractor.getTableMetadata("public", "table_a", None, None, Some(true)) should be(Success(
+        AuditTableInfo("table_a", Seq("table_a_pk"), Map(
+          "schemaName" -> "public"
+          , "tableName" -> "table_a"
+          , "primaryKeys" -> "table_a_pk")
+          , true
+        )))
+    }
+
     it("should fail if the user-provided pks differ from the ones found in the database") {
       val postgresExtractor = new PostgresExtractor(sparkSession, postgresConnectionDetails)
-      postgresExtractor.getTableMetadata("public", "table_a", Some(Seq("incorrect_pk")), None, true) should be(Failure(
+      postgresExtractor.getTableMetadata("public", "table_a", Some(Seq("incorrect_pk")), None, None) should be(Failure(
         IncorrectUserPKException(Seq("incorrect_pk"), Seq("table_a_pk"))
       ))
     }
     it("should return the metadata if the user-provided pks match the ones from the database") {
       val postgresExtractor = new PostgresExtractor(sparkSession, postgresConnectionDetails)
-      postgresExtractor.getTableMetadata("public", "table_a", Some(Seq("table_a_pk")), Some("table_a_last_updated"), true) should be(Success(
+      postgresExtractor.getTableMetadata("public", "table_a", Some(Seq("table_a_pk")), Some("table_a_last_updated"), None) should be(Success(
         AuditTableInfo("table_a", Seq("table_a_pk"), Map(
           "schemaName" -> "public"
           , "tableName" -> "table_a"
@@ -122,7 +139,7 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAnd
     }
     it("should fail if pks are not provided and they cannot be found in the database") {
       val postgresExtractor = new PostgresExtractor(sparkSession, postgresConnectionDetails)
-      postgresExtractor.getTableMetadata("public", "tabledoesnotexist", None, Some("table_a_last_updated"), true) should be(Failure(
+      postgresExtractor.getTableMetadata("public", "tabledoesnotexist", None, Some("table_a_last_updated"), None) should be(Failure(
         PKsNotFoundOrProvidedException
       ))
     }

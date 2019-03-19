@@ -68,14 +68,14 @@ class PostgresExtractor(override val sparkSession: SparkSession
                                 , tableName: String
                                 , primaryKeys: Option[Seq[String]]
                                 , lastUpdatedColumn: Option[String]
-                                , retainStorageHistory: Boolean): Try[AuditTableInfo] = {
+                                , retainStorageHistory: Option[String] => Boolean): Try[AuditTableInfo] = {
     ((primaryKeys, getTablePKs(dbSchemaName, transformTableNameForRead(tableName))) match {
       case (Some(userPKs), Some(pksFromDB)) if userPKs.sorted != pksFromDB.sorted =>
         Failure(IncorrectUserPKException(userPKs, pksFromDB))
       case (Some(userPKs), None) => Success(TableExtractionMetadata(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
       case (_, Some(pksFromDB)) => Success(TableExtractionMetadata(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
       case _ => Failure(PKsNotFoundOrProvidedException)
-    }).map(meta => AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString), retainStorageHistory))
+    }).map(meta => AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString), retainStorageHistory(meta.lastUpdatedColumn)))
   }
 
 

@@ -85,23 +85,29 @@ object RDBMIngestionUtils {
 /**
   * Table configuration used for RDBM extraction
   *
-  * @param tableName           The name of the table
-  * @param pkCols              Optionally, the primary key columns for this table (don't need if the implementation of
-  *                            [[RDBMExtractor]] is capable of getting this information itself)
-  * @param lastUpdatedColumn   Optionally, the last updated column for this table (don't need if the implementation of
-  *                            [[RDBMExtractor]] is capable of getting this information itself)
-  * @param maxRowsPerPartition Optionally, the maximum number of rows to be read per Dataset partition for this table
-  *                            This number will be used to generate predicates to be passed to org.apache.spark.sql.SparkSession.read.jdbc
-  *                            If this is not set, the DataFrame will only have one partition. This could result in memory
-  *                            issues when extracting large tables.
-  *                            Be careful not to create too many partitions in parallel on a large cluster; otherwise
-  *                            Spark might crash your external database systems. You can also control the maximum number
-  *                            of jdbc connections to open by limiting the number of executors for your application.
+  * @param tableName                 The name of the table
+  * @param pkCols                    Optionally, the primary key columns for this table (don't need if the implementation of
+  *                                  [[RDBMExtractor]] is capable of getting this information itself)
+  * @param lastUpdatedColumn         Optionally, the last updated column for this table (don't need if the implementation of
+  *                                  [[RDBMExtractor]] is capable of getting this information itself)
+  * @param maxRowsPerPartition       Optionally, the maximum number of rows to be read per Dataset partition for this table
+  *                                  This number will be used to generate predicates to be passed to org.apache.spark.sql.SparkSession.read.jdbc
+  *                                  If this is not set, the DataFrame will only have one partition. This could result in memory
+  *                                  issues when extracting large tables.
+  *                                  Be careful not to create too many partitions in parallel on a large cluster; otherwise
+  *                                  Spark might crash your external database systems. You can also control the maximum number
+  *                                  of jdbc connections to open by limiting the number of executors for your application.
+  * @param forceRetainStorageHistory Optionally specify whether to retain history for this table in the storage layer.
+  *                                  Setting this to anything other than None will override the default behaviour which is:
+  *                                  - if there is a lastUpdated column (either specified here or found by the [[RDBMExtractor]])
+  *                                  retain all history for this table
+  *                                  - if there is no lastUpdated column, don't retain history for this table (history is
+  *                                  removed when the table is compacted). The choice of this default behaviour is because,
+  *                                  without a lastUpdatedColumn, the table will be extracted in full every time extraction
+  *                                  is performed, causing the size of the data in storage to grow uncontrollably
   */
 case class RDBMExtractionTableConfig(tableName: String
                                      , pkCols: Option[Seq[String]] = None
                                      , lastUpdatedColumn: Option[String] = None
                                      , maxRowsPerPartition: Option[Int] = None
-                                     , forceRetainStorageHistory: Option[Boolean] = None) {
-  val retainStorageHistory: Boolean = forceRetainStorageHistory.getOrElse(lastUpdatedColumn.isDefined)
-}
+                                     , forceRetainStorageHistory: Option[Boolean] = None)
