@@ -66,7 +66,7 @@ case class ImpalaWaimakJDBCConnector(context: SparkFlowContext,
 
   override def hadoopConfiguration: Configuration = context.spark.sparkContext.hadoopConfiguration
 
-  override def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata] = ???
+  override def getPathsAndPartitionsForTables(tables: Seq[String]): Map[String, TablePathAndPartitions] = ???
 }
 
 /**
@@ -89,7 +89,7 @@ case class ImpalaJDBCConnector(context: SparkFlowContext,
 
   override def hadoopConfiguration: Configuration = context.spark.sparkContext.hadoopConfiguration
 
-  override def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata] = ???
+  override def getPathsAndPartitionsForTables(tables: Seq[String]): Map[String, TablePathAndPartitions] = ???
 
 }
 
@@ -110,5 +110,5 @@ case class ImpalaDummyConnector(context: SparkFlowContext) extends ImpalaDBConne
     Seq(None)
   }
 
-  override def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata] = ???
+  override def getPathsAndPartitionsForTables(tables: Seq[String]): Map[String, TablePathAndPartitions] = ???
 }

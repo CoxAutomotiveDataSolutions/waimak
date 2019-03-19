@@ -5,7 +5,7 @@ import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
 import com.coxautodata.waimak.log.Logging
-import com.coxautodata.waimak.metastore.{HadoopDBConnector, TableMetadata}
+import com.coxautodata.waimak.metastore.{HadoopDBConnector, TablePathAndPartitions}
 import org.apache.hadoop.fs.{FileAlreadyExistsException, Path, PathOperationException}
 
 import scala.util.Try
@@ -17,31 +17,35 @@ private[spark] object CommitActions {
     def commitLabels(labelsToCommitDefinitions: Map[String, LabelCommitDefinition], commitTempPath: Path): SparkDataFlow = {
       val randomID = UUID.randomUUID().toString
 
-      val committedFilesFlow: SparkDataFlow = sparkDataFlow
+      val labelsGrouped: Map[HadoopDBConnector, Map[String, LabelCommitDefinition]] = labelsToCommitDefinitions
+        .filter(_._2.connection.isDefined)
+        .groupBy(_._2.connection.get)
+
+      sparkDataFlow
         .tag(randomID) {
           _.addAction(CommitFilesAction(labelsToCommitDefinitions, commitTempPath))
         }
-
-      labelsToCommitDefinitions
-        .filter(_._2.connection.isDefined)
-        .groupBy(_._2.connection.get)
-        .foldLeft(committedFilesFlow) {
-          case (z, (c, l)) =>
-            z.tagDependency(randomID) {
-              _.addAction(CurrentMetadataQuery(c, l.keys.toList))
-            }.addNewTableMetadata(l)
-              .compareTableSchemas(l.keys.toList)
+        .tagDependency(randomID) {
+          _.applyFoldLeft(labelsGrouped) { case (z, (c, l)) => z.commitConnectorLabelGroup(c, l) }
         }
     }
 
+    private[spark] def commitConnectorLabelGroup(connector: HadoopDBConnector, labels: Map[String, LabelCommitDefinition]): SparkDataFlow = {
+      sparkDataFlow
+        .addAction(CurrentMetadataQuery(connector, labels.keys.toList))
+        .addNewTableMetadata(labels)
+        .compareTableSchemas(labels.keys.toList)
+        .addAction(CommitDDLs(connector, labels))
+    }
+
     private[spark] def addNewTableMetadata(labels: Map[String, LabelCommitDefinition]): SparkDataFlow = {
-      labels.foldLeft(sparkDataFlow) {
-        case (z, (table, definition)) => z.addInput(s"${table}_NEW_TABLE_METADATA", Some(TableMetadata(Some(definition.outputPath), definition.partitions)))
+      sparkDataFlow.applyFoldLeft(labels) {
+        case (z, (table, definition)) => z.addInput(s"${table}_NEW_TABLE_PATH_AND_PARTITIONS", Some(TablePathAndPartitions(Some(definition.outputPath(sparkDataFlow.flowContext)), definition.partitions)))
       }
     }
 
     private[spark] def compareTableSchemas(labels: List[String]): SparkDataFlow = {
-      labels.foldLeft(sparkDataFlow) {
+      sparkDataFlow.applyFoldLeft(labels) {
         case (z, t) => z.addAction(CompareTableSchemas(t))
       }
 
@@ -60,7 +64,7 @@ private[spark] case class CommitDDLs(connector: HadoopDBConnector, labels: Map[S
     labels.values.flatMap {
       d =>
         val schemaChanged = inputs.get[Boolean](s"${d.labelName}_SCHEMA_CHANGED")
-        connector.updateTableParquetLocationDDLs(d.labelName, d.outputPath.toUri.getPath, d.partitions, schemaChanged)
+        connector.updateTableParquetLocationDDLs(d.labelName, d.outputPath(flowContext).toUri.getPath, d.partitions, schemaChanged)
     }
   }
     .map {
@@ -69,13 +73,12 @@ private[spark] case class CommitDDLs(connector: HadoopDBConnector, labels: Map[S
         Seq.empty
     }
 
-
 }
 
 private[spark] case class CompareTableSchemas(table: String) extends SparkDataFlowAction {
 
-  val currentMetadataLabel = s"${table}_CURRENT_TABLE_METADATA"
-  val newMetadataLabel = s"${table}_NEW_TABLE_METADATA"
+  val currentMetadataLabel = s"${table}_CURRENT_TABLE_PATH_AND_PARTITIONS"
+  val newMetadataLabel = s"${table}_NEW_TABLE_PATH_AND_PARTITIONS"
 
   override val inputLabels: List[String] = List(currentMetadataLabel, newMetadataLabel)
   override val outputLabels: List[String] = List(s"${table}_SCHEMA_CHANGED")
@@ -84,8 +87,8 @@ private[spark] case class CompareTableSchemas(table: String) extends SparkDataFl
 
     def getSchema(path: Path): String = flowContext.spark.read.parquet(path.toString).schema.json
 
-    val currMeta = inputs.get[TableMetadata](currentMetadataLabel)
-    val newMeta = inputs.get[TableMetadata](newMetadataLabel)
+    val currMeta = inputs.get[TablePathAndPartitions](currentMetadataLabel)
+    val newMeta = inputs.get[TablePathAndPartitions](newMetadataLabel)
 
     Seq(Some(currMeta.path.isEmpty || (currMeta.partitions != newMeta.partitions) || (getSchema(currMeta.path.get) != getSchema(newMeta.path.get))))
 
@@ -96,10 +99,10 @@ private[spark] case class CompareTableSchemas(table: String) extends SparkDataFl
 private[spark] case class CurrentMetadataQuery(conn: HadoopDBConnector, tables: List[String]) extends SparkDataFlowAction {
 
   override val inputLabels: List[String] = List.empty
-  override val outputLabels: List[String] = tables.map(t => s"${t}_CURRENT_TABLE_METADATA")
+  override val outputLabels: List[String] = tables.map(t => s"${t}_CURRENT_TABLE_PATH_AND_PARTITIONS")
 
   override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
-    val meta = conn.getMetadataForTables(tables)
+    val meta = conn.getPathsAndPartitionsForTables(tables)
     tables.map(t => Some(meta(t)))
   }
 
@@ -118,7 +121,7 @@ private[spark] case class CommitFilesAction(commitLabels: Map[String, LabelCommi
     val srcDestMap: Map[String, (Path, Path)] = commitLabels.map {
       case (tableName, destDef) =>
         val srcPath = new Path(tempPath, tableName)
-        val destPath = destDef.outputPath
+        val destPath = destDef.outputPath(flowContext)
         if (!flowContext.fileSystem.exists(srcPath)) throw new FileNotFoundException(s"Cannot commit table $tableName as " +
           s"the source path does not exist: ${srcPath.toUri.getPath}")
         if (flowContext.fileSystem.exists(destPath)) throw new FileAlreadyExistsException(s"Cannot commit table $tableName as " +

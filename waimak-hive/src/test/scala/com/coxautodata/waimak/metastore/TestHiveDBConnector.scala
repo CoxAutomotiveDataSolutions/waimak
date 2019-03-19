@@ -6,8 +6,9 @@ import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark._
+import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException
+import org.apache.spark.sql.catalyst.analysis.{NoSuchDatabaseException, NoSuchTableException}
 
 class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
@@ -230,6 +231,76 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
         HiveSparkSQLConnector(SparkFlowContext(sparkSession), "").runQueries(Seq.empty)
       }
       res.getMessage should be("HiveSparkSQLConnector does not support running queries that return data. You must use SparkSession.sql directly.")
+    }
+
+    it("getPathsAndPartitionsForTables") {
+      val testDb = "test"
+      val baseDest = testingBaseDir + "/dest"
+      val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb, createDatabaseIfNotExists = true)
+      connector.submitAtomicResultlessQueries(Seq(s"use $testDb"))
+      val spark = sparkSession
+
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+
+      df.write.partitionBy("amount").parquet(s"$baseDest/partitionedBy1")
+      df.write.partitionBy("amount", "item").parquet(s"$baseDest/partitionedBy2")
+      df.write.parquet(s"$baseDest/noPartitions")
+
+      connector.submitAtomicResultlessQueries(Seq(
+        connector.recreateTableFromParquetDDLs("partitionedBy1", s"$baseDest/partitionedBy1", Seq("amount")),
+        connector.recreateTableFromParquetDDLs("partitionedBy2", s"$baseDest/partitionedBy2", Seq("amount", "item")),
+        connector.recreateTableFromParquetDDLs("noPartitions", s"$baseDest/noPartitions")
+      ).flatten)
+
+      val res = connector.getPathsAndPartitionsForTables(Seq("partitionedBy1", "partitionedBy2", "noPartitions", "noTable"))
+
+      res should contain theSameElementsAs Map(
+        "partitionedBy1" -> TablePathAndPartitions(Some(new Path(s"file:$baseDest/partitionedBy1")), Seq("amount")),
+        "partitionedBy2" -> TablePathAndPartitions(Some(new Path(s"file:$baseDest/partitionedBy2")), Seq("amount", "item")),
+        "noPartitions" -> TablePathAndPartitions(Some(new Path(s"file:$baseDest/noPartitions")), Seq.empty),
+        "noTable" -> TablePathAndPartitions(None, Seq.empty)
+      )
+
+    }
+
+    it("end-to-end with a new table"){
+      val testDb = "test"
+      val testTable = "test"
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb, createDatabaseIfNotExists = true)
+      connector.submitAtomicResultlessQueries(Seq(s"use $testDb"))
+      val spark = sparkSession
+      import spark.implicits._
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+
+      intercept[NoSuchTableException]{
+        spark.sql(s"show create table $testTable")
+      }
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput(testTable, Some(df))
+        .commit("commit")(testTable)
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      spark.sql(s"show create table $testTable").as[String].collect().head.lines.takeWhile(!_.startsWith("TBLPROPERTIES")).mkString("\n") should be (
+        s"""CREATE EXTERNAL TABLE `$testTable`(`id` int, `item` int, `amount` int)
+          |ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
+          |WITH SERDEPROPERTIES (
+          |  'serialization.format' = '1'
+          |)
+          |STORED AS
+          |  INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'
+          |  OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
+          |LOCATION 'file:$baseDest/$testTable/snap=2'""".stripMargin
+      )
+      resFlow.inputs.get[TablePathAndPartitions](s"${testTable}_CURRENT_TABLE_PATH_AND_PARTITIONS") should be (TablePathAndPartitions(None, Seq.empty))
+      resFlow.inputs.get[TablePathAndPartitions](s"${testTable}_NEW_TABLE_PATH_AND_PARTITIONS") should be (TablePathAndPartitions(Some(new Path(s"file:$baseDest/$testTable/snap=2")), Seq.empty))
+      resFlow.inputs.get[Boolean](s"${testTable}_SCHEMA_CHANGED") should be (true)
+
     }
 
   }

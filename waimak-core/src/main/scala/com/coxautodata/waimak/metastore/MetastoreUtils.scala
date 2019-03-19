@@ -140,7 +140,7 @@ trait HadoopDBConnector extends DBConnector {
 
   def context: SparkFlowContext
 
-  def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata]
+  def getPathsAndPartitionsForTables(tables: Seq[String]): Map[String, TablePathAndPartitions]
 
   /**
     * Force drop+create of tables even if update is called (necessary in cases of schema change)
@@ -197,4 +197,4 @@ object HadoopDBConnector {
   val FORCE_RECREATE_TABLES_DEFAULT: Boolean = false
 }
 
-case class TableMetadata(path: Option[Path], partitions: Seq[String])
+case class TablePathAndPartitions(path: Option[Path], partitions: Seq[String])

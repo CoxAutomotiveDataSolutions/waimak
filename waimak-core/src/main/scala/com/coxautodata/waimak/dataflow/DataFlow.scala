@@ -98,6 +98,18 @@ trait DataFlow extends Logging {
   def mapOption[R >: this.type](f: this.type => Option[R]): R = f(this).getOrElse(this)
 
   /**
+    * Fold left over a collection, where the current DataFlow is the zero value.
+    * Lets you fold over a flow inline in the flow.
+    *
+    * @param foldOver Collection to fold over
+    * @param f        Function to apply during the flow
+    * @return A DataFlow produced after repeated applications of f for each element in the collection
+    */
+  def applyFoldLeft[A, S >: this.type <: DataFlow](foldOver: Iterable[A])(f: (S, A) => S): S = {
+    foldOver.foldLeft[S](this)(f)
+  }
+
+  /**
     * Creates new state of the dataflow by adding an input.
     * Duplicate labels are handled in [[prepareForExecution()]]
     *

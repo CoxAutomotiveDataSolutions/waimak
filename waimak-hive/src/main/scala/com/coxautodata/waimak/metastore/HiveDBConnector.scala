@@ -4,8 +4,7 @@ import java.sql.ResultSet
 
 import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.SparkSession
+import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException
 
 import scala.util.{Failure, Success, Try}
@@ -52,7 +51,7 @@ trait HiveDBConnector extends HadoopDBConnector {
 
   private[metastore] def getSchema(parquetFile: Path): String = {
     context
-        .spark
+      .spark
       .read
       .parquet(parquetFile.toString)
       .schema
@@ -76,7 +75,7 @@ case class HiveDummyConnector(context: SparkFlowContext) extends HiveDBConnector
     Seq(None)
   }
 
-  override def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata] = ???
+  override def getPathsAndPartitionsForTables(tables: Seq[String]): Map[String, TablePathAndPartitions] = tables.map(t => t -> TablePathAndPartitions(None, Seq.empty)).toMap
 }
 
 /**
@@ -85,7 +84,7 @@ case class HiveDummyConnector(context: SparkFlowContext) extends HiveDBConnector
   * The connector uses the filesystem configured in the SparkFlowContext to discover
   * partitions therefore table paths must exist on that filesystem.
   *
-  * @param context          The flow context object containing the SparkSession and FileSystem
+  * @param context                   The flow context object containing the SparkSession and FileSystem
   * @param database                  Database to create tables in
   * @param createDatabaseIfNotExists Whether to create the database if it does not exist (default false)
   */
@@ -104,23 +103,23 @@ case class HiveSparkSQLConnector(context: SparkFlowContext,
     throw new UnsupportedOperationException(s"${this.getClass.getSimpleName} does not support running queries that return data. You must use SparkSession.sql directly.")
   }
 
-  override def getMetadataForTables(tables: Seq[String]): Map[String, TableMetadata] = {
+  override def getPathsAndPartitionsForTables(tables: Seq[String]): Map[String, TablePathAndPartitions] = {
     import context.spark.implicits._
     submitAtomicResultlessQueries(Seq.empty)
-    tables.map{
-      t => t -> Try(context.spark.sql(s"show create table $t").as[String].collect().head)
+    tables.map {
+      t => t -> Try(context.spark.sql(s"show create table $database.$t").as[String].collect().head)
     }
       .toMap
-      .mapValues(createTableToTableMetadata)
+      .mapValues(createTableToPathAndPartitions)
   }
 
-  private def createTableToTableMetadata(maybeCreateTable: Try[String]): TableMetadata = maybeCreateTable match {
+  private[metastore] def createTableToPathAndPartitions(maybeCreateTable: Try[String]): TablePathAndPartitions = maybeCreateTable match {
     case Success(v) =>
-      val lines = v.lines
-      val partitions = lines.filter(_.startsWith("PARTITIONED BY ")).flatMap(l => "`[^`,]+`".r.findAllIn(l).toList)
-      val location = lines.filter(_.startsWith("LOCATION")).toList.headOption.flatMap(l => "`[^`]+`".r.findFirstIn(l)).getOrElse(throw new RuntimeException)
-      TableMetadata(Some(new Path(location)), partitions.toList)
-    case Failure(_:NoSuchTableException) => TableMetadata(None, Seq.empty)
+      val lines = v.lines.toList
+      val partitions = lines.filter(_.startsWith("PARTITIONED BY ")).flatMap(l => "`([^`,]+)`".r.findAllMatchIn(l).map(_.subgroups).toList).flatten
+      val location = lines.find(_.startsWith("LOCATION")).flatMap(l => "'([^']+)'".r.findFirstMatchIn(l).flatMap(_.subgroups.headOption)).getOrElse(throw new DataFlowException(s"Could not find location clause in create DDL. The connector only supports external tables: [$v]"))
+      TablePathAndPartitions(Some(new Path(location)), partitions)
+    case Failure(_: NoSuchTableException) => TablePathAndPartitions(None, Seq.empty)
     case Failure(e) => throw e
   }
 }

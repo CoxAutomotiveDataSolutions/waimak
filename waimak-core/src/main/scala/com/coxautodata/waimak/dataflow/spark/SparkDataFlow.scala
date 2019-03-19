@@ -101,7 +101,7 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow with Logging {
 
 case class LabelCommitDefinition(labelName: String, basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None){
   private val destPathBase = new Path(s"$basePath/$labelName")
-  val outputPath: Path = timestampFolder.map(new Path(destPathBase, _)).getOrElse(destPathBase)
+  def outputPath(context: SparkFlowContext): Path = timestampFolder.map(new Path(destPathBase, _)).getOrElse(destPathBase).makeQualified(context.fileSystem.getUri, context.fileSystem.getWorkingDirectory)
 }
 
 case class SparkDataFlowInfo(spark: SparkSession,
