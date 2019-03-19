@@ -1,6 +1,7 @@
 package com.coxautodata.waimak.spark.app
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
+import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import org.apache.spark.sql.SparkSession
 
 /**
@@ -23,7 +24,7 @@ object EnvironmentManager {
   }
 
   def performEnvironmentAction(sparkSession: SparkSession): Unit = {
-    val environmentAction = CaseClassConfigParser[EnvironmentAction](sparkSession.sparkContext.getConf, "spark.waimak.environment.")
+    val environmentAction = CaseClassConfigParser[EnvironmentAction](SparkFlowContext(sparkSession), "spark.waimak.environment.")
     val app = MultiAppRunner.instantiateApp(environmentAction.appClassName)
     environmentAction.action.toLowerCase() match {
       case "create" => app.createEnv(sparkSession, "spark.waimak.environment.")

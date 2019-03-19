@@ -2,7 +2,7 @@ package com.coxautodata.waimak.spark.app
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
 import com.coxautodata.waimak.dataflow._
-import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
+import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow, SparkFlowContext}
 import org.apache.spark.sql.SparkSession
 
 import scala.reflect.runtime.{universe => ru}
@@ -50,9 +50,9 @@ object MultiAppRunner {
   }
 
   def runAll(sparkSession: SparkSession): Unit = {
-    val allApps = CaseClassConfigParser[AllApps](sparkSession.sparkContext.getConf, "spark.waimak.apprunner.")
+    val allApps = CaseClassConfigParser[AllApps](SparkFlowContext(sparkSession), "spark.waimak.apprunner.")
     val allAppsConfig = allApps.apps.map(appName => appName ->
-      CaseClassConfigParser[SingleAppConfig](sparkSession.sparkContext.getConf, s"spark.waimak.apprunner.$appName."))
+      CaseClassConfigParser[SingleAppConfig](SparkFlowContext(sparkSession), s"spark.waimak.apprunner.$appName."))
     val executor = Waimak.sparkExecutor()
     val finalFlow = allAppsConfig.foldLeft(Waimak.sparkFlow(sparkSession))((flow, appConfig) => addAppToFlow(flow, appConfig._1, appConfig._2))
     executor.execute(finalFlow)
