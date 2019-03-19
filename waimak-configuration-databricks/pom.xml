@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>waimak-parent_2.11</artifactId>
         <groupId>com.coxautodata</groupId>
@@ -7,12 +9,12 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>waimak-hive_2.11</artifactId>
+    <artifactId>waimak-configuration-databricks_2.11</artifactId>
 
     <dependencies>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.11</artifactId>
+            <artifactId>waimak-configuration_2.11</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
@@ -21,6 +23,11 @@
             <version>${project.parent.version}</version>
             <type>test-jar</type>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.databricks</groupId>
+            <artifactId>dbutils-api_2.11</artifactId>
+            <version>${databricks.dbutils.version}</version>
         </dependency>
     </dependencies>
 
