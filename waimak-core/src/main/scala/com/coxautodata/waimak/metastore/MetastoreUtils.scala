@@ -145,7 +145,7 @@ trait HadoopDBConnector extends DBConnector {
   /**
     * Force drop+create of tables even if update is called (necessary in cases of schema change)
     */
-  def forceRecreateTables: Boolean= context.getBoolean(FORCE_RECREATE_TABLES, FORCE_RECREATE_TABLES_DEFAULT)
+  def forceRecreateTables: Boolean = context.getBoolean(FORCE_RECREATE_TABLES, FORCE_RECREATE_TABLES_DEFAULT)
 
   private[metastore] def createTableFromParquetDDL(tableName: String, path: String, external: Boolean = true, partitionColumns: Seq[String] = Seq.empty, ifNotExists: Boolean = true): Seq[String]
 

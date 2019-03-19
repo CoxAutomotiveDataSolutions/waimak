@@ -5,6 +5,7 @@ import java.io.File
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.TestSparkData.basePath
 import com.coxautodata.waimak.dataflow.spark._
+import com.coxautodata.waimak.metastore.HadoopDBConnector._
 import com.coxautodata.waimak.dataflow.{DFExecutorPriorityStrategies, Waimak}
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
@@ -76,11 +77,11 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
     it("stage csv to parquet and commit to impala") {
       val spark = sparkSession
+      spark.conf.set(AUTODETECT_SCHEMA_CHANGES, false)
       val executor = Waimak.sparkExecutor()
 
       val connector1 = ImpalaDummyConnector(flowContext)
       val connector2 = ImpalaDummyConnector(flowContext)
-      val connectorRecreate = ImpalaDummyConnector(flowContext)
 
       val baseDest = testingBaseDir + "/dest"
 
@@ -88,20 +89,15 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
-        .alias("csv_2", "person_recreate")
         .commit("connector1", partitions = Seq("amount"))("items")
         .commit("connector2WithSnapshot")("person")
-        .commit("connectorRecreateWithSnapshot")("person_recreate")
         .push("connector1")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector1))
         .push("connector2WithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector2).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
-        .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
 
-      val (_, finalState) = executor.execute(flow)
-      finalState.inputs.size should be(5)
+     executor.execute(flow)
 
       val itemsParquet = new File(testingBaseDirName, "dest/items/amount=1").list().filter(_.endsWith(".parquet")).head
       val personParquet = new File(testingBaseDirName, "dest/person/generatedTimestamp=2018-03-13-16-19-00").list().filter(_.endsWith(".parquet")).head
-      val person_recreateParquet = new File(testingBaseDirName, "dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00").list().filter(_.endsWith(".parquet")).head
 
       connector1.ranDDLs should be {
         List(List(
@@ -117,6 +113,17 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
           s"alter table person set location '$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
+
+      spark.conf.set(FORCE_RECREATE_TABLES, true)
+      val connectorRecreate = ImpalaDummyConnector(SparkFlowContext(spark))
+      val flowRecreate = SparkDataFlow.empty(spark, tmpDir)
+        .openCSV(basePath)("csv_2")
+        .alias("csv_2", "person_recreate")
+        .commit("connectorRecreateWithSnapshot")("person_recreate")
+        .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
+
+      executor.execute(flowRecreate)
+      val person_recreateParquet = new File(testingBaseDirName, "dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00").list().filter(_.endsWith(".parquet")).head
 
       connectorRecreate.ranDDLs should be {
         List(List(
