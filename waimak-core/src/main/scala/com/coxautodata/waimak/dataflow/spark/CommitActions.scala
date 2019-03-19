@@ -32,7 +32,7 @@ private[spark] object CommitActions {
 
     private[spark] def commitConnectorLabelGroup(connector: HadoopDBConnector, labels: Map[String, LabelCommitDefinition]): SparkDataFlow = {
       sparkDataFlow
-        .addAction(CurrentMetadataQuery(connector, labels.keys.toList))
+        .addAction(CurrentPathsAndPartitionsQuery(connector, labels.keys.toList))
         .addNewTableMetadata(labels)
         .compareTableSchemas(labels.keys.toList)
         .addAction(CommitDDLs(connector, labels))
@@ -96,7 +96,7 @@ private[spark] case class CompareTableSchemas(table: String) extends SparkDataFl
 
 }
 
-private[spark] case class CurrentMetadataQuery(conn: HadoopDBConnector, tables: List[String]) extends SparkDataFlowAction {
+private[spark] case class CurrentPathsAndPartitionsQuery(conn: HadoopDBConnector, tables: List[String]) extends SparkDataFlowAction {
 
   override val inputLabels: List[String] = List.empty
   override val outputLabels: List[String] = tables.map(t => s"${t}_CURRENT_TABLE_PATH_AND_PARTITIONS")

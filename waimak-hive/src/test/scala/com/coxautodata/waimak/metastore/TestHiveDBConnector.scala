@@ -235,10 +235,11 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
     it("getPathsAndPartitionsForTables") {
       val testDb = "test"
+      val spark = sparkSession
+      spark.sql(s"drop database if exists $testDb cascade")
       val baseDest = testingBaseDir + "/dest"
       val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb, createDatabaseIfNotExists = true)
       connector.submitAtomicResultlessQueries(Seq(s"use $testDb"))
-      val spark = sparkSession
 
       val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
 
@@ -263,43 +264,396 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
     }
 
-    it("end-to-end with a new table"){
-      val testDb = "test"
-      val testTable = "test"
+    it("end-to-end with a new table") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
       val baseDest = testingBaseDir + "/dest"
       val baseTemp = testingBaseDir + "/temp"
-      val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb, createDatabaseIfNotExists = true)
-      connector.submitAtomicResultlessQueries(Seq(s"use $testDb"))
-      val spark = sparkSession
-      import spark.implicits._
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
       val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
 
-      intercept[NoSuchTableException]{
-        spark.sql(s"show create table $testTable")
+      intercept[NoSuchTableException] {
+        spark.sql(s"show create table table")
       }
 
       val flow = Waimak
         .sparkFlow(spark, baseTemp)
-        .addInput(testTable, Some(df))
-        .commit("commit")(testTable)
+        .addInput("table", Some(df))
+        .commit("commit")("table")
         .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
 
       val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
 
-      spark.sql(s"show create table $testTable").as[String].collect().head.lines.takeWhile(!_.startsWith("TBLPROPERTIES")).mkString("\n") should be (
-        s"""CREATE EXTERNAL TABLE `$testTable`(`id` int, `item` int, `amount` int)
-          |ROW FORMAT SERDE 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe'
-          |WITH SERDEPROPERTIES (
-          |  'serialization.format' = '1'
-          |)
-          |STORED AS
-          |  INPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat'
-          |  OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
-          |LOCATION 'file:$baseDest/$testTable/snap=2'""".stripMargin
+      resFlow.inputs.get[TablePathAndPartitions]("table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(None, Seq.empty))
+      resFlow.inputs.get[TablePathAndPartitions]("table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq.empty))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(true)
+
+      ranDDLs should be(List(
+        "use test",
+        "drop table if exists table",
+        s"create external table if not exists table (id integer, item integer, amount integer) stored as parquet location 'file:$baseDest/table/snap=2'")
       )
-      resFlow.inputs.get[TablePathAndPartitions](s"${testTable}_CURRENT_TABLE_PATH_AND_PARTITIONS") should be (TablePathAndPartitions(None, Seq.empty))
-      resFlow.inputs.get[TablePathAndPartitions](s"${testTable}_NEW_TABLE_PATH_AND_PARTITIONS") should be (TablePathAndPartitions(Some(new Path(s"file:$baseDest/$testTable/snap=2")), Seq.empty))
-      resFlow.inputs.get[Boolean](s"${testTable}_SCHEMA_CHANGED") should be (true)
+    }
+
+    it("end-to-end with a schema that doesn't change") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+
+      df.write.parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1"))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df))
+        .commit("commit")("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq.empty))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq.empty))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(false)
+
+      ranDDLs should be(List(
+        s"create external table if not exists table (id integer, item integer, amount integer) stored as parquet location 'file:$baseDest/table/snap=2'",
+        s"alter table table set location 'file:$baseDest/table/snap=2'")
+      )
+
+    }
+
+    it("end-to-end with a schema that doesn't change but with force recreate") {
+      val spark = sparkSession
+      spark.conf.set(HadoopDBConnector.FORCE_RECREATE_TABLES, true)
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+
+      df.write.parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1"))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df))
+        .commit("commit")("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq.empty))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq.empty))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(false)
+
+      ranDDLs should be(List(
+        "drop table if exists table",
+        s"create external table if not exists table (id integer, item integer, amount integer) stored as parquet location 'file:$baseDest/table/snap=2'")
+      )
+
+    }
+
+    it("end-to-end with a schema that doesn't change but is partitioned") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+
+      df.write.partitionBy("amount").parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1", Seq("amount")))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df))
+        .commit("commit", Seq("amount"))("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq("amount")))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq("amount")))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(false)
+
+      ranDDLs should be(List(
+        "drop table if exists table",
+        s"create external table if not exists table (id integer, item integer) partitioned by (amount string) stored as parquet location 'file:$baseDest/table/snap=2'",
+        "alter table table recover partitions")
+      )
+
+    }
+
+    it("end-to-end with a schema that changes by no longer being partitioned") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+
+      df.write.partitionBy("amount").parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1", Seq("amount")))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df))
+        .commit("commit")("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq("amount")))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq.empty))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(true)
+
+      ranDDLs should be(List(
+        "drop table if exists table",
+        s"create external table if not exists table (id integer, item integer, amount integer) stored as parquet location 'file:$baseDest/table/snap=2'")
+      )
+
+    }
+
+    it("end-to-end with a schema that changes by now being partitioned") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+
+      df.write.parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1"))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df))
+        .commit("commit", Seq("amount"))("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq.empty))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq("amount")))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(true)
+
+      ranDDLs should be(List(
+        "drop table if exists table",
+        s"create external table if not exists table (id integer, item integer) partitioned by (amount string) stored as parquet location 'file:$baseDest/table/snap=2'",
+        "alter table table recover partitions")
+      )
+
+    }
+
+    it("end-to-end with a schema that changes by adding columns") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+      import spark.implicits._
+      df.write.parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1"))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df.withColumn("itemasstring", 'item.cast("string"))))
+        .commit("commit")("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq.empty))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq.empty))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(true)
+
+      ranDDLs should be(List(
+        "drop table if exists table",
+        s"create external table if not exists table (id integer, item integer, amount integer, itemasstring string) stored as parquet location 'file:$baseDest/table/snap=2'")
+      )
+
+    }
+
+    it("end-to-end with a schema that changes by changing column type") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+      import spark.implicits._
+      df.write.parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1"))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df.withColumn("item", 'item.cast("string"))))
+        .commit("commit")("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq.empty))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq.empty))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(true)
+
+      ranDDLs should be(List(
+        "drop table if exists table",
+        s"create external table if not exists table (id integer, item string, amount integer) stored as parquet location 'file:$baseDest/table/snap=2'")
+      )
+
+    }
+
+    it("end-to-end with a schema that changes by changing column ordering") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+      import spark.implicits._
+      df.write.parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1"))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df.select('item, 'id, 'amount)))
+        .commit("commit")("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq.empty))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq.empty))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(true)
+
+      ranDDLs should be(List(
+        "drop table if exists table",
+        s"create external table if not exists table (item integer, id integer, amount integer) stored as parquet location 'file:$baseDest/table/snap=2'")
+      )
+
+    }
+
+    it("end-to-end with a schema that changes by adding partitions") {
+      val spark = sparkSession
+      spark.sql(s"drop database if exists test cascade")
+      val baseDest = testingBaseDir + "/dest"
+      val baseTemp = testingBaseDir + "/temp"
+      var ranDDLs = List.empty[String]
+      val connector = new HiveSparkSQLConnector(SparkFlowContext(sparkSession), "test", createDatabaseIfNotExists = true) {
+        override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
+          ranDDLs = ranDDLs ++ ddls.toList
+          super.submitAtomicResultlessQueries(ddls)
+        }
+      }
+
+      connector.submitAtomicResultlessQueries(Seq(s"use test"))
+      val df = spark.read.option("header", "true").option("inferSchema", "true").csv(s"$basePath/csv_1")
+
+      df.write.partitionBy("amount").parquet(s"file:$baseDest/table/snap=1")
+      connector.submitAtomicResultlessQueries(connector.recreateTableFromParquetDDLs("table", s"file:$baseDest/table/snap=1", Seq("amount")))
+      ranDDLs = List.empty[String]
+
+      val flow = Waimak
+        .sparkFlow(spark, baseTemp)
+        .addInput("table", Some(df))
+        .commit("commit", Seq("amount", "item"))("table")
+        .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("snap=2").withHadoopDBConnector(connector))
+
+      val (_, resFlow) = Waimak.sparkExecutor().execute(flow)
+
+      resFlow.inputs.get[TablePathAndPartitions](s"table_CURRENT_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=1")), Seq("amount")))
+      resFlow.inputs.get[TablePathAndPartitions](s"table_NEW_TABLE_PATH_AND_PARTITIONS") should be(TablePathAndPartitions(Some(new Path(s"file:$baseDest/table/snap=2")), Seq("amount", "item")))
+      resFlow.inputs.get[Boolean](s"table_SCHEMA_CHANGED") should be(true)
+
+      ranDDLs should be(List(
+        "drop table if exists table",
+        s"create external table if not exists table (id integer) partitioned by (amount string, item string) stored as parquet location 'file:$baseDest/table/snap=2'",
+        "alter table table recover partitions")
+      )
 
     }
 
