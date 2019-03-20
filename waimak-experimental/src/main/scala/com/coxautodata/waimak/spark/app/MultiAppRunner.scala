@@ -25,9 +25,6 @@ import scala.reflect.runtime.{universe => ru}
   * The [[Env]] implementation used by the provided [[SparkApp]] implementation expects configuration values prefixed with:
   * spark.waimak.environment.{appname}.
   *
-  * The configuration case class in [[SparkApp]] expects configuration values prefixed with:
-  * spark.{appname}.
-  *
   */
 object MultiAppRunner {
 
@@ -58,16 +55,16 @@ object MultiAppRunner {
     executor.execute(finalFlow)
   }
 
-  def instantiateApp(appClassName: String): SparkApp[_, _] = {
+  def instantiateApp(appClassName: String): SparkApp[_] = {
     val m = ru.runtimeMirror(getClass.getClassLoader)
     val module = m.staticModule(appClassName)
-    m.reflectModule(module).instance.asInstanceOf[SparkApp[_, _]]
+    m.reflectModule(module).instance.asInstanceOf[SparkApp[_]]
   }
 
   def addAppToFlow(flow: SparkDataFlow, appName: String, appConfig: SingleAppConfig): SparkDataFlow = {
     val instantiatedApp = instantiateApp(appConfig.appClassName)
     flow.executeApp(appConfig.dependencies: _*)(
-      instantiatedApp.runSparkApp(_, s"spark.waimak.environment.$appName.", s"spark.$appName."), appName)
+      instantiatedApp.runSparkApp(_, s"spark.waimak.environment.$appName."), appName)
   }
 
 }

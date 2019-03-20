@@ -10,16 +10,15 @@ import scala.reflect.runtime.universe.TypeTag
   * This is a [[SparkApp]] specifically for applications using Waimak
   *
   * @tparam E the type of the [[Env]] implementation (must be a case class)
-  * @tparam C the type of case class to use for the app configuration (values will be parsed from the SparkSession)
   */
-abstract class WaimakApp[E <: Env : TypeTag, C: TypeTag] extends SparkApp[E, C] {
+abstract class WaimakApp[E <: Env : TypeTag] extends SparkApp[E] {
 
-  override protected def run(sparkSession: SparkSession, env: E, config: C): Unit = {
+  override protected def run(sparkSession: SparkSession, env: E): Unit = {
     val executor = Waimak.sparkExecutor()
     val emptyFlow = Waimak.sparkFlow(sparkSession, env.tmpDir)
-    executor.execute(flow(emptyFlow, config))
+    executor.execute(flow(emptyFlow, env))
   }
 
-  def flow(emptyFlow: SparkDataFlow, conf: C): SparkDataFlow
+  def flow(emptyFlow: SparkDataFlow, env: E): SparkDataFlow
 }
 

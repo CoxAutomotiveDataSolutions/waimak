@@ -70,7 +70,7 @@ class TestMultiAppRunner extends AppRunnerSpec {
         , "spark.waimak.environment.dependency_app.environment" -> "dev"
         , "spark.waimak.environment.dependency_app.branch" -> "feature/another-test"
         , "spark.waimak.environment.dependency_app.uri" -> testingBaseDirName
-        , "spark.dependency_app.inputPath" -> s"$testingBaseDirName/data/dev/app_1/feature_test_multi_app_runner/output"
+        , "spark.waimak.environment.dependency_app.inputPath" -> s"$testingBaseDirName/data/dev/app_1/feature_test_multi_app_runner/output"
       ))
       val spark = sparkSession
       import spark.implicits._
@@ -90,42 +90,47 @@ class TestMultiAppRunner extends AppRunnerSpec {
 }
 
 
-object WaimakAppWithNoDependency extends WaimakApp[TestEnv, WaimakAppNoDependencyConf] {
+object WaimakAppWithNoDependency extends WaimakApp[WaimakAppNoDependencyEnv] {
 
-  override def flow(emptyFlow: SparkDataFlow, conf: WaimakAppNoDependencyConf): SparkDataFlow = {
+  override def flow(emptyFlow: SparkDataFlow, env: WaimakAppNoDependencyEnv): SparkDataFlow = {
     import emptyFlow.flowContext.spark.implicits._
     emptyFlow
       .addInput("test", Some(Seq("test1", "test2").toDF("col_1")))
-      .writeParquet(conf.outputPath)("test")
+      .writeParquet(env.outputPath)("test")
   }
 
-  override def confDefaults(env: TestEnv, confPrefix: String): Map[String, String] = Map(
-    s"${confPrefix}outputPath" -> s"${env.basePath}/output"
-  )
+  override def confDefaults(env: WaimakAppNoDependencyEnv): Map[String, String] = Map.empty
 }
 
-object WaimakAppWithDependency extends WaimakApp[TestEnv, WaimakAppWithDependencyConf] {
+object WaimakAppWithDependency extends WaimakApp[WaimakAppWithDependencyEnv] {
 
   import org.apache.spark.sql.functions._
 
-  override def flow(emptyFlow: SparkDataFlow, conf: WaimakAppWithDependencyConf): SparkDataFlow = {
+  override def flow(emptyFlow: SparkDataFlow, env: WaimakAppWithDependencyEnv): SparkDataFlow = {
     import emptyFlow.flowContext.spark.implicits._
     emptyFlow
-      .openParquet(conf.inputPath)("test")
+      .openParquet(env.inputPath)("test")
       .transform("test")("test_transformed")(_.withColumn("col_1", concat($"col_1", lit("_new"))))
-      .writeParquet(conf.outputPath)("test_transformed")
+      .writeParquet(env.outputPath)("test_transformed")
   }
 
-  override def confDefaults(env: TestEnv, confPrefix: String): Map[String, String] = Map(
-    s"${confPrefix}outputPath" -> s"${env.basePath}/output"
-  )
+  override def confDefaults(env: WaimakAppWithDependencyEnv): Map[String, String] = Map.empty
 }
 
-case class WaimakAppNoDependencyConf(outputPath: String)
 
-case class WaimakAppWithDependencyConf(inputPath: String, outputPath: String)
+case class WaimakAppNoDependencyEnv(project: String
+                                    , environment: String
+                                    , branch: String
+                                    , uri: String) extends HiveEnv {
+  val outputPath: String = s"$basePath/output"
+}
 
-case class TestEnv(project: String
-                   , environment: String
-                   , branch: String
-                   , uri: String) extends HiveEnv
+case class WaimakAppWithDependencyEnv(project: String
+                                      , environment: String
+                                      , branch: String
+                                      , uri: String
+                                      , inputPath: String) extends HiveEnv {
+  val outputPath: String = s"$basePath/output"
+}
+
+

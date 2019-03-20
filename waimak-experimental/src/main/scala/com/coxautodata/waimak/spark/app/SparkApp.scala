@@ -18,9 +18,8 @@ import scala.reflect.runtime.universe.TypeTag
   * and subsequently parse this configuration into a case class to be used for the application logic.
   *
   * @tparam E the type of the [[Env]] implementation (must be a case class)
-  * @tparam C the type of case class to use for the app configuration (values will be parsed from the SparkSession)
   */
-abstract class SparkApp[E <: Env : TypeTag, C: TypeTag] {
+abstract class SparkApp[E <: Env : TypeTag] {
   /**
     * Runs the application
     *
@@ -28,18 +27,17 @@ abstract class SparkApp[E <: Env : TypeTag, C: TypeTag] {
     *
     * @param sparkSession the SparkSession
     * @param envPrefix    the prefix for keys in the SparkConf needed by the [[Env]] implementation
-    * @param confPrefix   the prefix for keys in the SparkConf needed by the configuration case class [[C]]
     */
-  def runSparkApp(sparkSession: SparkSession, envPrefix: String, confPrefix: String): Unit = {
+  def runSparkApp(sparkSession: SparkSession, envPrefix: String): Unit = {
     val env = parseEnv(sparkSession, envPrefix)
-    runWithEnv(env, sparkSession, confPrefix)
+    runWithEnv(env, sparkSession)
   }
 
-  protected def runWithEnv(env: E, sparkSession: SparkSession, confPrefix: String): Unit = {
-    val defaultConfs = confDefaults(env, confPrefix)
+  protected def runWithEnv(env: E, sparkSession: SparkSession): Unit = {
+    val defaultConfs = confDefaults(env)
     (defaultConfs ++ sparkSession.conf.getAll.filterKeys(defaultConfs.keySet.contains))
       .foreach(kv => sparkSession.conf.set(kv._1, kv._2))
-    run(sparkSession, env, parseSparkConf(sparkSession, confPrefix))
+    run(sparkSession, env)
   }
 
   /**
@@ -74,35 +72,18 @@ abstract class SparkApp[E <: Env : TypeTag, C: TypeTag] {
   def parseEnv(sparkSession: SparkSession, envPrefix: String): E = CaseClassConfigParser.fromMap[E](sparkSession.conf.getAll, envPrefix)
 
   /**
-    * Default Spark configuration values to use for the application, which may be dependent on the environment.
-    * Use the confPrefix in the keys if the values will be used by the configuration case class
+    * Default Spark configuration values to use for the application
     *
-    * e.g. {{{Map(
-    * s"${confPrefix}outputBase" -> s"${env.basePath}/output"
-    * , s"${confPrefix}hiveDB" -> s"${env.baseDBName}"
-    * )}}}
-    *
-    * @param env        the environment
-    * @param confPrefix the prefix for keys in the SparkConf needed by the configuration case class
+    * @param env the environment
     * @return a map containing default Spark configuration
     */
-  def confDefaults(env: E, confPrefix: String): Map[String, String]
-
-  /**
-    * Parses configuration in the SparkSession into the configuration case class (type [[C]])
-    *
-    * @param sparkSession the SparkSession
-    * @param confPrefix   the prefix for keys in the SparkConf needed by the configuration case class
-    * @return a parsed case class of type [[C]]
-    */
-  def parseSparkConf(sparkSession: SparkSession, confPrefix: String): C = CaseClassConfigParser.fromMap[C](sparkSession.conf.getAll, confPrefix)
+  def confDefaults(env: E): Map[String, String]
 
   /**
     * Run the application for given environment and configuration case classes
     *
     * @param sparkSession the SparkSession
     * @param env          the environment
-    * @param config       the configuration case class
     */
-  protected def run(sparkSession: SparkSession, env: E, config: C): Unit
+  protected def run(sparkSession: SparkSession, env: E): Unit
 }
