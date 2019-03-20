@@ -3,6 +3,7 @@ package com.coxautodata.waimak.metastore
 import java.sql.{Connection, DriverManager, ResultSet}
 
 import com.coxautodata.waimak.dataflow.DataFlowException
+import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.security.alias.CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH
@@ -133,11 +134,14 @@ trait JDBCConnector extends DBConnector {
   * table functions (i.e. create parquet tables)
   */
 trait HadoopDBConnector extends DBConnector {
+  import HadoopDBConnector._
+
+  def context: SparkFlowContext
 
   /**
     * Force drop+create of tables even if update is called (necessary in cases of schema change)
     */
-  def forceRecreateTables: Boolean
+  def forceRecreateTables: Boolean = context.getBoolean(FORCE_RECREATE_TABLES, FORCE_RECREATE_TABLES_DEFAULT)
 
   private[metastore] def createTableFromParquetDDL(tableName: String, path: String, external: Boolean = true, partitionColumns: Seq[String] = Seq.empty, ifNotExists: Boolean = true): Seq[String]
 
@@ -180,4 +184,15 @@ trait HadoopDBConnector extends DBConnector {
       else createTableFromParquetDDL(tableName, path) :+ updateTableLocationDDL(tableName, path)
     }
   }
+}
+
+object HadoopDBConnector {
+    val metastoreParamPrefix: String = "spark.waimak.metastore"
+    /**
+      * Force recreate (drop+create) of all tables submitted through connector objects.
+      * This should be done in case of underlying schema changes to data files.
+      * Default: false
+      */
+    val FORCE_RECREATE_TABLES: String = s"$metastoreParamPrefix.forceRecreateTables"
+    val FORCE_RECREATE_TABLES_DEFAULT: Boolean = false
 }
