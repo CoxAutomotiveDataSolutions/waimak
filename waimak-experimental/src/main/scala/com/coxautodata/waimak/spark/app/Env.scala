@@ -43,13 +43,13 @@ trait Env extends Logging {
 
 /**
   * Environment which provides a base path into which the application can write its data
-  * Unless overridden, paths will be of the form /data/{environment}/{project}/{branch}
+  * Unless overridden, paths will be of the form {uri}/data/{environment}/{project}/{branch}
   * where environment is the logical environment (e.g. dev, test), project is the name of the application and
   * branch is the Git branch
   *
   * N.B when environment is 'prod', the branch is omitted from the path as we assume it will always be master
   *
-  * e.g. /data/dev/my_project/feature_abc, /data/prod/my_project
+  * e.g. hdfs:///data/dev/my_project/feature_abc, hdfs:///data/prod/my_project
   */
 trait BaseEnv extends Env {
 
@@ -85,13 +85,13 @@ trait BaseEnv extends Env {
 
   /**
     * Base path into which the application can write its data
-    * Unless overridden, paths will be of the form /data/{environment}/{project}/{branch}
+    * Unless overridden, paths will be of the form {uri}/data/{environment}/{project}/{branch}
     * where environment is the logical environment (e.g. dev, test), project is the name of the application and
     * branch is the Git branch
     *
     * N.B when environment is 'prod', the branch is omitted from the path as we assume it will always be master
     *
-    * e.g. /data/dev/my_project/feature_abc, /data/prod/my_project
+    * e.g. hdfs:///data/dev/my_project/feature_abc, hdfs:///data/prod/my_project
     */
   def basePath: String = normalisedEnvironment match {
     case "prod" => s"$uri/data/prod/$normalisedProject"
