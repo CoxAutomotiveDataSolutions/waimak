@@ -238,6 +238,7 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
       val wr = new OutputStreamWriter(writer, "UTF-8")
       wr.write(s"table_name=${auditTableInfo.table_name}\n")
       wr.write(s"primary_keys=${auditTableInfo.primary_keys.mkString("|")}\n")
+      wr.write(s"retain_history=${auditTableInfo.retain_history}\n")
       auditTableInfo.meta.foreach(kv => wr.write(s"meta.${kv._1}=${kv._2}\n"))
       wr.close()
       auditTableInfo
@@ -261,7 +262,12 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
           res + (key.drop(5) -> v)
         })
       val primary = config.getProperty("primary_keys").split("\\|")
-      AuditTableInfo(tableName, primary, meta)
+      val retainHistory = Option(config.getProperty("retain_history"))
+        .flatMap(p => {
+          Try(p.toBoolean).toOption
+        })
+        .getOrElse(true)
+      AuditTableInfo(tableName, primary, meta, retainHistory)
     }
   }
 

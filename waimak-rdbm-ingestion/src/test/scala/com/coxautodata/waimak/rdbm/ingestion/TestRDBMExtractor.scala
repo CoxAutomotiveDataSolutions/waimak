@@ -120,11 +120,11 @@ object TExtractor extends RDBMExtractor {
 
   override def sourceDBSystemTimestampFunction: String = "CURRENT_TIMESTAMP"
 
-  override def getTableMetadata(dbSchemaName: String, tableName: String, primaryKeys: Option[Seq[String]], lastUpdatedColumn: Option[String]): Try[AuditTableInfo] = ???
-
   override def extraConnectionProperties: Properties = ???
 
   override def escapeKeyword(identifier: String): String = s"[$identifier]"
+
+  override protected def getTableMetadata(dbSchemaName: String, tableName: String, primaryKeys: Option[Seq[String]], lastUpdatedColumn: Option[String], retainStorageHistory: Option[String] => Boolean): Try[AuditTableInfo] = ???
 }
 
 
