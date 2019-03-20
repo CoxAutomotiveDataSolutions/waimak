@@ -77,7 +77,6 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
       val connector1 = HiveDummyConnector(SparkFlowContext(spark))
       val connector2 = HiveDummyConnector(SparkFlowContext(spark))
-      val connectorRecreate = HiveDummyConnector(SparkFlowContext(spark), forceRecreateTables = true)
 
       val baseDest = testingBaseDir + "/dest"
 
@@ -85,16 +84,12 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "items")
         .alias("csv_2", "person")
-        .alias("csv_2", "person_recreate")
         .commit("connector1", partitions = Seq("amount"))("items")
         .commit("connector2WithSnapshot")("person")
-        .commit("connectorRecreateWithSnapshot")("person_recreate")
         .push("connector1")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector1))
         .push("connector2WithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connector2).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
-        .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
 
-      val (_, finalState) = executor.execute(flow)
-      finalState.inputs.size should be(5)
+      executor.execute(flow)
 
       connector1.ranDDLs should be {
         List(List(
@@ -110,6 +105,18 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
           s"alter table person set location 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
+
+      import HadoopDBConnector._
+      spark.conf.set(FORCE_RECREATE_TABLES, true)
+      val connectorRecreate = HiveDummyConnector(SparkFlowContext(spark))
+
+      val recreateFlow = SparkDataFlow.empty(sparkSession, tmpDir)
+        .openCSV(basePath)("csv_2")
+        .alias("csv_2", "person_recreate")
+        .commit("connectorRecreateWithSnapshot")("person_recreate")
+            .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
+
+      executor.execute(recreateFlow)
 
       connectorRecreate.ranDDLs should be {
         List(List(
