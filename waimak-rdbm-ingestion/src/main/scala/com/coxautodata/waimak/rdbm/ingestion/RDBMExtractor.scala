@@ -90,7 +90,6 @@ trait RDBMExtractor {
       , tableName
       , primaryKeys
       , lastUpdatedColumn
-      //
       , resolvedLastUpdatedColumn => forceRetainStorageHistory.getOrElse(resolvedLastUpdatedColumn.isDefined))
   }
 
