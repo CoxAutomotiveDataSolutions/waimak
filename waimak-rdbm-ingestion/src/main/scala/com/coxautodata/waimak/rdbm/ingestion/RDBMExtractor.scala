@@ -60,20 +60,40 @@ trait RDBMExtractor {
 
   /**
     * Tries to get whatever metadata information it can from the database
-    * Uses the optional provided values for pks and lastupdated if it cannot get them from the database.
+    * Uses the optional provided values for pks and lastUpdated if it cannot get them from the database.
     *
-    * @param dbSchemaName      the database schema name
-    * @param tableName         the table name
-    * @param primaryKeys       Optionally, the primary keys for this table
-    * @param lastUpdatedColumn Optionally, the last updated column for this table
+    * @param dbSchemaName              the database schema name
+    * @param tableName                 the table name
+    * @param primaryKeys               Optionally, the primary keys for this table
+    * @param lastUpdatedColumn         Optionally, the last updated column for this table
+    * @param forceRetainStorageHistory Optionally specify whether to retain history for this table in the storage layer.
+    *                                  Setting this to anything other than None will override the default behaviour which is:
+    *                                  - if there is a lastUpdated column found or specified, retain all history for this table
+    *                                  - if there is no lastUpdated column, don't retain history for this table (history is
+    *                                  removed when the table is compacted). The choice of this default behaviour is because,
+    *                                  without a lastUpdatedColumn, the table will be extracted in full every time extraction
+    *                                  is performed, causing the size of the data in storage to grow uncontrollably
     * @return Success[AuditTableInfo] if all required metadata was either found or provided by the user
     *         Failure if required metadata was neither found nor provided by the user
     *         Failure if metadata provided differed from the metadata found in the database
     */
   def getTableMetadata(dbSchemaName: String
                        , tableName: String
-                       , primaryKeys: Option[Seq[String]] = None
-                       , lastUpdatedColumn: Option[String] = None): Try[AuditTableInfo]
+                       , primaryKeys: Option[Seq[String]]
+                       , lastUpdatedColumn: Option[String]
+                       , forceRetainStorageHistory: Option[Boolean]): Try[AuditTableInfo] = {
+    getTableMetadata(dbSchemaName
+      , tableName
+      , primaryKeys
+      , lastUpdatedColumn
+      , col => forceRetainStorageHistory.getOrElse(col.isDefined))
+  }
+
+  protected def getTableMetadata(dbSchemaName: String
+                                 , tableName: String
+                                 , primaryKeys: Option[Seq[String]]
+                                 , lastUpdatedColumn: Option[String]
+                                 , retainStorageHistory: Option[String] => Boolean): Try[AuditTableInfo]
 
   def resolveLastUpdatedColumn(tableMetadata: TableExtractionMetadata, sparkSession: SparkSession): Column = {
     import sparkSession.implicits._
@@ -247,7 +267,10 @@ trait RDBMExtractor {
 
 }
 
-case class TableExtractionMetadata(schemaName: String, tableName: String, primaryKeys: Seq[String], lastUpdatedColumn: Option[String] = None) {
+case class TableExtractionMetadata(schemaName: String
+                                   , tableName: String
+                                   , primaryKeys: Seq[String]
+                                   , lastUpdatedColumn: Option[String] = None) {
 
   def qualifiedTableName(escapeKeyword: String => String): String =
     s"${escapeKeyword(schemaName)}.${escapeKeyword(tableName)}"

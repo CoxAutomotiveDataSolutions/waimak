@@ -7,16 +7,10 @@ import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.AuditTableInfo
-import com.coxautodata.waimak.storage.StorageActions._
-import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.functions.max
 import org.scalatest.BeforeAndAfterAll
 
 import scala.util.{Failure, Success}
 
-/**
-  * Created by Ian Baynham on 19/04/18.
-  */
 class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll {
 
   override val appName: String = "SQLServerConnectorIntegrationTest"
@@ -84,51 +78,63 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
     it("should return the metadata from the database (no user metadata provided)") {
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-      sqlServerExtractor.getTableMetadata("dbo", "testtable", None, None) should be(Success(
+      sqlServerExtractor.getTableMetadata("dbo", "testtable", None, None, None) should be(Success(
         AuditTableInfo("testtable", Seq("testtableid1", "testtableid2"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testtable"
           , "primaryKeys" -> "testtableid1,testtableid2"
-        ))))
+        )
+          , false
+        )))
     }
 
     it("should fail if the user-provided pks differ from the ones found in the database") {
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-      sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("incorrect_pk")), None) should be(Failure(
+      sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("incorrect_pk")), None, None) should be(Failure(
         IncorrectUserPKException(Seq("incorrect_pk"), Seq("testtableid1", "testtableid2"))
       ))
     }
     it("should return metadata if there are user-provided pks but table pk's not specified in the database") {
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-      sqlServerExtractor.getTableMetadata("dbo", "testtable_pk", Some(Seq("testtableid1", "testtableid2")), None) should be(Success(
+      sqlServerExtractor.getTableMetadata("dbo", "testtable_pk", Some(Seq("testtableid1", "testtableid2")), None, None) should be(Success(
         AuditTableInfo("testtable_pk", Seq("testtableid1", "testtableid2"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testtable_pk"
           , "primaryKeys" -> "testtableid1,testtableid2"
-      ))))
+        )
+          , false)))
     }
     it("should fail if no user-provided pks and table pk's specified in the database") {
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-      sqlServerExtractor.getTableMetadata("dbo", "testtable_pk", None, None) should be(Failure(
+      sqlServerExtractor.getTableMetadata("dbo", "testtable_pk", None, None, None) should be(Failure(
         PKsNotFoundOrProvidedException
       ))
     }
     it("should return the metadata if the user-provided pks match the ones from the database") {
       val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
-      sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("testtableid1", "testtableid2"))) should be(Success(
+      sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("testtableid1", "testtableid2")), None, None) should be(Success(
         AuditTableInfo("testtable", Seq("testtableid1", "testtableid2"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testtable"
           , "primaryKeys" -> "testtableid1,testtableid2"
-        ))))
+        )
+          , false)))
     }
-
+    it("should apply the forceRetainStorageHistory flag to the retrieved metadata") {
+      val sqlServerExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+      sqlServerExtractor.getTableMetadata("dbo", "testtable", Some(Seq("testtableid1", "testtableid2")), None, Some(true)) should be(Success(
+        AuditTableInfo("testtable", Seq("testtableid1", "testtableid2"), Map(
+          "schemaName" -> "dbo"
+          , "tableName" -> "testtable"
+          , "primaryKeys" -> "testtableid1,testtableid2"
+        )
+          , true)))
+    }
   }
   describe("extractToStorageFromRDBM") {
 
     it("should extract from the db to the storage layer") {
       val spark = sparkSession
-      import spark.implicits._
       val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
       val flow = Waimak.sparkFlow(sparkSession)
       val executor = Waimak.sparkExecutor()

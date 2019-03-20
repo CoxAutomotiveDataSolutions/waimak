@@ -49,7 +49,7 @@ object RDBMIngestionActions {
 
       def metadataFunction(tableName: String): AuditTableInfo = {
         val tableConfig = tableConfigs(tableName)
-        rdbmExtractor.getTableMetadata(dbSchema, tableName, tableConfig.pkCols, tableConfig.lastUpdatedColumn).get
+        rdbmExtractor.getTableMetadata(dbSchema, tableName, tableConfig.pkCols, tableConfig.lastUpdatedColumn, tableConfig.forceRetainStorageHistory).get
       }
 
       val randomPrefix = UUID.randomUUID().toString

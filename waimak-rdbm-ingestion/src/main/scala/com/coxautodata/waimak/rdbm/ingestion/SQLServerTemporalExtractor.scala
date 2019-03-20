@@ -69,8 +69,9 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
 
   override def getTableMetadata(dbSchemaName: String
                                 , tableName: String
-                                , primaryKeys: Option[Seq[String]] = None
-                                , lastUpdatedColumn: Option[String] = None): Try[AuditTableInfo] = {
+                                , primaryKeys: Option[Seq[String]]
+                                , lastUpdatedColumn: Option[String]
+                                , retainStorageHistory: Option[String] => Boolean): Try[AuditTableInfo] = {
     lastUpdatedColumn.foreach(col => logWarning(
       s"Ignoring user-passed value for last updated ($col) " +
         s"as we can get this information from the database"))
@@ -82,7 +83,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
         primaryKeys match {
           case Some(userPks) if userPks.sorted != pkCols.sorted =>
             Failure(IncorrectUserPKException(userPks, pkCols))
-          case _ => Success(AuditTableInfo(m.tableName, pkCols, metaMap))
+          case _ => Success(AuditTableInfo(m.tableName, pkCols, metaMap, retainStorageHistory(m.mainTableMetadata.lastUpdatedColumn)))
         }
       })
   }

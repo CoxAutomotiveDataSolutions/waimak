@@ -1,20 +1,23 @@
 package com.coxautodata.waimak.storage
 
-import java.io.File
+import java.io.{File, FileOutputStream}
 import java.sql.Timestamp
 import java.time.Duration
+import java.util.Properties
 
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, TPerson}
+import com.google.common.io.Files
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.functions._
+import org.scalatest.TryValues
 
 import scala.util.Success
 
 /**
   * Created by Alexei Perelighin on 2018/02/08
   */
-class TestFileStorageOpsWithStaging extends SparkAndTmpDirSpec {
+class TestFileStorageOpsWithStaging extends SparkAndTmpDirSpec with TryValues {
 
   override val appName: String = "File Ops tests"
 
@@ -182,7 +185,7 @@ class TestFileStorageOpsWithStaging extends SparkAndTmpDirSpec {
     it("CRUD with empty meta") {
       val fops = createFops()
 
-      val info = AuditTableInfo("test_1", Seq("key1", "key2"), Map.empty)
+      val info = AuditTableInfo("test_1", Seq("key1", "key2"), Map.empty, false)
       fops.writeAuditTableInfo(basePath, info) should be(Success(info))
 
       val readBackInfo = fops.readAuditTableInfo(basePath, "test_1")
@@ -192,11 +195,25 @@ class TestFileStorageOpsWithStaging extends SparkAndTmpDirSpec {
     it("CRUD with meta") {
       val fops = createFops()
 
-      val info = AuditTableInfo("test_1", Seq("key1", "key2"), Map("info1" -> "v1", "info2" -> "v2", "info3" -> "v3"))
+      val info = AuditTableInfo("test_1", Seq("key1", "key2"), Map("info1" -> "v1", "info2" -> "v2", "info3" -> "v3"), false)
       fops.writeAuditTableInfo(basePath, info) should be(Success(info))
 
       val readBackInfo = fops.readAuditTableInfo(basePath, "test_1")
       readBackInfo should be(Success(info))
+    }
+
+    it("should be backwards compatible when reading where retain_history is not set") {
+      val file = new File(s"$basePath/test_1/.table_info")
+      Files.createParentDirs(file)
+      val outputStream = new FileOutputStream(file)
+      val props = new Properties()
+      props.setProperty("table_name", "test_1")
+      props.setProperty("primary_keys", "key1|key2")
+      props.store(outputStream, null)
+      val fops = createFops()
+      fops.readAuditTableInfo(basePath, "test_1") should be(
+        Success(AuditTableInfo("test_1", Seq("key1", "key2"), Map.empty, true))
+      )
     }
   }
 
