@@ -75,6 +75,7 @@
         <module>waimak-azure-table</module>
         <module>waimak-rdbm-ingestion</module>
         <module>waimak-hive</module>
+        <module>waimak-experimental</module>
         <module>waimak-configuration-databricks</module>
     </modules>
     <profiles>
