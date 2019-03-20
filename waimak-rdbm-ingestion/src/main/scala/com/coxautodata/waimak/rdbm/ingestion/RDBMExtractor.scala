@@ -64,8 +64,12 @@ trait RDBMExtractor {
     *
     * @param dbSchemaName              the database schema name
     * @param tableName                 the table name
-    * @param primaryKeys               Optionally, the primary keys for this table
-    * @param lastUpdatedColumn         Optionally, the last updated column for this table
+    * @param primaryKeys               Optionally, the primary keys for this table (not needed if this extractor can discover
+    *                                  primary keys itself)
+    * @param lastUpdatedColumn         Optionally, the last updated column for this table (not needed if this extractor
+    *                                  can discover last updated columns itself). If this is undefined and this extractor
+    *                                  does not discover a last updated column for the table, then this table will be extracted
+    *                                  in full every time
     * @param forceRetainStorageHistory Optionally specify whether to retain history for this table in the storage layer.
     *                                  Setting this to anything other than None will override the default behaviour which is:
     *                                  - if there is a lastUpdated column found or specified, retain all history for this table
@@ -86,9 +90,19 @@ trait RDBMExtractor {
       , tableName
       , primaryKeys
       , lastUpdatedColumn
-      , col => forceRetainStorageHistory.getOrElse(col.isDefined))
+      //
+      , resolvedLastUpdatedColumn => forceRetainStorageHistory.getOrElse(resolvedLastUpdatedColumn.isDefined))
   }
 
+  /**
+    * Subclasses of [[RDBMExtractor]] must implement this method which:
+    * - tries to get whatever metadata information it can from the database
+    * - uses the optional provided values for pks and lastUpdated if it cannot get them from the database
+    *
+    * This differs from the method defined above in the retainStorageHistory parameter. It takes a function which, given
+    * an optional lastUpdated column, returns whether or not to retain storage history for this table. Implementations
+    * should call this function to get the value needed by the [[AuditTableInfo]]
+    */
   protected def getTableMetadata(dbSchemaName: String
                                  , tableName: String
                                  , primaryKeys: Option[Seq[String]]
