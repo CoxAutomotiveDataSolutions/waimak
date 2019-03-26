@@ -15,25 +15,24 @@ import org.apache.spark.SparkConf
 trait ImpalaDBConnector extends HadoopDBConnector {
 
   private[metastore] override def createTableFromParquetDDL(tableName: String, path: String, external: Boolean, partitionColumns: Seq[String], ifNotExists: Boolean = true): Seq[String] = {
+    val qualifiedPath = new Path(path).makeQualified(context.fileSystem.getUri, context.fileSystem.getWorkingDirectory)
+
     //Find glob paths catering for partitions
-    val globPath = {
-      if (partitionColumns.isEmpty) new Path(s"$path/part-*.parquet")
-      else new Path(path + partitionColumns.mkString("/", "=*/", "=*/part-*.parquet"))
-    }
+    val globPath = ("part-*.parquet" +: partitionColumns.map(_ + "=*")).foldRight(qualifiedPath)((c, p) => new Path(p, c))
 
     logInfo("Get paths for ddls " + globPath.toString)
     val parquetFile = context.fileSystem.globStatus(globPath).sortBy(_.getPath.toUri.getPath).headOption.map(_.getPath).getOrElse(throw new DataFlowException(s"Could not find parquet file at " +
-      s"'$path' to infer schema for table '$tableName'"))
+      s"'$qualifiedPath' to infer schema for table '$tableName'"))
 
     //Create ddl
     val ifNotExistsString = if (ifNotExists) "if not exists " else ""
     val externalString = if (external) "external " else ""
     if (partitionColumns.isEmpty) {
-      Seq(s"create ${externalString}table $ifNotExistsString$tableName like parquet '${parquetFile.toString}' stored as parquet location '$path'")
+      Seq(s"create ${externalString}table $ifNotExistsString$tableName like parquet '${parquetFile.toString}' stored as parquet location '$qualifiedPath'")
     } else {
       val partitionDef = partitionColumns.map(_ + " string").mkString(", ")
       Seq(
-        s"create ${externalString}table $ifNotExistsString$tableName like parquet '${parquetFile.toString}' partitioned by ($partitionDef) stored as parquet location '$path'",
+        s"create ${externalString}table $ifNotExistsString$tableName like parquet '${parquetFile.toString}' partitioned by ($partitionDef) stored as parquet location '$qualifiedPath'",
         s"alter table $tableName recover partitions"
       )
     }

@@ -17,10 +17,7 @@ trait HiveDBConnector extends HadoopDBConnector {
     val path = new Path(pathWithoutUri).makeQualified(context.fileSystem.getUri, context.fileSystem.getWorkingDirectory)
 
     //Find glob paths catering for partitions
-    val globPath = {
-      if (partitionColumns.isEmpty) new Path(s"$path/part-*.parquet")
-      else new Path(path + partitionColumns.mkString("/", "=*/", "=*/part-*.parquet"))
-    }
+    val globPath = ("part-*.parquet" +: partitionColumns.map(_ + "=*")).foldRight(path)((c, p) => new Path(p, c))
 
     logInfo("Get paths for ddls " + globPath.toString)
     val parquetFile = context.fileSystem.globStatus(globPath).sortBy(_.getPath.toUri.getPath).headOption.map(_.getPath).getOrElse(throw new DataFlowException(s"Could not find parquet file at " +
