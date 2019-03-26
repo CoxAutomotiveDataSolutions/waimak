@@ -14,7 +14,9 @@ import io.circe.syntax._
 import org.apache.commons.httpclient.HttpClient
 import org.apache.commons.httpclient.methods.{PostMethod, StringRequestEntity}
 import org.apache.http.client.HttpResponseException
+import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.IntegerType
 import org.apache.spark.sql.{Dataset, Encoder}
 
 import scala.reflect.runtime.universe.TypeTag
@@ -44,7 +46,6 @@ object DataQualityActions {
         }
         .transform(rule.toReduceMetricLabel(label))(rule.reducedMetricLabel(label))(rule.reduceMetricsUntyped)
         .addAction(AlertAction(label, rule, alerts))
-
     }
 
     private[spark] def subFlow(sub: SparkDataFlow => SparkDataFlow): SparkDataFlow = {
@@ -71,6 +72,8 @@ case class AlertAction(label: String, rule: DataQualityRule[_], alerts: Seq[Data
 
 abstract class DataQualityRule[T: TypeTag : Encoder] {
 
+  //implicit val encoder: Encoder[T] = implicitly[Encoder[T]]
+
   final def baseMetricLabel(inputLabel: String): String = s"${inputLabel}_$name"
 
   final def produceMetricLabel(inputLabel: String): String = s"${baseMetricLabel(inputLabel)}_produced"
@@ -95,9 +98,33 @@ abstract class DataQualityRule[T: TypeTag : Encoder] {
   def thresholdTrigger(ds: Dataset[T]): Option[DataQualityAlert]
 
   final def thresholdTriggerUntyped(ds: Dataset[_]): Option[DataQualityAlert] = {
+
     thresholdTrigger(ds.as[T])
   }
 
+}
+
+case class NullValuesRule(name: String, colName: String, percentageNullThreshold: Int)(implicit intEncoder: Encoder[Int]) extends DataQualityRule[Int] {
+
+  override def produceMetric(ds: Dataset[_]): Dataset[Int] = {
+    import ds.sparkSession.implicits.StringToColumn
+    ds.withColumn("nulls_count", sum(when($"$colName".isNull, 1).otherwise(0)).over(Window.partitionBy()))
+      .withColumn("total_count", count("*").over(Window.partitionBy()))
+      .withColumn("perc_nulls", (($"nulls_count" / $"total_count") * 100).cast(IntegerType))
+      .select("perc_nulls")
+      .as[Int]
+  }
+
+  override def reduceMetrics(ds: Dataset[MetricRecord[Int]]): Dataset[Int] = {
+    import ds.sparkSession.implicits.StringToColumn
+    ds.withColumn("_row_num", row_number() over Window.partitionBy().orderBy($"dateTimeEmitted".desc))
+      .select($"metric").as[Int]
+  }
+
+  override def thresholdTrigger(ds: Dataset[Int]): Option[DataQualityAlert] = {
+    ds.collect().headOption.filter(_ > percentageNullThreshold).map(perc =>
+      DataQualityAlert(s"Alert for $name. Percentage of nulls in column $colName was $perc%. Critical threshold $percentageNullThreshold%", Critical))
+  }
 }
 
 case class MetricRecord[T](dateTimeEmitted: Timestamp, metric: T)
@@ -110,11 +137,7 @@ trait DataQualityMetricStorage {
 
 }
 
-trait DataQualityAlert {
-  def alertMessage: String
-
-  def importance: AlertImportance
-}
+case class DataQualityAlert(alertMessage: String, importance: AlertImportance)
 
 case class SlackQualityAlert(token: String) extends DataQualityAlertHandler {
 
@@ -162,7 +185,7 @@ case class StorageLayerMetricStorage(basePath: String, runtime: LocalDateTime) e
     sparkDataFlow
       .getOrCreateAuditTable(
         basePath,
-        Some(t => AuditTableInfo(t, Seq.empty, Map.empty, retain_history = true))
+        Some(t => AuditTableInfo(t, Seq("metric"), Map.empty, retain_history = true))
       )(rule.baseMetricLabel(label))
       .transform(rule.produceMetricLabel(label))(rule.baseMetricLabel(label)) {
         _.toDF("metric")
