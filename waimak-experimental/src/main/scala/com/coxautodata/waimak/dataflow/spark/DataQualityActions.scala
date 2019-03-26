@@ -2,7 +2,10 @@ package com.coxautodata.waimak.dataflow.spark
 
 import java.sql.Timestamp
 import java.time.{LocalDateTime, ZoneOffset}
-
+import org.apache.commons.httpclient.methods.{PostMethod, StringRequestEntity}
+import org.apache.commons.httpclient.HttpClient
+import org.apache.http.client.HttpResponseException
+import io.circe.generic.auto._, io.circe.syntax._
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.storage.StorageActions._
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
@@ -25,7 +28,7 @@ object DataQualityActions {
         }
     }
 
-    private def addRule(label: String, rule: DataQualityRule[_], storage: DataQualityMetricStorage, alerts: Seq[DataQualityAlertHandler]): SparkDataFlow = {
+    private[spark] def addRule(label: String, rule: DataQualityRule[_], storage: DataQualityMetricStorage, alerts: Seq[DataQualityAlertHandler]): SparkDataFlow = {
       sparkDataFlow
         .cacheAsParquet(label)
         .transform(label)(rule.produceMetricLabel(label))(rule.produceMetric)
@@ -110,6 +113,33 @@ trait DataQualityAlert {
   def importance: AlertImportance
 }
 
+case class SlackQualityAlert(token: String) extends DataQualityAlertHandler {
+
+  private def toJson(alert: DataQualityAlert): String = {
+    val slackColour = alert.importance match {
+      case Critical => SlackDanger
+      case Warning => SlackWarning
+      case Good => SlackGood
+      case Information => SlackInformation
+    }
+    SlackMessage(attachments = Some(Seq(SlackAttachment(Some(alert.alertMessage), color = Some(slackColour)))))
+      .asJson
+      .noSpaces
+  }
+
+  override def handleAlert(alert: DataQualityAlert): Unit = {
+    val json = toJson(alert)
+    val post = new PostMethod(s"https://hooks.slack.com/services/$token")
+    post.setRequestHeader("Content-type", "application/json")
+    post.setRequestEntity(new StringRequestEntity(json, "application/json", "UTF-8"))
+    val response = new HttpClient().executeMethod(post)
+    val responseStatus = response
+    if (responseStatus != 200) {
+      throw new HttpResponseException(responseStatus, s"Invalid response status, got $responseStatus")
+    }
+  }
+}
+
 sealed trait AlertImportance
 
 case object Critical extends AlertImportance
@@ -145,3 +175,20 @@ case class StorageLayerMetricStorage(basePath: String, runtime: LocalDateTime) e
       .alias(s"load_from_${rule.baseMetricLabel(label)}", rule.toReduceMetricLabel(label))
   }
 }
+
+sealed abstract class SlackColor(val value: String)
+
+case object SlackDanger extends SlackColor("danger")
+
+case object SlackWarning extends SlackColor("warning")
+
+case object SlackGood extends SlackColor("good")
+
+case object SlackInformation extends SlackColor("#439FE0")
+
+case class SlackField(title: String, value: String)
+
+case class SlackAttachment(title: Option[String] = None, title_link: Option[String] = None, color: Option[SlackColor] = None,
+                           ts: Option[String] = None, footer: Option[String] = None, fields: Option[Seq[SlackField]] = None)
+
+case class SlackMessage(text: Option[String] = None, attachments: Option[Seq[SlackAttachment]] = None)

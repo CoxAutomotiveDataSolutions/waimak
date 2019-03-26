@@ -26,6 +26,16 @@
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-core_2.11</artifactId>
+            <version>0.11.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-generic_2.11</artifactId>
+            <version>0.11.1</version>
+        </dependency>
+        <dependency>
             <groupId>com.coxautodata</groupId>
             <artifactId>waimak-core_2.11</artifactId>
             <version>${project.parent.version}</version>
