@@ -2,16 +2,20 @@ package com.coxautodata.waimak.dataflow.spark
 
 import java.sql.Timestamp
 import java.time.{LocalDateTime, ZoneOffset}
-import org.apache.commons.httpclient.methods.{PostMethod, StringRequestEntity}
-import org.apache.commons.httpclient.HttpClient
-import org.apache.http.client.HttpResponseException
-import io.circe.generic.auto._, io.circe.syntax._
+
 import com.coxautodata.waimak.dataflow.spark.SparkActions._
-import com.coxautodata.waimak.storage.StorageActions._
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities}
 import com.coxautodata.waimak.storage.AuditTableInfo
-import org.apache.spark.sql.{Dataset, Encoder}
+import com.coxautodata.waimak.storage.StorageActions._
+import io.circe
+import io.circe.Json
+import io.circe.generic.auto._
+import io.circe.syntax._
+import org.apache.commons.httpclient.HttpClient
+import org.apache.commons.httpclient.methods.{PostMethod, StringRequestEntity}
+import org.apache.http.client.HttpResponseException
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.{Dataset, Encoder}
 
 import scala.reflect.runtime.universe.TypeTag
 import scala.util.Try
@@ -24,7 +28,7 @@ object DataQualityActions {
       sparkDataFlow
         .asInstanceOf[SparkDataFlow]
         .foldLeftOver(labels) {
-          (z, l) => z.asInstanceOf[SparkDataFlow].foldLeftOver(rules)((zz, r) => zz.asInstanceOf[SparkDataFlow].addRule(l, r, storage, alerts))
+          (z, l) => z.asInstanceOf[SparkDataFlow].foldLeftOver(rules)((zz, r) => zz.addRule(l, r, storage, alerts))
         }
     }
 
@@ -91,7 +95,6 @@ abstract class DataQualityRule[T: TypeTag : Encoder] {
   def thresholdTrigger(ds: Dataset[T]): Option[DataQualityAlert]
 
   final def thresholdTriggerUntyped(ds: Dataset[_]): Option[DataQualityAlert] = {
-    import ds.sparkSession.implicits._
     thresholdTrigger(ds.as[T])
   }
 
@@ -161,8 +164,7 @@ case class StorageLayerMetricStorage(basePath: String, runtime: LocalDateTime) e
         basePath,
         Some(t => AuditTableInfo(t, Seq.empty, Map.empty, retain_history = true))
       )(rule.baseMetricLabel(label))
-      .transform(rule.produceMetricLabel(label))(rule.baseMetricLabel(label))
-      {
+      .transform(rule.produceMetricLabel(label))(rule.baseMetricLabel(label)) {
         _.toDF("metric")
           .withColumn("dateTimeEmitted", lit(Timestamp.valueOf(runtime)))
       }
@@ -185,6 +187,12 @@ case object SlackWarning extends SlackColor("warning")
 case object SlackGood extends SlackColor("good")
 
 case object SlackInformation extends SlackColor("#439FE0")
+
+object SlackColor {
+  implicit val encodeSlackColor: io.circe.Encoder[SlackColor] = new circe.Encoder[SlackColor] {
+    override def apply(a: SlackColor): Json = a.value.asJson
+  }
+}
 
 case class SlackField(title: String, value: String)
 
