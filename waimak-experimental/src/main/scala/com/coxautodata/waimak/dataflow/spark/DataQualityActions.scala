@@ -103,7 +103,9 @@ abstract class DataQualityRule[T: TypeTag : Encoder] {
 
 }
 
-case class NullValuesRule(name: String, colName: String, percentageNullWarningThreshold: Int, percentageNullCriticalThreshold: Int)(implicit intEncoder: Encoder[Int]) extends DataQualityRule[Int] {
+case class NullValuesRule(colName: String, percentageNullWarningThreshold: Int, percentageNullCriticalThreshold: Int)(implicit intEncoder: Encoder[Int]) extends DataQualityRule[Int] {
+
+  val name: String = "null_values_check"
 
   override def produceMetric(ds: Dataset[_]): Dataset[Int] = {
     import ds.sparkSession.implicits.StringToColumn
@@ -132,6 +134,30 @@ case class NullValuesRule(name: String, colName: String, percentageNullWarningTh
     })
   }
 }
+
+case class UniqueIDsRule[T: Encoder: TypeTag](idColName: String, minUniqueIds: Long, minTimestamp: Timestamp) extends DataQualityRule[T] {
+  override def name: String = "new_unique_ids_check"
+
+  override def produceMetric(ds: Dataset[_]): Dataset[T] = {
+    ds.select(idColName).distinct().as[T]
+  }
+
+  override def reduceMetrics(ds: Dataset[MetricRecord[T]]): Dataset[T] = {
+    import ds.sparkSession.implicits.StringToColumn
+    ds.filter($"dateTimeEmitted" >= minTimestamp)
+      .select("metric")
+      .distinct()
+      .as[T]
+  }
+
+  override def thresholdTrigger(ds: Dataset[T], label: String): Option[DataQualityAlert] = {
+    val newUniqueIDsCount = ds.count()
+    Option(newUniqueIDsCount).filter(_ < minUniqueIds).map(idCount => DataQualityAlert(s"Alert for $name on label $label. " +
+      s"Number of unique ids since $minTimestamp was $idCount. " +
+      s"Expected at least $minUniqueIds", Critical))
+  }
+}
+
 
 case class MetricRecord[T](dateTimeEmitted: Timestamp, metric: T)
 
