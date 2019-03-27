@@ -103,7 +103,7 @@ abstract class DataQualityRule[T: TypeTag : Encoder] {
 
 }
 
-case class NullValuesRule(name: String, colName: String, percentageNullThreshold: Int)(implicit intEncoder: Encoder[Int]) extends DataQualityRule[Int] {
+case class NullValuesRule(name: String, colName: String, percentageNullWarningThreshold: Int, percentageNullCriticalThreshold: Int)(implicit intEncoder: Encoder[Int]) extends DataQualityRule[Int] {
 
   override def produceMetric(ds: Dataset[_]): Dataset[Int] = {
     import ds.sparkSession.implicits.StringToColumn
@@ -122,8 +122,14 @@ case class NullValuesRule(name: String, colName: String, percentageNullThreshold
   }
 
   override def thresholdTrigger(ds: Dataset[Int], label: String): Option[DataQualityAlert] = {
-    ds.collect().headOption.filter(_ > percentageNullThreshold).map(perc =>
-      DataQualityAlert(s"Alert for $name on label $label. Percentage of nulls in column $colName was $perc%. Critical threshold $percentageNullThreshold%", Critical))
+    ds.collect().headOption.filter(_ > percentageNullWarningThreshold.min(percentageNullCriticalThreshold)).map(perc => {
+      val (alertImportance, thresholdUsed) = perc match {
+        case p if p > percentageNullCriticalThreshold => (Critical, percentageNullCriticalThreshold)
+        case _ => (Warning, percentageNullWarningThreshold)
+      }
+      DataQualityAlert(s"${alertImportance.description} alert for $name on label $label. Percentage of nulls in column $colName was $perc%. " +
+        s"${alertImportance.description} threshold $thresholdUsed%", alertImportance)
+    })
   }
 }
 
@@ -166,15 +172,15 @@ case class SlackQualityAlert(token: String) extends DataQualityAlertHandler {
   }
 }
 
-sealed trait AlertImportance
+sealed abstract class AlertImportance(val description: String)
 
-case object Critical extends AlertImportance
+case object Critical extends AlertImportance("Critical")
 
-case object Warning extends AlertImportance
+case object Warning extends AlertImportance("Warning")
 
-case object Good extends AlertImportance
+case object Good extends AlertImportance("Good")
 
-case object Information extends AlertImportance
+case object Information extends AlertImportance("Information")
 
 trait DataQualityAlertHandler {
   def handleAlert(alert: DataQualityAlert): Unit
