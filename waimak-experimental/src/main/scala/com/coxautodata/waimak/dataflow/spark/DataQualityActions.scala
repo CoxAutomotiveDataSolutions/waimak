@@ -61,7 +61,7 @@ case class AlertAction(label: String, rule: DataQualityRule[_], alerts: Seq[Data
   override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
     val reduced = inputs.get[Dataset[_]](rule.reducedMetricLabel(label))
     rule
-      .thresholdTriggerUntyped(reduced)
+      .thresholdTriggerUntyped(reduced, label)
       .foreach(a => alerts.foreach(_.handleAlert(a)))
     Seq.empty
   }
@@ -95,16 +95,17 @@ abstract class DataQualityRule[T: TypeTag : Encoder] {
     ds.as[MetricRecord[T]].transform(reduceMetrics)
   }
 
-  def thresholdTrigger(ds: Dataset[T]): Option[DataQualityAlert]
+  def thresholdTrigger(ds: Dataset[T], label: String): Option[DataQualityAlert]
 
-  final def thresholdTriggerUntyped(ds: Dataset[_]): Option[DataQualityAlert] = {
-
-    thresholdTrigger(ds.as[T])
+  final def thresholdTriggerUntyped(ds: Dataset[_], label: String): Option[DataQualityAlert] = {
+    thresholdTrigger(ds.as[T], label: String)
   }
 
 }
 
-case class NullValuesRule(name: String, colName: String, percentageNullThreshold: Int)(implicit intEncoder: Encoder[Int]) extends DataQualityRule[Int] {
+case class NullValuesRule(colName: String, percentageNullWarningThreshold: Int, percentageNullCriticalThreshold: Int)(implicit intEncoder: Encoder[Int]) extends DataQualityRule[Int] {
+
+  val name: String = "null_values_check"
 
   override def produceMetric(ds: Dataset[_]): Dataset[Int] = {
     import ds.sparkSession.implicits.StringToColumn
@@ -118,14 +119,45 @@ case class NullValuesRule(name: String, colName: String, percentageNullThreshold
   override def reduceMetrics(ds: Dataset[MetricRecord[Int]]): Dataset[Int] = {
     import ds.sparkSession.implicits.StringToColumn
     ds.withColumn("_row_num", row_number() over Window.partitionBy().orderBy($"dateTimeEmitted".desc))
+      .filter($"_row_num" === 1)
       .select($"metric").as[Int]
   }
 
-  override def thresholdTrigger(ds: Dataset[Int]): Option[DataQualityAlert] = {
-    ds.collect().headOption.filter(_ > percentageNullThreshold).map(perc =>
-      DataQualityAlert(s"Alert for $name. Percentage of nulls in column $colName was $perc%. Critical threshold $percentageNullThreshold%", Critical))
+  override def thresholdTrigger(ds: Dataset[Int], label: String): Option[DataQualityAlert] = {
+    ds.collect().headOption.filter(_ > percentageNullWarningThreshold.min(percentageNullCriticalThreshold)).map(perc => {
+      val (alertImportance, thresholdUsed) = perc match {
+        case p if p > percentageNullCriticalThreshold => (Critical, percentageNullCriticalThreshold)
+        case _ => (Warning, percentageNullWarningThreshold)
+      }
+      DataQualityAlert(s"${alertImportance.description} alert for $name on label $label. Percentage of nulls in column $colName was $perc%. " +
+        s"${alertImportance.description} threshold $thresholdUsed%", alertImportance)
+    })
   }
 }
+
+case class UniqueIDsRule[T: Encoder: TypeTag](idColName: String, minUniqueIds: Long, minTimestamp: Timestamp) extends DataQualityRule[T] {
+  override def name: String = "new_unique_ids_check"
+
+  override def produceMetric(ds: Dataset[_]): Dataset[T] = {
+    ds.select(idColName).distinct().as[T]
+  }
+
+  override def reduceMetrics(ds: Dataset[MetricRecord[T]]): Dataset[T] = {
+    import ds.sparkSession.implicits.StringToColumn
+    ds.filter($"dateTimeEmitted" >= minTimestamp)
+      .select("metric")
+      .distinct()
+      .as[T]
+  }
+
+  override def thresholdTrigger(ds: Dataset[T], label: String): Option[DataQualityAlert] = {
+    val newUniqueIDsCount = ds.count()
+    Option(newUniqueIDsCount).filter(_ < minUniqueIds).map(idCount => DataQualityAlert(s"Alert for $name on label $label. " +
+      s"Number of unique ids since $minTimestamp was $idCount. " +
+      s"Expected at least $minUniqueIds", Critical))
+  }
+}
+
 
 case class MetricRecord[T](dateTimeEmitted: Timestamp, metric: T)
 
@@ -166,15 +198,15 @@ case class SlackQualityAlert(token: String) extends DataQualityAlertHandler {
   }
 }
 
-sealed trait AlertImportance
+sealed abstract class AlertImportance(val description: String)
 
-case object Critical extends AlertImportance
+case object Critical extends AlertImportance("Critical")
 
-case object Warning extends AlertImportance
+case object Warning extends AlertImportance("Warning")
 
-case object Good extends AlertImportance
+case object Good extends AlertImportance("Good")
 
-case object Information extends AlertImportance
+case object Information extends AlertImportance("Information")
 
 trait DataQualityAlertHandler {
   def handleAlert(alert: DataQualityAlert): Unit
