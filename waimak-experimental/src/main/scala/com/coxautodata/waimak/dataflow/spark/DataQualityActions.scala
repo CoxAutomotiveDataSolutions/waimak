@@ -61,7 +61,7 @@ case class AlertAction(label: String, rule: DataQualityRule[_], alerts: Seq[Data
   override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
     val reduced = inputs.get[Dataset[_]](rule.reducedMetricLabel(label))
     rule
-      .thresholdTriggerUntyped(reduced)
+      .thresholdTriggerUntyped(reduced, label)
       .foreach(a => alerts.foreach(_.handleAlert(a)))
     Seq.empty
   }
@@ -95,11 +95,10 @@ abstract class DataQualityRule[T: TypeTag : Encoder] {
     ds.as[MetricRecord[T]].transform(reduceMetrics)
   }
 
-  def thresholdTrigger(ds: Dataset[T]): Option[DataQualityAlert]
+  def thresholdTrigger(ds: Dataset[T], label: String): Option[DataQualityAlert]
 
-  final def thresholdTriggerUntyped(ds: Dataset[_]): Option[DataQualityAlert] = {
-
-    thresholdTrigger(ds.as[T])
+  final def thresholdTriggerUntyped(ds: Dataset[_], label: String): Option[DataQualityAlert] = {
+    thresholdTrigger(ds.as[T], label: String)
   }
 
 }
@@ -118,12 +117,13 @@ case class NullValuesRule(name: String, colName: String, percentageNullThreshold
   override def reduceMetrics(ds: Dataset[MetricRecord[Int]]): Dataset[Int] = {
     import ds.sparkSession.implicits.StringToColumn
     ds.withColumn("_row_num", row_number() over Window.partitionBy().orderBy($"dateTimeEmitted".desc))
+      .filter($"_row_num" === 1)
       .select($"metric").as[Int]
   }
 
-  override def thresholdTrigger(ds: Dataset[Int]): Option[DataQualityAlert] = {
+  override def thresholdTrigger(ds: Dataset[Int], label: String): Option[DataQualityAlert] = {
     ds.collect().headOption.filter(_ > percentageNullThreshold).map(perc =>
-      DataQualityAlert(s"Alert for $name. Percentage of nulls in column $colName was $perc%. Critical threshold $percentageNullThreshold%", Critical))
+      DataQualityAlert(s"Alert for $name on label $label. Percentage of nulls in column $colName was $perc%. Critical threshold $percentageNullThreshold%", Critical))
   }
 }
 
