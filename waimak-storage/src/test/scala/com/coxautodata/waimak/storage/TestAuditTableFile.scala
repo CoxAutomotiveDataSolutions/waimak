@@ -90,7 +90,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       infoData should be(Success(AuditTableInfo(tableName, Seq("id"), Map.empty, true)))
     }
 
-    it("init table then updated table info") {
+    it("init table then update table info") {
       val zeroState = createADTable(tableName, createFops())
 
       val nextState = zeroState.initNewTable().get

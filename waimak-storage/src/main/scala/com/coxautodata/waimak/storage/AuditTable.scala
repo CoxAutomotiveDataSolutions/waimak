@@ -111,6 +111,12 @@ trait AuditTable {
     */
   def getLatestTimestamp(): Option[Timestamp]
 
+  /**
+    * Update the metadata for this table
+    *
+    * @param tableInfo the new metadata
+    * @return new state of the AuditTable
+    */
   def updateTableInfo(tableInfo: AuditTableInfo): Try[AuditTable]
 
   /**

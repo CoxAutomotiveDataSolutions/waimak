@@ -173,7 +173,12 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       //update metadata
       spark.conf.set(UPDATE_TABLE_METADATA, true)
       val res3 = executor.execute(flow2)
-      res3._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id1","id2"), Map.empty, false))
+      res3._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id1", "id2"), Map.empty, false))
+
+      //Check new metadata has been persisted
+      spark.conf.set(UPDATE_TABLE_METADATA, false)
+      val res4 = executor.execute(flow1)
+      res4._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id1", "id2"), Map.empty, false))
 
     }
   }

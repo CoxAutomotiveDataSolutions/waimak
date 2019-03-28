@@ -62,6 +62,9 @@ object StorageActions extends Logging {
   val RECOMPACT_ALL = s"$storageParamPrefix.recompactAll"
   val RECOMPACT_ALL_DEFAULT = false
 
+  /**
+    * Whether to update the metadata (call the metadata retrieval function and persist the result) for existing tables
+    */
   val UPDATE_TABLE_METADATA = s"$storageParamPrefix.updateMetadata"
   val UPDATE_TABLE_METADATA_DEFAULT = false
 
