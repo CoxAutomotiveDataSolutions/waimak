@@ -179,8 +179,27 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       spark.conf.set(UPDATE_TABLE_METADATA, false)
       val res4 = executor.execute(flow1)
       res4._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id1", "id2"), Map.empty, false))
-
     }
+
+
+    it("should fail if metadata update is requested but not metadata retrieval function is provided") {
+      val spark = sparkSession
+
+      val executor = Waimak.sparkExecutor()
+
+      val flow1 = Waimak.sparkFlow(spark)
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
+
+      val res1 = executor.execute(flow1)
+      res1._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id"), Map.empty, true))
+
+      spark.conf.set(UPDATE_TABLE_METADATA, true)
+      val flow2 = Waimak.sparkFlow(spark)
+        .getOrCreateAuditTable(testingBaseDirName, None)("t_record")
+
+      intercept[DataFlowException](executor.execute(flow2)).cause.getMessage should be("spark.waimak.storage.updateMetadata is set to true but no metadata function was defined")
+    }
+
   }
 
   describe("runSingleCompactionDuringWindow") {
