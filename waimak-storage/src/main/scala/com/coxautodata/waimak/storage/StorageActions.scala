@@ -128,24 +128,25 @@ object StorageActions extends Logging {
       * Fails if the table does not exist in the storage layer and the optional `metadataRetrieval`
       * function is not given.
       *
-      * @param storageBasePath   the base path of the storage layer
-      * @param metadataRetrieval an optional function that generates table metadata from a table name.
-      *                          This function is used during table creation if a table does not exist in the storage
-      *                          layer or to update the metadata if spark.waimak.storage.updateMetadata is set to true
-      * @param labelPrefix       optionally prefix the output label for the AuditTable.
-      *                          If set, the label of the AuditTable will be `s"${labelPrefix}_$table"`
-      * @param includeHot        whether or not to include hot partitions in the read
-      * @param tableNames        the tables we want to open in the storage layer
+      * @param storageBasePath     the base path of the storage layer
+      * @param metadataRetrieval   an optional function that generates table metadata from a table name.
+      *                            This function is used during table creation if a table does not exist in the storage
+      *                            layer or to update the metadata if updateTableMetadata is set to true
+      * @param labelPrefix         optionally prefix the output label for the AuditTable.
+      *                            If set, the label of the AuditTable will be `s"${labelPrefix}_$table"`
+      * @param includeHot          whether or not to include hot partitions in the read
+      * @param updateTableMetadata whether or not to update the table metadata. Uses spark.waimak.storage.updateMetadata
+      *                            by default (which defaults to false)
+      * @param tableNames          the tables we want to open in the storage layer
       * @return a new SparkDataFlow with the get action added
       */
     def getOrCreateAuditTable(storageBasePath: String,
                               metadataRetrieval: Option[String => AuditTableInfo] = None,
                               labelPrefix: Option[String] = Some("audittable"),
-                              includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
+                              includeHot: Boolean = true,
+                              updateTableMetadata: => Boolean = sparkDataFlow.flowContext.getBoolean(UPDATE_TABLE_METADATA, UPDATE_TABLE_METADATA_DEFAULT))(tableNames: String*): SparkDataFlow = {
 
       val run: DataFlowEntities => ActionResult = _ => {
-
-        val updateTableMetadata: Boolean = sparkDataFlow.flowContext.getBoolean(UPDATE_TABLE_METADATA, UPDATE_TABLE_METADATA_DEFAULT)
 
         val basePath = new Path(storageBasePath)
 
@@ -201,8 +202,7 @@ object StorageActions extends Logging {
       * @return a new SparkDataFlow with the get action added
       */
     def getAuditTable(storageBasePath: String, labelPrefix: Option[String] = Some("audittable"), includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
-      sparkDataFlow.flowContext.spark.conf.set(UPDATE_TABLE_METADATA, false)
-      sparkDataFlow.getOrCreateAuditTable(storageBasePath, None, labelPrefix, includeHot)(tableNames: _*)
+      sparkDataFlow.getOrCreateAuditTable(storageBasePath, None, labelPrefix, includeHot, updateTableMetadata = false)(tableNames: _*)
 
     }
 

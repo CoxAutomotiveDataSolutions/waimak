@@ -209,14 +209,15 @@ class TestStorageActions extends SparkAndTmpDirSpec {
         spark.conf.set(UPDATE_TABLE_METADATA, true)
 
         val updateMetadataFlow = Waimak.sparkFlow(spark)
-          .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id", "value"), Map.empty, true)))("t_record")
+          .tagDependency("metadata") {
+            _.snapshotFromStorage(testingBaseDirName, ts3)("t_record")
+          }
+          .tag("metadata") {
+            _.getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id", "value"), Map.empty, true)))("t_record")
 
-        executor.execute(updateMetadataFlow)
+          }
 
-        val secondSnapshotFlow = Waimak.sparkFlow(spark)
-          .snapshotFromStorage(testingBaseDirName, ts3)("t_record")
-
-        executor.execute(secondSnapshotFlow)._2.inputs.get[Dataset[_]]("t_record").as[TRecord].collect() should contain theSameElementsAs records
+        executor.execute(updateMetadataFlow)._2.inputs.get[Dataset[_]]("t_record").as[TRecord].collect() should contain theSameElementsAs records
       }
 
 
