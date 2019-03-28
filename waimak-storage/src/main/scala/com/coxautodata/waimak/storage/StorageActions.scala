@@ -201,7 +201,7 @@ object StorageActions extends Logging {
       * @return a new SparkDataFlow with the get action added
       */
     def getAuditTable(storageBasePath: String, labelPrefix: Option[String] = Some("audittable"), includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
-
+      sparkDataFlow.flowContext.spark.conf.set(UPDATE_TABLE_METADATA, false)
       sparkDataFlow.getOrCreateAuditTable(storageBasePath, None, labelPrefix, includeHot)(tableNames: _*)
 
     }
