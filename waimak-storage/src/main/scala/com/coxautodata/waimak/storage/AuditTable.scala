@@ -111,6 +111,8 @@ trait AuditTable {
     */
   def getLatestTimestamp(): Option[Timestamp]
 
+  def updateTableInfo(tableInfo: AuditTableInfo): Try[AuditTable]
+
   /**
     * Name of the table.
     *

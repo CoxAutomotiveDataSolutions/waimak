@@ -62,6 +62,9 @@ object StorageActions extends Logging {
   val RECOMPACT_ALL = s"$storageParamPrefix.recompactAll"
   val RECOMPACT_ALL_DEFAULT = false
 
+  val UPDATE_TABLE_METADATA = s"$storageParamPrefix.updateMetadata"
+  val UPDATE_TABLE_METADATA_DEFAULT = false
+
 
   def handleTableErrors(tableResults: Map[String, Try[Any]], errorMessageBase: String): Unit = {
     val tableErrors = tableResults.filter(_._2.isFailure).mapValues(_.failed.get)
@@ -125,7 +128,7 @@ object StorageActions extends Logging {
       * @param storageBasePath   the base path of the storage layer
       * @param metadataRetrieval an optional function that generates table metadata from a table name.
       *                          This function is used during table creation if a table does not exist in the storage
-      *                          layer
+      *                          layer or to update the metadata if spark.waimak.storage.updateMetadata is set to true
       * @param labelPrefix       optionally prefix the output label for the AuditTable.
       *                          If set, the label of the AuditTable will be `s"${labelPrefix}_$table"`
       * @param includeHot        whether or not to include hot partitions in the read
@@ -139,13 +142,20 @@ object StorageActions extends Logging {
 
       val run: DataFlowEntities => ActionResult = _ => {
 
+        val updateTableMetadata: Boolean = sparkDataFlow.flowContext.getBoolean(UPDATE_TABLE_METADATA, UPDATE_TABLE_METADATA_DEFAULT)
+
         val basePath = new Path(storageBasePath)
 
         val (existingTables, missingTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tableNames, includeHot)
 
-        if (missingTables.nonEmpty && metadataRetrieval.isEmpty) {
+        if ((missingTables.nonEmpty || updateTableMetadata) && metadataRetrieval.isEmpty) {
           throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined: ${missingTables.mkString(",")}")
         }
+
+        val existingTablesWithUpdatedMetadata = if (updateTableMetadata) {
+          existingTables.mapValues(
+            _.flatMap(table => table.updateTableInfo(metadataRetrieval.get.apply(table.tableName))))
+        } else existingTables
 
         val createdTables = missingTables.map { tableName =>
           val tableInfo = metadataRetrieval.get.apply(tableName)
@@ -157,7 +167,9 @@ object StorageActions extends Logging {
 
         handleTableErrors(existingTables, "Unable to perform read")
 
-        val allTables = (existingTables.values.map(_.get) ++ createdTables.values.map(_.get)).map(t => t.tableName -> t).toMap
+        handleTableErrors(existingTablesWithUpdatedMetadata, "Unable to update metadata")
+
+        val allTables = (existingTablesWithUpdatedMetadata.values.map(_.get) ++ createdTables.values.map(_.get)).map(t => t.tableName -> t).toMap
 
         tableNames.map(allTables).map(Some(_))
 

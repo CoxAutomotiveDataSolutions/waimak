@@ -136,6 +136,9 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       regions.map(_.created_on) should be(Seq(Timestamp.valueOf("2018-05-08 17:55:12")))
     }
 
+  }
+
+  describe("getOrCreateAuditTable") {
     it("should fail if a table was not found in the storage layer") {
       val spark = sparkSession
 
@@ -147,9 +150,32 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       intercept[DataFlowException](
         executor.execute(writeFlow)
       ).cause.getMessage should be("The following tables were not found in the storage layer and could not be created as no metadata function was defined: t_record")
-
     }
 
+    it("should update table metadata if requested") {
+      val spark = sparkSession
+
+      val executor = Waimak.sparkExecutor()
+
+      val flow1 = Waimak.sparkFlow(spark)
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
+
+      val res1 = executor.execute(flow1)
+      res1._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id"), Map.empty, true))
+
+      val flow2 = Waimak.sparkFlow(spark)
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id1", "id2"), Map.empty, false)))("t_record")
+
+      //ignore new metadata because flag is not set
+      val res2 = executor.execute(flow2)
+      res2._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id"), Map.empty, true))
+
+      //update metadata
+      spark.conf.set(UPDATE_TABLE_METADATA, true)
+      val res3 = executor.execute(flow2)
+      res3._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id1","id2"), Map.empty, false))
+
+    }
   }
 
   describe("runSingleCompactionDuringWindow") {
@@ -237,13 +263,13 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       val df = Seq.fill(10)(1).toDF()
       val rowSize = org.apache.spark.util.SizeEstimator.estimate(df.head().asInstanceOf[AnyRef])
 
-      context.conf.setProperty(BYTES_PER_PARTITION, (5*rowSize).toString)
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (2)
+      context.conf.setProperty(BYTES_PER_PARTITION, (5 * rowSize).toString)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(2)
 
-      context.conf.setProperty(BYTES_PER_PARTITION, (4*rowSize).toString)
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (3)
+      context.conf.setProperty(BYTES_PER_PARTITION, (4 * rowSize).toString)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(3)
 
-      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be (1)
+      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be(1)
 
     }
 
@@ -256,12 +282,12 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       val df = Seq.fill(10)(1).toDF()
 
       context.conf.setProperty(CELLS_PER_PARTITION, "5")
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (2)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(2)
 
       context.conf.setProperty(CELLS_PER_PARTITION, "4")
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (3)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(3)
 
-      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be (1)
+      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be(1)
 
     }
 

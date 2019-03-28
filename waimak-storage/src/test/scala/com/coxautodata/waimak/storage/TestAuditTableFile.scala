@@ -90,6 +90,20 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       infoData should be(Success(AuditTableInfo(tableName, Seq("id"), Map.empty, true)))
     }
 
+    it("init table then updated table info") {
+      val zeroState = createADTable(tableName, createFops())
+
+      val nextState = zeroState.initNewTable().get
+
+      val infoData = zeroState.storageOps.readAuditTableInfo(basePath, tableName)
+      infoData should be(Success(AuditTableInfo(tableName, Seq("id"), Map.empty, true)))
+
+      val updatedTableInfoState = nextState.updateTableInfo(AuditTableInfo(tableName, Seq("id1", "id2"), Map.empty, false))
+
+      val updatedInfoData = zeroState.storageOps.readAuditTableInfo(basePath, tableName)
+      updatedInfoData should be(Success(AuditTableInfo(tableName, Seq("id1", "id2"), Map.empty, false)))
+    }
+
     it("init table fail") {
       val zeroState = createADTable(tableName, createFops())
 
