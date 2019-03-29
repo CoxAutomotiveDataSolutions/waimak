@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2 - 2019-03-29
+
+### Added
+- Generic mechanism to provide properties when using the `CaseClassConfigParser`. An object extending the `PropertyProviderBuilder` can now be configured using the `spark.waimak.config.propertyProviderBuilderObjects` configuration parameter. The `PropertiesFilePropertyProviderBuilder` and `DatabricksSecretsPropertyProviderBuilder` implementations are provided in Waimak
+- Added feature to optionally remove history from storage tables during compaction by setting the `retain_history` flag in the `AuditTableInfo` metadata. For RDBM ingestion actions, if no last updated column is provided in the metadata then history is removed. This can be explicitly disabled by setting `forceRetainStorageHistory` to `Some(true)`
+- Added Waimak [configuration parameter](wiki/Configuration-Parameters) `spark.waimak.storage.updateMetadata` to force the update of table metadata (e.g. in case of primary key or history retention changed)
+- Added new experimental module containing currently unstable features
+
+### Changed
+- The force recreate mechanism for recreating tables created using a `HadoopDBConnector` has been moved to the Waimak [configuration parameter](wiki/Configuration-Parameters) `spark.waimak.metastore.forceRecreateTables`
+
+### Fixed
+- All paths used in DDLs submitted through a `HadoopDBConnector` now use the full FileSystem URI including the scheme
+
 ## 2.1.1 - 2019-03-15
 
 ### Fixed
@@ -77,7 +91,7 @@
 ## 1.4.2 - 2018-08-06
 
 ### Added
-- Added optional Spark parameter `spark.waimak.fs.defaultFS` to specify the URI of the FileSystem object in the [`SparkFlowContext`](src/main/scala/com/coxautodata/waimak/dataflow/spark/SparkFlowContext.scala)
+- Added optional Spark parameter `spark.waimak.fs.defaultFS` to specify the URI of the FileSystem object in the [`SparkFlowContext`](waimak-core/src/main/scala/com/coxautodata/waimak/dataflow/spark/SparkFlowContext.scala)
 
 ## 1.4.1 - 2018-07-27
 
