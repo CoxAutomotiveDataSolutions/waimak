@@ -123,6 +123,10 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     res
   }
 
+  override def updateTableInfo(tableInfo: AuditTableInfo): Try[AuditTable] =
+    storageOps.writeAuditTableInfo(baseFolder, tableInfo)
+    .map(info => new AuditTableFile(info, regions, storageOps, baseFolder, newRegionID))
+
   override def allBetween(from: Option[Timestamp], to: Option[Timestamp]): Option[Dataset[_]] = {
     val regionIDs = activeRegionIDs()
     regionIDs.flatMap { ids =>
