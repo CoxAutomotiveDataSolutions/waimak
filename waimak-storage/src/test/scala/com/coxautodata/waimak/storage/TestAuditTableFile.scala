@@ -754,15 +754,15 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       import spark.implicits._
       val personTable = createADTable("person", createFops(), retainHistory = false).initNewTable().get
       val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
-      personTable
+      val res = personTable
         .append(personData, lastUpdated(personData), lastTS_1)
         .flatMap(_._1.append(personData, lastUpdated(personData), lastTS_1))
         .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
 
+      res shouldBe a[Success[_]]
       val compactedData = spark.read.parquet(personTable.tablePath.toString)
       compactedData.as[TPerson].collect() should contain theSameElementsAs (persons)
     }
-
   }
 
   describe("clearTableRegionCache") {
