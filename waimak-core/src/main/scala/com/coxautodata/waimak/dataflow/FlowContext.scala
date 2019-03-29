@@ -30,6 +30,11 @@ trait FlowContext {
     getOption(key).map(_.toBoolean).getOrElse(defaultValue)
   }
 
+  /** Get a configuration value as a list of strings with "," separator, falling back to a default if not set */
+  def getStringList(key: String, defaultValue: List[String]): List[String] = {
+    getOption(key).map(_.split(',').toList).getOrElse(defaultValue)
+  }
+
   def setPoolIntoContext(poolName: String): Unit
 
   def reportActionStarted(action: DataFlowAction): Unit

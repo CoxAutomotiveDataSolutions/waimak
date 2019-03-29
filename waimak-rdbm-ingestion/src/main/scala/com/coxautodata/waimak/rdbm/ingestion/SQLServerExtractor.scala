@@ -4,7 +4,7 @@ import java.util.Properties
 
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.storage.AuditTableInfo
-import org.apache.spark.sql.{SparkSession}
+import org.apache.spark.sql.SparkSession
 
 import scala.util.{Failure, Success, Try}
 
@@ -75,15 +75,20 @@ class SQLServerExtractor(override val sparkSession: SparkSession
 
   override def getTableMetadata(dbSchemaName: String
                                 , tableName: String
-                                , primaryKeys: Option[Seq[String]] = None
-                                , lastUpdatedColumn: Option[String] = None): Try[AuditTableInfo] = {
+                                , primaryKeys: Option[Seq[String]]
+                                , lastUpdatedColumn: Option[String]
+                                , retainStorageHistory: Option[String] => Boolean): Try[AuditTableInfo] = {
     ((primaryKeys, getTablePKs(dbSchemaName, transformTableNameForRead(tableName))) match {
       case (Some(userPKs), Some(pksFromDB)) if userPKs.sorted != pksFromDB.sorted =>
         Failure(IncorrectUserPKException(userPKs, pksFromDB))
       case (Some(userPKs), None) => Success(TableExtractionMetadata(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
       case (_, Some(pksFromDB)) => Success(TableExtractionMetadata(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
       case _ => Failure(PKsNotFoundOrProvidedException)
-    }).map(meta => AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString)))
+    }).map(meta => AuditTableInfo(meta.tableName
+      , meta.primaryKeys
+      , RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString)
+      , retainStorageHistory(meta.lastUpdatedColumn)
+    ))
   }
 
   def getTablePKs(dbSchemaName: String

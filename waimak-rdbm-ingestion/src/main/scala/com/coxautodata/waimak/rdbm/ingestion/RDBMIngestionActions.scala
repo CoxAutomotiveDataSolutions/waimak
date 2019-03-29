@@ -49,19 +49,18 @@ object RDBMIngestionActions {
 
       def metadataFunction(tableName: String): AuditTableInfo = {
         val tableConfig = tableConfigs(tableName)
-        rdbmExtractor.getTableMetadata(dbSchema, tableName, tableConfig.pkCols, tableConfig.lastUpdatedColumn).get
+        rdbmExtractor.getTableMetadata(dbSchema, tableName, tableConfig.pkCols, tableConfig.lastUpdatedColumn, tableConfig.forceRetainStorageHistory).get
       }
 
       val randomPrefix = UUID.randomUUID().toString
 
-      val openFlow = sparkDataFlow
+      sparkDataFlow
         .getOrCreateAuditTable(storageBasePath, Some(metadataFunction), Some(randomPrefix), true)(tables: _*)
-
-      tables.foldLeft(openFlow) { (flow, tableName) =>
-        flow
-          .extractFromRDBM(rdbmExtractor, lastUpdatedOffset, tableName, randomPrefix, tableConfigs(tableName).maxRowsPerPartition, forceFullLoad)
-          .writeToStorage(tableName, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction, randomPrefix)
-      }
+        .foldLeftOver(tables) { (flow, tableName) =>
+          flow
+            .extractFromRDBM(rdbmExtractor, lastUpdatedOffset, tableName, randomPrefix, tableConfigs(tableName).maxRowsPerPartition, forceFullLoad)
+            .writeToStorage(tableName, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction, randomPrefix)
+        }
 
     }
 
@@ -129,13 +128,12 @@ object RDBMIngestionActions {
 
       val randomPrefix = UUID.randomUUID().toString
 
-      val openFlow = sparkDataFlow
+      sparkDataFlow
         .getOrCreateAuditTable(storageBasePath, None, Some(randomPrefix), true)(tables: _*)
-
-      tables.foldLeft(openFlow)((flow, table) => {
-        val auditTableLabel = s"${randomPrefix}_$table"
-        flow.addAction(new SimpleAction(List(auditTableLabel), List(table), run(auditTableLabel), "snapshotTemporalTablesFromStorage"))
-      })
+        .foldLeftOver(tables)((flow, table) => {
+          val auditTableLabel = s"${randomPrefix}_$table"
+          flow.addAction(new SimpleAction(List(auditTableLabel), List(table), run(auditTableLabel), "snapshotTemporalTablesFromStorage"))
+        })
 
     }
   }

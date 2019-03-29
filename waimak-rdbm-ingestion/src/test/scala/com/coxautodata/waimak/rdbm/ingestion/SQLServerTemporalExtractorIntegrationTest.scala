@@ -100,7 +100,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
       sqlServerExtractor.allTableMetadata("dbo.testtemporal") should be(
         SQLServerTemporalTableMetadata("dbo", "testtemporal", Some("dbo"), Some("testtemporalhistory"), Some("sysstarttime"), Some("sysendtime"), "testtemporalid"))
 
-      sqlServerExtractor.getTableMetadata("dbo", "testtemporal") should be(
+      sqlServerExtractor.getTableMetadata("dbo", "testtemporal", None, None, None) should be(
         Success(AuditTableInfo("testtemporal", Seq("testtemporalid"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testtemporal"
@@ -108,7 +108,8 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
           , "historyTableSchema" -> "dbo"
           , "historyTableName" -> "testtemporalhistory"
           , "startColName" -> "sysstarttime"
-          , "endColName" -> "sysendtime")))
+          , "endColName" -> "sysendtime")
+          , true))
       )
     }
 
@@ -119,11 +120,35 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
         SQLServerTemporalTableMetadata("dbo", "testnontemporal", None, None, None, None, "testnontemporalid1;testnontemporalid2")
       )
 
-      sqlServerExtractor.getTableMetadata("dbo", "testnontemporal") should be(
+      sqlServerExtractor.getTableMetadata("dbo", "testnontemporal", None, None, None) should be(
         Success(AuditTableInfo("testnontemporal", Seq("testnontemporalid1", "testnontemporalid2"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testnontemporal"
-          , "primaryKeys" -> "testnontemporalid1;testnontemporalid2")))
+          , "primaryKeys" -> "testnontemporalid1;testnontemporalid2")
+          , false))
+      )
+    }
+    it("should apply the forceRetainStorageHistory flag to the retrieved metadata") {
+      val sqlServerExtractor = new SQLServerTemporalExtractor(sparkSession, sqlServerConnectionDetails)
+
+      sqlServerExtractor.getTableMetadata("dbo", "testnontemporal", None, None, Some(true)) should be(
+        Success(AuditTableInfo("testnontemporal", Seq("testnontemporalid1", "testnontemporalid2"), Map(
+          "schemaName" -> "dbo"
+          , "tableName" -> "testnontemporal"
+          , "primaryKeys" -> "testnontemporalid1;testnontemporalid2")
+          , true))
+      )
+
+      sqlServerExtractor.getTableMetadata("dbo", "testtemporal", None, None, Some(false)) should be(
+        Success(AuditTableInfo("testtemporal", Seq("testtemporalid"), Map(
+          "schemaName" -> "dbo"
+          , "tableName" -> "testtemporal"
+          , "primaryKeys" -> "testtemporalid"
+          , "historyTableSchema" -> "dbo"
+          , "historyTableName" -> "testtemporalhistory"
+          , "startColName" -> "sysstarttime"
+          , "endColName" -> "sysendtime")
+          , false))
       )
     }
   }

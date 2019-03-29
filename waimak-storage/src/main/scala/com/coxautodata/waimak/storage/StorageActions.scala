@@ -62,6 +62,12 @@ object StorageActions extends Logging {
   val RECOMPACT_ALL = s"$storageParamPrefix.recompactAll"
   val RECOMPACT_ALL_DEFAULT = false
 
+  /**
+    * Whether to update the metadata (call the metadata retrieval function and persist the result) for existing tables
+    */
+  val UPDATE_TABLE_METADATA = s"$storageParamPrefix.updateMetadata"
+  val UPDATE_TABLE_METADATA_DEFAULT = false
+
 
   def handleTableErrors(tableResults: Map[String, Try[Any]], errorMessageBase: String): Unit = {
     val tableErrors = tableResults.filter(_._2.isFailure).mapValues(_.failed.get)
@@ -122,20 +128,23 @@ object StorageActions extends Logging {
       * Fails if the table does not exist in the storage layer and the optional `metadataRetrieval`
       * function is not given.
       *
-      * @param storageBasePath   the base path of the storage layer
-      * @param metadataRetrieval an optional function that generates table metadata from a table name.
-      *                          This function is used during table creation if a table does not exist in the storage
-      *                          layer
-      * @param labelPrefix       optionally prefix the output label for the AuditTable.
-      *                          If set, the label of the AuditTable will be `s"${labelPrefix}_$table"`
-      * @param includeHot        whether or not to include hot partitions in the read
-      * @param tableNames        the tables we want to open in the storage layer
+      * @param storageBasePath     the base path of the storage layer
+      * @param metadataRetrieval   an optional function that generates table metadata from a table name.
+      *                            This function is used during table creation if a table does not exist in the storage
+      *                            layer or to update the metadata if updateTableMetadata is set to true
+      * @param labelPrefix         optionally prefix the output label for the AuditTable.
+      *                            If set, the label of the AuditTable will be `s"${labelPrefix}_$table"`
+      * @param includeHot          whether or not to include hot partitions in the read
+      * @param updateTableMetadata whether or not to update the table metadata. Uses spark.waimak.storage.updateMetadata
+      *                            by default (which defaults to false)
+      * @param tableNames          the tables we want to open in the storage layer
       * @return a new SparkDataFlow with the get action added
       */
     def getOrCreateAuditTable(storageBasePath: String,
                               metadataRetrieval: Option[String => AuditTableInfo] = None,
                               labelPrefix: Option[String] = Some("audittable"),
-                              includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
+                              includeHot: Boolean = true,
+                              updateTableMetadata: => Boolean = sparkDataFlow.flowContext.getBoolean(UPDATE_TABLE_METADATA, UPDATE_TABLE_METADATA_DEFAULT))(tableNames: String*): SparkDataFlow = {
 
       val run: DataFlowEntities => ActionResult = _ => {
 
@@ -147,6 +156,15 @@ object StorageActions extends Logging {
           throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined: ${missingTables.mkString(",")}")
         }
 
+        if (updateTableMetadata && metadataRetrieval.isEmpty) {
+          throw StorageException(s"$UPDATE_TABLE_METADATA is set to true but no metadata function was defined")
+        }
+
+        val existingTablesWithUpdatedMetadata = if (updateTableMetadata) {
+          existingTables.mapValues(
+            _.flatMap(table => table.updateTableInfo(metadataRetrieval.get.apply(table.tableName))))
+        } else existingTables
+
         val createdTables = missingTables.map { tableName =>
           val tableInfo = metadataRetrieval.get.apply(tableName)
           logInfo(s"Creating table ${tableInfo.table_name} with metadata $tableInfo")
@@ -157,7 +175,9 @@ object StorageActions extends Logging {
 
         handleTableErrors(existingTables, "Unable to perform read")
 
-        val allTables = (existingTables.values.map(_.get) ++ createdTables.values.map(_.get)).map(t => t.tableName -> t).toMap
+        handleTableErrors(existingTablesWithUpdatedMetadata, "Unable to update metadata")
+
+        val allTables = (existingTablesWithUpdatedMetadata.values.map(_.get) ++ createdTables.values.map(_.get)).map(t => t.tableName -> t).toMap
 
         tableNames.map(allTables).map(Some(_))
 
@@ -182,8 +202,7 @@ object StorageActions extends Logging {
       * @return a new SparkDataFlow with the get action added
       */
     def getAuditTable(storageBasePath: String, labelPrefix: Option[String] = Some("audittable"), includeHot: Boolean = true)(tableNames: String*): SparkDataFlow = {
-
-      sparkDataFlow.getOrCreateAuditTable(storageBasePath, None, labelPrefix, includeHot)(tableNames: _*)
+      sparkDataFlow.getOrCreateAuditTable(storageBasePath, None, labelPrefix, includeHot, updateTableMetadata = false)(tableNames: _*)
 
     }
 

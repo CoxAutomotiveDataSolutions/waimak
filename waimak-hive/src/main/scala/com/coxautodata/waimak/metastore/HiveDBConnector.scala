@@ -4,31 +4,23 @@ import java.sql.ResultSet
 
 import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.spark.sql.SparkSession
+import org.apache.hadoop.fs.Path
 
 /**
   * Hive trait that implements the Hive-specific HadoopDBConnector functions
   */
 trait HiveDBConnector extends HadoopDBConnector {
 
-  def sparkSession: SparkSession
-
-  def fileSystem: FileSystem
-
   private[metastore] override def createTableFromParquetDDL(tableName: String, pathWithoutUri: String, external: Boolean, partitionColumns: Seq[String], ifNotExists: Boolean = true): Seq[String] = {
 
     // Qualify the path for this filesystem
-    val path = new Path(pathWithoutUri).makeQualified(fileSystem.getUri, fileSystem.getWorkingDirectory)
+    val path = new Path(pathWithoutUri).makeQualified(context.fileSystem.getUri, context.fileSystem.getWorkingDirectory)
 
     //Find glob paths catering for partitions
-    val globPath = {
-      if (partitionColumns.isEmpty) new Path(s"$path/part-*.parquet")
-      else new Path(path + partitionColumns.mkString("/", "=*/", "=*/part-*.parquet"))
-    }
+    val globPath = ("part-*.parquet" +: partitionColumns.map(_ + "=*")).foldRight(path)((c, p) => new Path(p, c))
 
     logInfo("Get paths for ddls " + globPath.toString)
-    val parquetFile = fileSystem.globStatus(globPath).sortBy(_.getPath.toUri.getPath).headOption.map(_.getPath).getOrElse(throw new DataFlowException(s"Could not find parquet file at " +
+    val parquetFile = context.fileSystem.globStatus(globPath).sortBy(_.getPath.toUri.getPath).headOption.map(_.getPath).getOrElse(throw new DataFlowException(s"Could not find parquet file at " +
       s"'$path' to infer schema for table '$tableName'"))
 
     //Create ddl
@@ -47,12 +39,13 @@ trait HiveDBConnector extends HadoopDBConnector {
   }
 
   override private[metastore] def updateTableLocationDDL(tableName: String, pathWithoutUri: String): String = {
-    val path = new Path(pathWithoutUri).makeQualified(fileSystem.getUri, fileSystem.getWorkingDirectory)
+    val path = new Path(pathWithoutUri).makeQualified(context.fileSystem.getUri, context.fileSystem.getWorkingDirectory)
     s"alter table $tableName set location '$path'"
   }
 
   private[metastore] def getSchema(parquetFile: Path): String = {
-    sparkSession
+    context
+      .spark
       .read
       .parquet(parquetFile.toString)
       .schema
@@ -68,17 +61,13 @@ trait HiveDBConnector extends HadoopDBConnector {
   * the DDLs and run them manually.
   *
   */
-case class HiveDummyConnector(sparkFlowContext: SparkFlowContext, forceRecreateTables: Boolean = false) extends HiveDBConnector {
+case class HiveDummyConnector(context: SparkFlowContext) extends HiveDBConnector {
   var ranDDLs: List[List[String]] = List.empty
 
   override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {
     ranDDLs = ranDDLs :+ ddls.toList
     Seq(None)
   }
-
-  override def sparkSession: SparkSession = sparkFlowContext.spark
-
-  override def fileSystem: FileSystem = sparkFlowContext.fileSystem
 }
 
 /**
@@ -87,20 +76,18 @@ case class HiveDummyConnector(sparkFlowContext: SparkFlowContext, forceRecreateT
   * The connector uses the filesystem configured in the SparkFlowContext to discover
   * partitions therefore table paths must exist on that filesystem.
   *
-  * @param sparkFlowContext          The flow context object containing the SparkSession and FileSystem
+  * @param context                   The flow context object containing the SparkSession and FileSystem
   * @param database                  Database to create tables in
   * @param createDatabaseIfNotExists Whether to create the database if it does not exist (default false)
-  * @param forceRecreateTables       Whether tables should be dropped and recreated (in case of schema changes)
   */
-case class HiveSparkSQLConnector(sparkFlowContext: SparkFlowContext,
+case class HiveSparkSQLConnector(context: SparkFlowContext,
                                  database: String,
-                                 createDatabaseIfNotExists: Boolean = false,
-                                 forceRecreateTables: Boolean = false) extends HiveDBConnector {
+                                 createDatabaseIfNotExists: Boolean = false) extends HiveDBConnector {
 
   override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
     val ddlWithUse = s"use $database" +: ddls
     val allDdls = if (createDatabaseIfNotExists) s"create database if not exists $database" +: ddlWithUse else ddlWithUse
-    allDdls.foreach(sparkSession.sql)
+    allDdls.foreach(context.spark.sql)
     Unit
   }
 
@@ -108,7 +95,4 @@ case class HiveSparkSQLConnector(sparkFlowContext: SparkFlowContext,
     throw new UnsupportedOperationException(s"${this.getClass.getSimpleName} does not support running queries that return data. You must use SparkSession.sql directly.")
   }
 
-  override def sparkSession: SparkSession = sparkFlowContext.spark
-
-  override def fileSystem: FileSystem = sparkFlowContext.fileSystem
 }

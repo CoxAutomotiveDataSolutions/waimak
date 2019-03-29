@@ -37,7 +37,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val writeFlow = Waimak.sparkFlow(spark)
         .addInput("t_record", Some(records.toDS()))
-        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty)))("t_record")
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
         .writeToStorage("t_record", "lastUpdated", zdt1)
 
       executor.execute(writeFlow)
@@ -82,7 +82,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val writeFlow = Waimak.sparkFlow(spark)
         .addInput("t_record", Some(records.toDS()))
-        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty)))("t_record")
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
         .writeToStorage("t_record", "lastUpdated", laZts, runSingleCompactionDuringWindow(10, 11))
 
       executor.execute(writeFlow)
@@ -117,7 +117,7 @@ class TestStorageActions extends SparkAndTmpDirSpec {
 
       val writeFlow = Waimak.sparkFlow(spark)
         .addInput("t_record", Some(records.toDS()))
-        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty)))("t_record")
+        .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
         .writeToStorage("t_record", "lastUpdated", laZts)
 
       executor.execute(writeFlow)
@@ -136,17 +136,108 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       regions.map(_.created_on) should be(Seq(Timestamp.valueOf("2018-05-08 17:55:12")))
     }
 
-    it("should fail if a table was not found in the storage layer") {
-      val spark = sparkSession
+    describe("getOrCreateAuditTable") {
+      it("should fail if a table was not found in the storage layer") {
+        val spark = sparkSession
 
-      val executor = Waimak.sparkExecutor()
+        val executor = Waimak.sparkExecutor()
 
-      val writeFlow = Waimak.sparkFlow(spark)
-        .getOrCreateAuditTable(testingBaseDirName, None)("t_record")
+        val writeFlow = Waimak.sparkFlow(spark)
+          .getOrCreateAuditTable(testingBaseDirName, None)("t_record")
 
-      intercept[DataFlowException](
+        intercept[DataFlowException](
+          executor.execute(writeFlow)
+        ).cause.getMessage should be("The following tables were not found in the storage layer and could not be created as no metadata function was defined: t_record")
+      }
+
+      it("should update table metadata if requested") {
+        val spark = sparkSession
+
+        val executor = Waimak.sparkExecutor()
+
+        val flow1 = Waimak.sparkFlow(spark)
+          .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
+
+        val res1 = executor.execute(flow1)
+        res1._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id"), Map.empty, true))
+
+        val flow2 = Waimak.sparkFlow(spark)
+          .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id1", "id2"), Map.empty, false)))("t_record")
+
+        //ignore new metadata because flag is not set
+        val res2 = executor.execute(flow2)
+        res2._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id"), Map.empty, true))
+
+        //update metadata
+        spark.conf.set(UPDATE_TABLE_METADATA, true)
+        val res3 = executor.execute(flow2)
+        res3._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id1", "id2"), Map.empty, false))
+
+        //Check new metadata has been persisted
+        spark.conf.set(UPDATE_TABLE_METADATA, false)
+        val res4 = executor.execute(flow1)
+        res4._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id1", "id2"), Map.empty, false))
+      }
+
+      it("should use updated metadata for snapshots") {
+        val spark = sparkSession
+        import spark.implicits._
+
+        val executor = Waimak.sparkExecutor()
+
+        val records = Seq(
+          TRecord(1, "a", ts1)
+          , TRecord(2, "b", ts2)
+          , TRecord(1, "c", ts3)
+        )
+
+        val writeFlow = Waimak.sparkFlow(spark)
+          .addInput("t_record", Some(records.toDS()))
+          .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
+          .writeToStorage("t_record", "lastUpdated", zdt1)
+
         executor.execute(writeFlow)
-      ).cause.getMessage should be("The following tables were not found in the storage layer and could not be created as no metadata function was defined: t_record")
+
+        val firstSnapshotFlow = Waimak.sparkFlow(spark)
+          .snapshotFromStorage(testingBaseDirName, ts3)("t_record")
+
+        executor.execute(firstSnapshotFlow)._2.inputs.get[Dataset[_]]("t_record").as[TRecord].collect() should contain theSameElementsAs Seq(
+          TRecord(2, "b", ts2)
+          , TRecord(1, "c", ts3)
+        )
+
+        spark.conf.set(UPDATE_TABLE_METADATA, true)
+
+        val updateMetadataFlow = Waimak.sparkFlow(spark)
+          .tagDependency("metadata") {
+            _.snapshotFromStorage(testingBaseDirName, ts3)("t_record")
+          }
+          .tag("metadata") {
+            _.getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id", "value"), Map.empty, true)))("t_record")
+
+          }
+
+        executor.execute(updateMetadataFlow)._2.inputs.get[Dataset[_]]("t_record").as[TRecord].collect() should contain theSameElementsAs records
+      }
+
+
+      it("should fail if metadata update is requested but not metadata retrieval function is provided") {
+        val spark = sparkSession
+
+        val executor = Waimak.sparkExecutor()
+
+        val flow1 = Waimak.sparkFlow(spark)
+          .getOrCreateAuditTable(testingBaseDirName, Some(_ => AuditTableInfo("t_record", Seq("id"), Map.empty, true)))("t_record")
+
+        val res1 = executor.execute(flow1)
+        res1._2.inputs.get[AuditTableFile]("audittable_t_record").tableInfo should be(AuditTableInfo("t_record", Seq("id"), Map.empty, true))
+
+        spark.conf.set(UPDATE_TABLE_METADATA, true)
+        val flow2 = Waimak.sparkFlow(spark)
+          .getOrCreateAuditTable(testingBaseDirName, None)("t_record")
+
+        intercept[DataFlowException](executor.execute(flow2)).cause.getMessage should be("spark.waimak.storage.updateMetadata is set to true but no metadata function was defined")
+      }
 
     }
 
@@ -237,13 +328,13 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       val df = Seq.fill(10)(1).toDF()
       val rowSize = org.apache.spark.util.SizeEstimator.estimate(df.head().asInstanceOf[AnyRef])
 
-      context.conf.setProperty(BYTES_PER_PARTITION, (5*rowSize).toString)
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (2)
+      context.conf.setProperty(BYTES_PER_PARTITION, (5 * rowSize).toString)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(2)
 
-      context.conf.setProperty(BYTES_PER_PARTITION, (4*rowSize).toString)
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (3)
+      context.conf.setProperty(BYTES_PER_PARTITION, (4 * rowSize).toString)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(3)
 
-      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be (1)
+      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be(1)
 
     }
 
@@ -256,12 +347,12 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       val df = Seq.fill(10)(1).toDF()
 
       context.conf.setProperty(CELLS_PER_PARTITION, "5")
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (2)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(2)
 
       context.conf.setProperty(CELLS_PER_PARTITION, "4")
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be (3)
+      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(3)
 
-      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be (1)
+      CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be(1)
 
     }
 

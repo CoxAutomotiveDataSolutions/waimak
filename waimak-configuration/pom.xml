@@ -20,7 +20,7 @@
     <parent>
         <artifactId>waimak-parent_2.11</artifactId>
         <groupId>com.coxautodata</groupId>
-        <version>2.1.1</version>
+        <version>2.2</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -32,6 +32,11 @@
             <artifactId>scala-reflect</artifactId>
             <version>${scala.lang.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.coxautodata</groupId>
+            <artifactId>waimak-core_2.11</artifactId>
+            <version>${project.parent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.coxautodata</groupId>
