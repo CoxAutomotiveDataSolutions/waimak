@@ -90,6 +90,20 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       infoData should be(Success(AuditTableInfo(tableName, Seq("id"), Map.empty, true)))
     }
 
+    it("init table then update table info") {
+      val zeroState = createADTable(tableName, createFops())
+
+      val nextState = zeroState.initNewTable().get
+
+      val infoData = zeroState.storageOps.readAuditTableInfo(basePath, tableName)
+      infoData should be(Success(AuditTableInfo(tableName, Seq("id"), Map.empty, true)))
+
+      val updatedTableInfoState = nextState.updateTableInfo(AuditTableInfo(tableName, Seq("id1", "id2"), Map.empty, false))
+
+      val updatedInfoData = zeroState.storageOps.readAuditTableInfo(basePath, tableName)
+      updatedInfoData should be(Success(AuditTableInfo(tableName, Seq("id1", "id2"), Map.empty, false)))
+    }
+
     it("init table fail") {
       val zeroState = createADTable(tableName, createFops())
 
@@ -740,15 +754,15 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       import spark.implicits._
       val personTable = createADTable("person", createFops(), retainHistory = false).initNewTable().get
       val personData = persons.toDS().withColumn("lastTS", lit("2018-01-01"))
-      personTable
+      val res = personTable
         .append(personData, lastUpdated(personData), lastTS_1)
         .flatMap(_._1.append(personData, lastUpdated(personData), lastTS_1))
         .flatMap(_._1.compact(lastTS_2, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
 
+      res shouldBe a[Success[_]]
       val compactedData = spark.read.parquet(personTable.tablePath.toString)
       compactedData.as[TPerson].collect() should contain theSameElementsAs (persons)
     }
-
   }
 
   describe("clearTableRegionCache") {

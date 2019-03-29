@@ -72,13 +72,13 @@ class AuditTableFile(val tableInfo: AuditTableInfo
   override def snapshot(ts: Timestamp): Option[Dataset[_]] = {
     //TODO: optimise and explore other solutions with the use of counts, as smaller counts should avoid shuffle, hot applied to cold
     allBetween(None, Some(ts)).map(deduplicate)
+      .map(_.drop(DE_LAST_UPDATED_COLUMN))
   }
 
   def deduplicate(ds: Dataset[_]): Dataset[_] = {
     val primaryKeyColumns = tableInfo.primary_keys.map(ds(_))
     val windowLatest = Window.partitionBy(primaryKeyColumns: _*).orderBy(ds(DE_LAST_UPDATED_COLUMN).desc)
     ds.withColumn("_rowNum", row_number().over(windowLatest)).filter("_rowNum = 1").drop("_rowNum")
-      .drop(DE_LAST_UPDATED_COLUMN)
   }
 
   /**
@@ -101,9 +101,12 @@ class AuditTableFile(val tableInfo: AuditTableInfo
                        , smallRegionRowThreshold: Long
                        , compactionPartitioner: CompactionPartitioner
                        , recompactAll: Boolean): Try[AuditTable] = {
-    val res: Try[AuditTableFile] = Try(markToUpdate())
-      .flatMap(_ => commitHotToCold(compactTS, compactionPartitioner))
-      .flatMap(_.compactCold(compactTS, smallRegionRowThreshold, compactionPartitioner, recompactAll))
+    val res: Try[AuditTableFile] = Try(
+      markToUpdate())
+      .flatMap(_ =>
+        commitHotToCold(compactTS, compactionPartitioner))
+      .flatMap(
+        _.compactCold(compactTS, smallRegionRowThreshold, compactionPartitioner, recompactAll))
       .map { f =>
         f.storageOps.purgeTrash(f.tableName, compactTS, trashMaxAge)
         f
@@ -122,6 +125,10 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       .map(_ => setRegions(this, Seq.empty, appendedRegions = None).asInstanceOf[this.type])
     res
   }
+
+  override def updateTableInfo(tableInfo: AuditTableInfo): Try[AuditTable] =
+    storageOps.writeAuditTableInfo(baseFolder, tableInfo)
+      .map(info => new AuditTableFile(info, regions, storageOps, baseFolder, newRegionID))
 
   override def allBetween(from: Option[Timestamp], to: Option[Timestamp]): Option[Dataset[_]] = {
     val regionIDs = activeRegionIDs()

@@ -27,7 +27,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
 
     it("should generate a correct update table path schema") {
       val impalaConnection: HadoopDBConnector = ImpalaDummyConnector(flowContext)
-      impalaConnection.updateTableLocationDDL("testTable", "path") should be("alter table testTable set location 'path'")
+      impalaConnection.updateTableLocationDDL("testTable", "/path") should be("alter table testTable set location 'file:/path'")
     }
 
     it("should generate correct create table statements for non partitioned tables") {
@@ -43,7 +43,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
       impalaConnection.createTableFromParquetDDL(tableName, tablePath.toURI.getPath) should be(
         List(s"create external table if not exists $tableName like parquet " +
           s"'file:$testingBaseDirName/testTable/part-0.parquet' stored as " +
-          s"parquet location '$testingBaseDirName/testTable/'")
+          s"parquet location 'file:$testingBaseDirName/testTable'")
       )
     }
 
@@ -65,7 +65,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
           s"'file:$testingBaseDirName/testTable/$partitionFolder/part-0.parquet' " +
           s"partitioned by ($partitionName string) " +
           s"stored as " +
-          s"parquet location '$testingBaseDirName/testTable/'",
+          s"parquet location 'file:$testingBaseDirName/testTable'",
           s"alter table $tableName recover partitions")
       )
     }
@@ -100,15 +100,15 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
       connector1.ranDDLs should be {
         List(List(
           "drop table if exists items",
-          s"create external table if not exists items like parquet 'file:$testingBaseDirName/dest/items/amount=1/$itemsParquet' partitioned by (amount string) stored as parquet location '$testingBaseDirName/dest/items'",
+          s"create external table if not exists items like parquet 'file:$testingBaseDirName/dest/items/amount=1/$itemsParquet' partitioned by (amount string) stored as parquet location 'file:$testingBaseDirName/dest/items'",
           "alter table items recover partitions"
         ))
       }
 
       connector2.ranDDLs should be {
         List(List(
-          s"create external table if not exists person like parquet 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00/$personParquet' stored as parquet location '$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
-          s"alter table person set location '$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
+          s"create external table if not exists person like parquet 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00/$personParquet' stored as parquet location 'file:$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
+          s"alter table person set location 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
 
@@ -130,7 +130,7 @@ class TestImpalaDBConnector extends SparkAndTmpDirSpec {
       connectorRecreate.ranDDLs should be {
         List(List(
           "drop table if exists person_recreate",
-          s"create external table if not exists person_recreate like parquet 'file:$testingBaseDirName/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00/$person_recreateParquet' stored as parquet location '$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
+          s"create external table if not exists person_recreate like parquet 'file:$testingBaseDirName/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00/$person_recreateParquet' stored as parquet location 'file:$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
 
