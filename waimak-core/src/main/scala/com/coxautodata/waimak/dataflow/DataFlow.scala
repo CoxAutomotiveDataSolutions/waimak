@@ -411,6 +411,15 @@ trait DataFlow extends Logging {
   }
 
   /**
+    * A function called just after the flow is executed.
+    * By default, the implementation on [[DataFlow]] is no-op,
+    * however it is used in [[spark.SparkDataFlow]] to clean up
+    * the temporary directory
+    *
+    */
+  def finaliseExecution(): Try[this.type] = Success(this)
+
+  /**
     * Flow DAG is valid iff:
     * 1. All output labels and existing input labels unique
     * 2. Each action depends on labels that are produced by actions or already present in inputs
