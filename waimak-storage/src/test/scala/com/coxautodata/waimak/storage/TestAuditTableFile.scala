@@ -256,7 +256,7 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
 
       val secondCompact = table_s3.compact(lastTS_4, d12h, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner).get
       secondCompact.regions.size should be(1)
-      secondCompact.regions(0).store_region should be("6")
+      secondCompact.regions(0).store_region should be("5")
 
       // Should be a different trashed compaction, original one would be deleted
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_4.getTime.toString)
@@ -264,19 +264,19 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       // Empty compaction with previous in range should not delete trash
       val thirdCompact = secondCompact.compact(lastTS_5, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner).get
       thirdCompact.regions.size should be(1)
-      thirdCompact.regions(0).store_region should be("6")
+      thirdCompact.regions(0).store_region should be("5")
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq(lastTS_4.getTime.toString)
 
       // Empty compaction with previous not in range should delete trash
       val fourthCompact = thirdCompact.compact(lastTS_6, d12h, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner).get
       fourthCompact.regions.size should be(1)
-      fourthCompact.regions(0).store_region should be("6")
+      fourthCompact.regions(0).store_region should be("5")
       new File(trashBinPath.toString, tableName).list() should contain theSameElementsAs Seq()
 
       //Request to recompact all should force single cold region to be recompacted
       val fifthCompact = fourthCompact.compact(lastTS_7, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner, recompactAll = true).get
       fifthCompact.regions.size should be(1)
-      fifthCompact.regions(0).store_region should be("7")
+      fifthCompact.regions(0).store_region should be("6")
     }
 
     it("single compact into new with schema evolution on hot") {
@@ -380,10 +380,10 @@ class TestAuditTableFile extends SparkAndTmpDirSpec {
       reopenedTable.map(_.compact(lastTS_3, d3d, SMALL_REGION_ROW_THRESHOLD_DEFAULT, defaultCompactionPartitioner))
 
       val inferredCachedRegionsAfterCompaction = AuditTableFile.inferRegionsFromCache(person.storageOps, basePath, Seq("prsn"), true)
-      inferredCachedRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "5", lastTS_3, false, 11, lastTS_3)))
+      inferredCachedRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "4", lastTS_3, false, 11, lastTS_3)))
 
       val inferredAllRegionsAfterCompaction = AuditTableFile.inferRegionsWithStats(sparkSession, person.storageOps, basePath, Seq("prsn"), true)
-      inferredAllRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "5", lastTS_3, false, 11, lastTS_3)))
+      inferredAllRegionsAfterCompaction should be(Seq(AuditTableRegionInfo("prsn", "cold", "4", lastTS_3, false, 11, lastTS_3)))
 
     }
 

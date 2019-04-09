@@ -105,7 +105,7 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       markToUpdate())
       .flatMap {
         _ =>
-          compactRegions(???, regionsToCompact(smallRegionRowThreshold, recompactAll), compactTS, compactionPartitioner)
+          compactRegions(regionsToCompact(smallRegionRowThreshold, recompactAll), compactTS, compactionPartitioner)
       }
       .map { f =>
         f.storageOps.purgeTrash(f.tableName, compactTS, trashMaxAge)
@@ -157,7 +157,8 @@ class AuditTableFile(val tableInfo: AuditTableInfo
     if (recompactAll || !tableInfo.retain_history) regions
     else {
       val r = regions.filter(r => coldNeedsCompacting(r) || hotNeedsCompacting(r))
-      if (r.length < 2) Seq.empty
+      //Don't recompact if we have a single cold region
+      if (r.length < 2 && !r.exists(_.store_type == HOT_PARTITION)) Seq.empty
       else r
     }
 
@@ -171,20 +172,20 @@ class AuditTableFile(val tableInfo: AuditTableInfo
       else {
         val ids = toCompact.map(_.store_region)
         val regionID = newRegionID(this)
-        val regionPath = new Path(coldPath, s"$STORE_REGION_COLUMN=" + regionID)
-        logInfo(s"Compacting regions ${ids.mkString("[", ", ", "]")} in path [${regionPath.toString}]")
-        if (storageOps.pathExists(regionPath)) throw StorageException(s"Can not compact table [$tableName], as path [${regionPath.toString}] already exists")
+        val newRegionPath = new Path(coldPath, s"$STORE_REGION_COLUMN=" + regionID)
+        logInfo(s"Compacting regions ${ids.mkString("[", ", ", "]")} in path [${newRegionPath.toString}]")
+        if (storageOps.pathExists(newRegionPath)) throw StorageException(s"Can not compact table [$tableName], as path [${newRegionPath.toString}] already exists")
 
-        val regionPaths = toCompact.map{
+        val regionPaths = toCompact.map {
           case h if h.store_type == HOT_PARTITION => new Path(hotPath, s"$STORE_REGION_COLUMN=${h.store_region}")
           case c if c.store_type == COLD_PARTITION => new Path(coldPath, s"$STORE_REGION_COLUMN=${c.store_region}")
           case u => throw StorageException(s"Unknown store type ${u.store_type} for region ${u.store_type}")
         }
 
-        val data = storageOps.openParquet(regionPaths.head, regionPaths.tail:_*).map {
-            case ds if !tableInfo.retain_history => deduplicate(ds)
-            case ds => ds
-          }
+        val data = storageOps.openParquet(regionPaths.head, regionPaths.tail: _*).map {
+          case ds if !tableInfo.retain_history => deduplicate(ds)
+          case ds => ds
+        }
 
         val newRegionSet = data.map { rows =>
           //Clear current region info to prevent corruption on failure
@@ -194,8 +195,8 @@ class AuditTableFile(val tableInfo: AuditTableInfo
           val rowsToCompactRepartitioned = if (newNumPartitions > currentNumPartitions) {
             rows.repartition(newNumPartitions)
           } else rows.coalesce(newNumPartitions)
-          storageOps.atomicWriteAndCleanup(tableInfo.table_name, rowsToCompactRepartitioned, regionPath, typePath, ids.map(r => s"$STORE_REGION_COLUMN=$r"), compactTS)
-          val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(regionPath).get)
+          storageOps.atomicWriteAndCleanup(tableInfo.table_name, rowsToCompactRepartitioned, newRegionPath, regionPaths, compactTS)
+          val (count, max_latest_ts) = calcRegionStats(storageOps.openParquet(newRegionPath).get)
           val idSet = ids.toSet
           val remainingRegions = regions.filter(r => !idSet.contains(r.store_region))
           val region = AuditTableRegionInfo(tableInfo.table_name, COLD_PARTITION, regionID, compactTS, false, count, max_latest_ts)
