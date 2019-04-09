@@ -206,6 +206,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       it("commit a repartitioned parquet and make sure one label is cached if it is used as input elsewhere") {
         val spark = sparkSession
         import spark.implicits._
+        spark.conf.set(SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION, false)
 
         val baseDest = testingBaseDir + "/dest"
 
@@ -230,6 +231,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       it("commit a repartitioned parquet and make sure one label is not cached if it is not used as input elsewhere") {
         val spark = sparkSession
         import spark.implicits._
+        spark.conf.set(SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION, false)
 
         val baseDest = testingBaseDir + "/dest"
 

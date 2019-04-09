@@ -97,6 +97,26 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow with Logging {
       }
   }
 
+  override def finaliseExecution(): Try[SparkDataFlow.this.type] = {
+    import SparkDataFlow._
+    super.finaliseExecution()
+      .map {
+        flow =>
+          (flow.tempFolder, flow.flowContext.getBoolean(REMOVE_TEMP_AFTER_EXECUTION, REMOVE_TEMP_AFTER_EXECUTION_DEFAULT)) match {
+            case (None, _) =>
+              logInfo(s"Not cleaning up temporary folder after flow execution as it is not defined")
+              flow
+            case (Some(tmp), false) =>
+              logInfo(s"Not cleaning up temporary folder [$tmp] after flow execution as [$REMOVE_TEMP_AFTER_EXECUTION] was false")
+              flow
+            case (Some(tmp), true) =>
+              logInfo(s"Cleaning up temporary folder [$tmp] as [$REMOVE_TEMP_AFTER_EXECUTION] was true")
+              flow.flowContext.fileSystem.delete(tmp, true)
+              flow
+          }
+      }
+  }
+
 }
 
 case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
@@ -164,6 +184,15 @@ case class SparkDataFlowInfo(spark: SparkSession,
                              commitMeta: CommitMeta = CommitMeta.empty)
 
 object SparkDataFlow {
+
+  import DataFlow.dataFlowParamPrefix
+
+  /**
+    * Whether to clean up the temporary folder after a flow finishes execution.
+    * Only cleans up if execution was successful.
+    */
+  val REMOVE_TEMP_AFTER_EXECUTION: String = s"$dataFlowParamPrefix.removeTempAfterExecution"
+  val REMOVE_TEMP_AFTER_EXECUTION_DEFAULT: Boolean = true
 
   def empty(spark: SparkSession): SparkDataFlow = new SparkDataFlow(SparkDataFlowInfo(spark, DataFlowEntities.empty, Seq.empty, Set.empty, None, new SchedulingMeta()))
 

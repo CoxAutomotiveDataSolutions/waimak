@@ -1,5 +1,11 @@
 # Changelog
 
+##2.3 - 2019-04-09
+
+### Changed
+- The temporary folder (if given) now gets cleaned up after a flow has been successfully executed. This behaviour can be disabled by setting the configuration property `spark.waimak.dataflow.removeTempAfterExecution` to `false`. In all cases, the directory will not be deleted if flow execution fails.
+- Storage compaction no longer performs `hot -> cold` followed by `cold -> cold` compactions, instead compacting all of the hot regions plus the cold regions under the configured row threshold in a single go. This reduces complexity, and removes the additional round of IOPs and Spark stage.
+
 ## 2.2 - 2019-03-29
 
 ### Added
