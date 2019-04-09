@@ -21,7 +21,7 @@ trait DataFlowExecutor extends Logging {
     */
   def execute(dataFlow: DataFlow, errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], DataFlow) = {
 
-    val (executedActions, finalFlow) = dataFlow
+    val (executedActions, ranFlow) = dataFlow
       .prepareForExecution()
       .map(loopExecution(_, initActionScheduler(), Seq.empty))
       .flatMap { executionResults: (ActionScheduler, Try[(Seq[DataFlowAction], DataFlow)]) =>
@@ -32,7 +32,7 @@ trait DataFlowExecutor extends Logging {
         executionResults._2
       }.get
 
-    finalFlow
+    ranFlow
       .actions
       .map(_.logLabel)
       .reduceLeftOption((z, a) => s"$z\n$a")
@@ -46,7 +46,9 @@ trait DataFlowExecutor extends Logging {
         case a => logWarning(s"The following actions did not run:\n$a")
       }
 
-    (executedActions, finalFlow)
+    val finalizedFlow = ranFlow.finaliseExecution().get
+
+    (executedActions, finalizedFlow)
 
   }
 
