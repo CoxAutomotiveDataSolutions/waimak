@@ -163,8 +163,13 @@ trait HiveEnv extends BaseEnv {
 
   override def create(sparkSession: SparkSession): Unit = {
     super.create(sparkSession)
+    val fs = FileSystem.get(new URI(uri), sparkSession.sparkContext.hadoopConfiguration)
     logInfo("Creating dbs")
-    allDBs.foreach(dbName => sparkSession.sql(s"create database if not exists $dbName location $baseDatabaseLocation/$dbName"))
+    allDBs.foreach(dbName => {
+      val dbLocation = s"$baseDatabaseLocation/$dbName"
+      fs.mkdirs(new Path(dbLocation))
+      sparkSession.sql(s"create database if not exists $dbName location '$dbLocation'")
+    })
   }
 
   override def cleanup(sparkSession: SparkSession): Unit = {
