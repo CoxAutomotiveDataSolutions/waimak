@@ -139,6 +139,11 @@ trait HiveEnv extends BaseEnv {
   }
 
   /**
+    * Base database location (individual databases locations will be baseDatabaseLocation/database_name)
+    */
+  def baseDatabaseLocation: String
+
+  /**
     * Any extra databases to be created in addition to or instead of the base database
     */
   def extraDBs: Seq[String] = Seq.empty
@@ -159,7 +164,7 @@ trait HiveEnv extends BaseEnv {
   override def create(sparkSession: SparkSession): Unit = {
     super.create(sparkSession)
     logInfo("Creating dbs")
-    allDBs.foreach(dbName => sparkSession.sql(s"create database $dbName"))
+    allDBs.foreach(dbName => sparkSession.sql(s"create database if not exists $dbName location $baseDatabaseLocation/$dbName"))
   }
 
   override def cleanup(sparkSession: SparkSession): Unit = {
