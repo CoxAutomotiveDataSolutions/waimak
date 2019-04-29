@@ -47,9 +47,9 @@ object MultiAppRunner {
   }
 
   def runAll(sparkSession: SparkSession): Unit = {
-    val allApps = CaseClassConfigParser[AllApps](SparkFlowContext(sparkSession), "spark.waimak.apprunner.")
+    val allApps = CaseClassConfigParser[AllApps](SparkFlowContext(sparkSession), "waimak.apprunner.")
     val allAppsConfig = allApps.apps.map(appName => appName ->
-      CaseClassConfigParser[SingleAppConfig](SparkFlowContext(sparkSession), s"spark.waimak.apprunner.$appName."))
+      CaseClassConfigParser[SingleAppConfig](SparkFlowContext(sparkSession), s"waimak.apprunner.$appName."))
     val executor = Waimak.sparkExecutor()
     val finalFlow = allAppsConfig.foldLeft(Waimak.sparkFlow(sparkSession))((flow, appConfig) => addAppToFlow(flow, appConfig._1, appConfig._2))
     executor.execute(finalFlow)
@@ -64,7 +64,7 @@ object MultiAppRunner {
   def addAppToFlow(flow: SparkDataFlow, appName: String, appConfig: SingleAppConfig): SparkDataFlow = {
     val instantiatedApp = instantiateApp(appConfig.appClassName)
     flow.executeApp(appConfig.dependencies: _*)(
-      instantiatedApp.runSparkApp(_, s"spark.waimak.environment.$appName."), appName)
+      instantiatedApp.runSparkApp(_, s"waimak.environment.$appName."), appName)
   }
 
 }
