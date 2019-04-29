@@ -1,6 +1,11 @@
 # Changelog
 
-##2.3 - 2019-04-09
+## 2.3.1 - 2019-04-29
+
+### Changed
+- Databases now set a location based on `baseDatabaseLocation/databaseName` in the experimental Waimak App Env class
+
+## 2.3 - 2019-04-09
 
 ### Changed
 - The temporary folder (if given) now gets cleaned up after a flow has been successfully executed. This behaviour can be disabled by setting the configuration property `spark.waimak.dataflow.removeTempAfterExecution` to `false`. In all cases, the directory will not be deleted if flow execution fails.
