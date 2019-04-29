@@ -4,6 +4,7 @@ import java.util.Properties
 
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.log.Logging
+import org.apache.spark.sql.RuntimeConfig
 
 import scala.annotation.StaticAnnotation
 import scala.util.Try
@@ -11,6 +12,14 @@ import scala.util.Try
 object CaseClassConfigParser extends Logging {
 
   val configParamPrefix: String = "spark.waimak.config"
+
+  /**
+    * Prefix to add to parameters when looking in the Spark conf. For example, if looking for parameter
+    * `args.arg1` then the parser will look for `spark.args.arg1` in the Spark conf by default.
+    * This can be disabled by setting this property to an empty string.
+    */
+  val SPARK_CONF_PROPERTY_PREFIX: String = s"$configParamPrefix.sparkConfPropertyPrefix"
+  val SPARK_CONF_PROPERTY_PREFIX_DEFAULT: String = "spark."
   /**
     * Comma separated list of property provider builder object names to instantiate.
     * Set this to have the config parser use the custom objects to search for configuration
@@ -140,6 +149,10 @@ object CaseClassConfigParser extends Logging {
       .map(_.getPropertyProvider(context))
   }
 
+  def getStrippedSparkProperties(conf: RuntimeConfig, prefix: String): Map[String, String] = conf.getAll.collect {
+    case (k, v) if k.startsWith(prefix) => k.stripPrefix(prefix) -> v
+  }
+
   /**
     * Populate a Case Class from an instance of SparkConf. It will attempt to cast the
     * configuration values to the correct types, and most primitive, Option[primitive],
@@ -152,9 +165,12 @@ object CaseClassConfigParser extends Logging {
     * The parameters keys that are looked up will be of the form: {prefix}{parameter},
     * e.g. for case class Ex(key: String) and prefix="example.prefix.",
     * then the key will have the form "example.prefix.key"
+    * By default, properties in the SparkConf will be looked up with an additional property (see [[SPARK_CONF_PROPERTY_PREFIX]]).
     *
-    * @param context  Instance of [[SparkFlowContext]] containing a spark session with configuration
-    * @param prefix Prefix to assign to a Key when looking in SparkConf
+    * @param context        Instance of [[SparkFlowContext]] containing a spark session with configuration
+    * @param prefix         Prefix to assign to a Key when looking in SparkConf
+    * @param additionalConf An additional set of properties to search. Preference is given to SparkConf values if the key exists in
+    *                       both this additionalConf and SparkConf
     * @tparam A Case class type to construct
     * @return An instantiated case class populated from the SparkConf instance and default arguments
     */
@@ -162,8 +178,9 @@ object CaseClassConfigParser extends Logging {
   @throws(classOf[UnsupportedOperationException])
   @throws(classOf[NumberFormatException])
   @throws(classOf[IllegalArgumentException])
-  def apply[A: TypeTag](context: SparkFlowContext, prefix: String): A = {
-    fromMap[A](context.spark.conf.getAll, prefix, getPropertyProviders(context))
+  def apply[A: TypeTag](context: SparkFlowContext, prefix: String, additionalConf: Map[String, String] = Map.empty): A = {
+    val fromSparkConf = getStrippedSparkProperties(context.spark.conf, context.getString(SPARK_CONF_PROPERTY_PREFIX, SPARK_CONF_PROPERTY_PREFIX_DEFAULT))
+    fromMap[A](additionalConf ++ fromSparkConf, prefix, getPropertyProviders(context))
   }
 
   def fromMap[A: TypeTag](conf: Map[String, String], prefix: String = "", properties: Seq[PropertyProvider] = Seq.empty): A = {
@@ -225,6 +242,6 @@ trait PropertyProvider {
 /**
   * A property provider implementation that simply wraps around a [[java.util.Properties]] object
   */
-class JavaPropertiesPropertyProvider(properties: Properties) extends PropertyProvider{
+class JavaPropertiesPropertyProvider(properties: Properties) extends PropertyProvider {
   override def get(key: String): Option[String] = Option(properties.getProperty(key))
 }
