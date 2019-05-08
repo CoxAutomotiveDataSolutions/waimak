@@ -193,6 +193,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
         .openCSV(basePath)("csv_1", "csv_2")
         .show("csv_1")
         .show("csv_2")
+        .withExecutor(executor)
         .execute()
 
       //validate executed actions
