@@ -32,6 +32,12 @@ trait DataFlow extends Logging {
 
   def commitMeta(cm: CommitMeta): this.type
 
+  def executor: DataFlowExecutor
+
+  def withExecutor(executor: DataFlowExecutor): this.type
+
+  def execute(errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], DataFlow) = executor.execute(this, errorOnUnexecutedActions)
+
   /**
     * Inputs that were explicitly set or produced by previous actions, these are inputs for all following actions.
     * Inputs are preserved in the data flow state, even if they are no longer required by the remaining actions.

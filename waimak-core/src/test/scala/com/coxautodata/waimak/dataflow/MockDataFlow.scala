@@ -8,7 +8,8 @@ case class MockDataFlow(flowContext: FlowContext
                        , commitMeta: CommitMeta
                        , inputs: DataFlowEntities
                        , actions: Seq[DataFlowAction]
-                       , tagState: DataFlowTagState) extends DataFlow {
+                       , tagState: DataFlowTagState
+                       , executor: DataFlowExecutor) extends DataFlow {
 
 
   override def schedulingMeta(sc: SchedulingMeta): MockDataFlow.this.type = this.copy(schedulingMeta = sc).asInstanceOf[this.type]
@@ -21,10 +22,11 @@ case class MockDataFlow(flowContext: FlowContext
 
   override def tagState(ts: DataFlowTagState): MockDataFlow.this.type = this.copy(tagState = ts).asInstanceOf[this.type]
 
+  override def withExecutor(executor: DataFlowExecutor): MockDataFlow.this.type = this.copy(executor = executor).asInstanceOf[this.type]
 }
 
 object MockDataFlow {
 
-  def empty: MockDataFlow = MockDataFlow(new EmptyFlowContext, new SchedulingMeta(), CommitMeta(Map.empty, Map.empty), DataFlowEntities.empty, Seq.empty, DataFlowTagState(Set.empty, Set.empty, Map.empty))
+  def empty: MockDataFlow = MockDataFlow(new EmptyFlowContext, new SchedulingMeta(), CommitMeta(Map.empty, Map.empty), DataFlowEntities.empty, Seq.empty, DataFlowTagState(Set.empty, Set.empty, Map.empty), SequentialDataFlowExecutor(NoReportingFlowReporter.apply()))
 
 }

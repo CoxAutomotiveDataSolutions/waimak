@@ -184,6 +184,28 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
   }
 
+  describe("execute") {
+    it("execute a flow inline") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val (executedActions, finalState) = Waimak.sparkFlow(spark)
+        .openCSV(basePath)("csv_1", "csv_2")
+        .show("csv_1")
+        .show("csv_2")
+        .execute()
+
+      //validate executed actions
+      executedActions.size should be(4)
+      executedActions.map(a => a.description) should be(Seq("Action: read Inputs: [] Outputs: [csv_1]", "Action: read Inputs: [] Outputs: [csv_2]", "Action: show Inputs: [csv_1] Outputs: []", "Action: show Inputs: [csv_2] Outputs: []"))
+
+      finalState.actions.size should be(0) // no actions to execute
+      finalState.inputs.size should be(2)
+      finalState.inputs.getOption[Dataset[_]]("csv_1").map(_.as[TPurchase].collect()).get should be(purchases)
+      finalState.inputs.getOption[Dataset[_]]("csv_2").map(_.as[TPerson].collect()).get should be(persons)
+    }
+  }
+
   describe("sql") {
 
     it("group by single") {
