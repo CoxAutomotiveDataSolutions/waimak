@@ -165,7 +165,8 @@ object CaseClassConfigParser extends Logging {
     * The parameters keys that are looked up will be of the form: {prefix}{parameter},
     * e.g. for case class Ex(key: String) and prefix="example.prefix.",
     * then the key will have the form "example.prefix.key"
-    * By default, properties in the SparkConf will be looked up with an additional property (see [[SPARK_CONF_PROPERTY_PREFIX]]).
+    * By default, properties in the SparkConf will be looked up with an additional prefix (see [[SPARK_CONF_PROPERTY_PREFIX]]).
+    * The order in which properties are looked up are: 1) Spark Conf, 2) Additional conf map, 3) Property Providers (in order they were specified if multiple were given)
     *
     * @param context        Instance of [[SparkFlowContext]] containing a spark session with configuration
     * @param prefix         Prefix to assign to a Key when looking in SparkConf
