@@ -229,15 +229,6 @@
                             <!-- other parameters -->
                         </configuration>
                     </plugin>
-                    <plugin>
-                        <groupId>org.eluder.coveralls</groupId>
-                        <artifactId>coveralls-maven-plugin</artifactId>
-                        <version>${coveralls.plugin.version}</version>
-                        <configuration>
-                            <repoToken>${env.COVERALL_TOKEN}</repoToken>
-                            <coberturaReports>${project.build.directory}/cobertura.xml</coberturaReports>
-                        </configuration>
-                    </plugin>
                 </plugins>
             </build>
         </profile>
