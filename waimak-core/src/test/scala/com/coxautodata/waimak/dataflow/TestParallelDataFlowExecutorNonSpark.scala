@@ -26,7 +26,13 @@ class TestParallelDataFlowExecutorNonSpark extends FunSpec with Matchers {
   describe("execute") {
 
     it("non-recoverable exception in action") {
-      executor.execute(emptyFlow.addAction(exceptionAction))
+
+      val res = intercept[DataFlowException] {
+        executor.execute(emptyFlow.addAction(exceptionAction))
+      }
+      res.cause shouldBe a[DataFlowException]
+
+      res.cause.asInstanceOf[DataFlowException].cause shouldBe a[NoClassDefFoundError]
     }
 
   }
