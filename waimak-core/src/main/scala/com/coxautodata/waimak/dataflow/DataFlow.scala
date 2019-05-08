@@ -32,10 +32,22 @@ trait DataFlow extends Logging {
 
   def commitMeta(cm: CommitMeta): this.type
 
+  /**
+    * Current [[DataFlowExecutor]] associated with this flow
+    * @return
+    */
   def executor: DataFlowExecutor
 
+  /**
+    * Add a new executor to this flow, replacing the existing one
+    * @param executor [[DataFlowExecutor]] to add to this flow
+    */
   def withExecutor(executor: DataFlowExecutor): this.type
 
+  /**
+    * Execute this flow using the current [[executor]] on the flow.
+    * See [[DataFlowExecutor.execute()]] for more information.
+    */
   def execute(errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], DataFlow) = executor.execute(this, errorOnUnexecutedActions)
 
   /**
