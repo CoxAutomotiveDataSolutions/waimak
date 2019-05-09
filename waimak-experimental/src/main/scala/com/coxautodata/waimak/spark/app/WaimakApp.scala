@@ -11,7 +11,7 @@ import scala.reflect.runtime.universe.TypeTag
   *
   * @tparam E the type of the [[WaimakEnv]] implementation (must be a case class)
   */
-abstract class WaimakApp[E <: BaseEnv with WaimakEnv : TypeTag] extends SparkApp[E] {
+abstract class WaimakApp[E <: Env with WaimakEnv : TypeTag] extends SparkApp[E] {
 
   override protected def run(sparkSession: SparkSession, env: E): Unit = {
     val executor = env.maxParallelActions.map(Waimak.sparkExecutor(_)).getOrElse(Waimak.sparkExecutor())
