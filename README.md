@@ -1,7 +1,7 @@
 # Waimak
 
 [![Build Status](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak.svg?branch=develop)](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak) 
-[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.11.svg)](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak*) [![Coverage Status](https://coveralls.io/repos/github/CoxAutomotiveDataSolutions/waimak/badge.svg?branch=develop)](https://coveralls.io/github/CoxAutomotiveDataSolutions/waimak?branch=develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.11.svg)](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak*) [![Coverage Status](https://img.shields.io/codecov/c/github/CoxAutomotiveDataSolutions/waimak/develop.svg)](https://codecov.io/gh/CoxAutomotiveDataSolutions/waimak/branch/develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 <img align="right" src="./images/waimak.svg">
 
@@ -83,6 +83,7 @@ Artifact ID | Purpose | Maven Release
 `waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-hive*)
 `waimak-rdbm-ingestion` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-ingestion*)
 `waimak-storage` | Functionality for providing a hot/cold region-based ingestion storage layer | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-storage*)
+`waimak-app` | Functionality providing Waimak application templates and orchestration
 `waimak-experimental` | Experimental features currently under development | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-experimental*)
 
 ## What versions of Spark are supported?

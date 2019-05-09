@@ -24,11 +24,11 @@ object EnvironmentManager {
   }
 
   def performEnvironmentAction(sparkSession: SparkSession): Unit = {
-    val environmentAction = CaseClassConfigParser[EnvironmentAction](SparkFlowContext(sparkSession), "spark.waimak.environment.")
+    val environmentAction = CaseClassConfigParser[EnvironmentAction](SparkFlowContext(sparkSession), "waimak.environment.")
     val app = MultiAppRunner.instantiateApp(environmentAction.appClassName)
     environmentAction.action.toLowerCase() match {
-      case "create" => app.createEnv(sparkSession, "spark.waimak.environment.")
-      case "cleanup" => app.cleanupEnv(sparkSession, "spark.waimak.environment.")
+      case "create" => app.createEnv(sparkSession, "waimak.environment.")
+      case "cleanup" => app.cleanupEnv(sparkSession, "waimak.environment.")
       case _ => throw new UnsupportedOperationException(s"Unsupported environment action: ${environmentAction.action}")
     }
   }
