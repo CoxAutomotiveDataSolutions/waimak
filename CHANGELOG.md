@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.4 - 2019-05-09
+
+### Added
+- An optional Map can now be passed to the case class configuration parser where the parser will look for additional properties not found elsewhere
+- Added `withExecutor` and `execute` functions onto DataFlows allowing DataFlows to be executed inline without needing to create an Executor explicitly and call execute
+
+### Changed
+- When using the case class configuration parser, the prefix `spark.` will automatically be added to configuration keys when looking in the SparkConf.
+If a different prefix is required (e.g. `spark.projectname.`), this can be configured using `spark.waimak.config.sparkConfPropertyPrefix`
+
+### Fixed
+- Parallel scheduler no longer hangs due to Fatal exceptions occurring in actions, but fails the application instead
+
 ## 2.3.1 - 2019-04-29
 
 ### Changed
