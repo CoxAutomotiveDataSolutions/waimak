@@ -214,6 +214,34 @@ class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
 
       }
     }
+
+    describe("executing a flow inline") {
+      it("should execute a simple flow") {
+        val action_1 = new TestPresetAction(List.empty, List("t1", "t2"), func2)
+        val action_2 = new TestPresetAction(List.empty, List("t3", "t4"), func2)
+        val res = emptyFlow.addAction(action_1).addAction(action_2).execute()
+
+        res._1 should be(Seq(action_1, action_2))
+        res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "t3" -> Some("v1"), "t4" -> Some("v2"))))
+        res._2.actions should be(Seq.empty)
+      }
+
+      it("should add a new executor to a flow") {
+        val action_1 = new TestPresetAction(List.empty, List("t1", "t2"), func2)
+        val action_2 = new TestPresetAction(List.empty, List("t3", "t4"), func2)
+        val reporter = new TestReporter
+        val executor = SequentialDataFlowExecutor(reporter)
+        val res = emptyFlow.withExecutor(executor).addAction(action_1).addAction(action_2).execute()
+
+        res._1 should be(Seq(action_1, action_2))
+        res._2.inputs should be(DataFlowEntities(Map("t1" -> Some("v1"), "t2" -> Some("v2"), "t3" -> Some("v1"), "t4" -> Some("v2"))))
+        res._2.actions should be(Seq.empty)
+
+        reporter.reports.length should be (4)
+
+      }
+
+    }
   }
 }
 
