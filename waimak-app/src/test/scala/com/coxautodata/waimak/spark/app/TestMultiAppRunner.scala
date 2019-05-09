@@ -121,7 +121,7 @@ object WaimakAppWithDependency extends WaimakApp[WaimakAppWithDependencyEnv] {
 case class WaimakAppNoDependencyEnv(project: String
                                     , environment: String
                                     , branch: String
-                                    , uri: String) extends HiveEnv {
+                                    , uri: String) extends HiveEnv with WaimakEnv {
   val outputPath: String = s"$basePath/output"
   val baseDatabaseLocation: String = s"$basePath/hive"
 }
@@ -130,7 +130,7 @@ case class WaimakAppWithDependencyEnv(project: String
                                       , environment: String
                                       , branch: String
                                       , uri: String
-                                      , inputPath: String) extends HiveEnv {
+                                      , inputPath: String) extends HiveEnv with WaimakEnv {
   val outputPath: String = s"$basePath/output"
   val baseDatabaseLocation: String = s"$basePath/hive"
 }
