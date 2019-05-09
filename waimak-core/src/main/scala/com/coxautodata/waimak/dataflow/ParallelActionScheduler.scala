@@ -7,6 +7,7 @@ import com.coxautodata.waimak.log.Logging
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future}
+import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -43,8 +44,6 @@ import scala.util.{Failure, Success, Try}
   *
   * @param pools                           details of the execution pools: name, limits, running actions, thread pool
   * @param actionFinishedNotificationQueue thread safe queue through which threads that have finished actions will communicate back to the scheduler
-  * @param poolIntoContext                 callback function that is called to let context know that an action is about to be executed
-  * @tparam C
   */
 class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
                               , val actionFinishedNotificationQueue: BlockingQueue[(String, DataFlowAction, Try[ActionResult])]
@@ -97,16 +96,31 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
   override def schedule(poolName: String, action: DataFlowAction, entities: DataFlowEntities, flowContext: FlowContext, flowReporter: FlowReporter): ActionScheduler = {
     logInfo("Scheduling Action: " + poolName + " : " + action.schedulingGuid + " : " + action.logLabel)
     val poolDesc = pools.getOrElse(poolName, ExecutionPoolDesc(poolName, 1, Set.empty, None)).ensureRunning()
-    val ft = Future[futureResult] {
+
+    Future[futureResult] {
       flowReporter.reportActionStarted(action, flowContext)
       logInfo("Executing action " + actionFinishedNotificationQueue.size() + " " + action.logLabel)
       flowContext.setPoolIntoContext(poolName)
-      val actionResult = Try(action.performAction(entities, flowContext)).flatten
-      val res = (poolName, action, actionResult)
-      actionFinishedNotificationQueue.offer(res)
-      flowReporter.reportActionFinished(action, flowContext)
-      res
-    }(poolDesc.threadsExecutor.get) // ensureRunning made sure that this is a Some
+      val actionResult = {
+        // Cannot use Try here as Try does not catch fatal exceptions
+        try {
+          action.performAction(entities, flowContext)
+        } catch {
+          case NonFatal(e) => throw e
+            //Wrap fatal exceptions in non-fatal exception
+          case e: Throwable => throw new DataFlowException("Fatal exception performing action" , e)
+        }
+      }
+      (poolName, action, actionResult)
+    }(poolDesc.threadsExecutor.get)
+      .onComplete {
+        case Success(res) =>
+          actionFinishedNotificationQueue.offer(res)
+          flowReporter.reportActionFinished(action, flowContext)
+        case Failure(e) =>
+          actionFinishedNotificationQueue.offer((poolName, action, Failure(e)))
+      }(scala.concurrent.ExecutionContext.global)
+
     logInfo("Submitted to Pool Action: " + poolName + " : " + action.schedulingGuid + " : " + action.logLabel)
     val newPoolDesc = poolDesc.addActionGUID(action.schedulingGuid)
     new ParallelActionScheduler(pools + (poolName -> newPoolDesc), actionFinishedNotificationQueue)
