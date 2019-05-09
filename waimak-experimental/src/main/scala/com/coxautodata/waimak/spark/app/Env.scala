@@ -42,6 +42,22 @@ trait Env extends Logging {
 }
 
 /**
+  * Extension to the [[Env]] trait defining Waimak-app specific configuration
+  */
+trait WaimakEnv extends Env {
+
+  /**
+    * Override to limit the maximum number of parallel actions to run at once.
+    * If not set, the default executor parallelism will be used.
+    * See [[com.coxautodata.waimak.dataflow.Waimak.sparkExecutor()]] for more information on executor parallelism
+    *
+    * @return Maximum number of parallel tasks to be run at once
+    */
+  def maxParallelActions: Option[Int] = None
+
+}
+
+/**
   * Environment which provides a base path into which the application can write its data
   * Unless overridden, paths will be of the form {uri}/data/{environment}/{project}/{branch}
   * where environment is the logical environment (e.g. dev, test), project is the name of the application and
@@ -51,7 +67,7 @@ trait Env extends Logging {
   *
   * e.g. hdfs:///data/dev/my_project/feature_abc, hdfs:///data/prod/my_project
   */
-trait BaseEnv extends Env {
+trait BaseEnv extends WaimakEnv {
 
   /**
     * The uri for the base path
