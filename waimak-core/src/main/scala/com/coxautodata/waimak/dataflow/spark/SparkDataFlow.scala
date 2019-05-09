@@ -117,6 +117,9 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow with Logging {
       }
   }
 
+  override def executor: DataFlowExecutor = info.executor
+
+  override def withExecutor(executor: DataFlowExecutor): this.type = new SparkDataFlow(info.copy(executor = executor)).asInstanceOf[this.type]
 }
 
 case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
@@ -181,7 +184,8 @@ case class SparkDataFlowInfo(spark: SparkSession,
                              schedulingMeta: SchedulingMeta,
                              commitLabels: Map[String, LabelCommitDefinition] = Map.empty,
                              tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty),
-                             commitMeta: CommitMeta = CommitMeta.empty)
+                             commitMeta: CommitMeta = CommitMeta.empty,
+                             executor: DataFlowExecutor = Waimak.sparkExecutor())
 
 object SparkDataFlow {
 
