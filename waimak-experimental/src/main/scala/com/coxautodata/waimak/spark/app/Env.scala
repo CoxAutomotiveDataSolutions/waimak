@@ -42,9 +42,9 @@ trait Env extends Logging {
 }
 
 /**
-  * Extension to the [[Env]] trait defining Waimak-app specific configuration
+  * Trait for defining Waimak-app specific configuration
   */
-trait WaimakEnv extends Env {
+trait WaimakEnv {
 
   /**
     * Override to limit the maximum number of parallel actions to run at once.
@@ -67,7 +67,7 @@ trait WaimakEnv extends Env {
   *
   * e.g. hdfs:///data/dev/my_project/feature_abc, hdfs:///data/prod/my_project
   */
-trait BaseEnv extends WaimakEnv {
+trait BaseEnv extends Env {
 
   /**
     * The uri for the base path
