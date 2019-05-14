@@ -83,7 +83,7 @@ Artifact ID | Purpose | Maven Release
 `waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-hive*)
 `waimak-rdbm-ingestion` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-ingestion*)
 `waimak-storage` | Functionality for providing a hot/cold region-based ingestion storage layer | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-storage*)
-`waimak-app` | Functionality providing Waimak application templates and orchestration
+`waimak-app` | Functionality providing Waimak application templates and orchestration | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-app*)
 `waimak-experimental` | Experimental features currently under development | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-experimental*)
 
 ## What versions of Spark are supported?
