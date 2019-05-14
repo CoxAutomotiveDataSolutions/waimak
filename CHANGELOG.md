@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.1 - 2019-05-14
+
+### Added
+- The `errorOnUnexecutedActions` flag can now be configured in the `WaimakEnv` configuration class in the Waimak-App module
+
 ## 2.4 - 2019-05-09
 
 ### Added

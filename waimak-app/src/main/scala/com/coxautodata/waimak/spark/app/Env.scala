@@ -55,6 +55,15 @@ trait WaimakEnv {
     */
   def maxParallelActions: Option[Int] = None
 
+  /**
+    * Whether to throw an exception if some actions on the flow did not execute.
+    * Default is true.
+    * See [[com.coxautodata.waimak.dataflow.DataFlowExecutor.execute()]] for more information on executor behaviour
+    *
+    * @return  Whether to throw an exception if some actions do not execute
+    */
+  def errorOnUnexecutedActions: Boolean = true
+
 }
 
 /**

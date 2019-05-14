@@ -16,7 +16,7 @@ abstract class WaimakApp[E <: Env with WaimakEnv : TypeTag] extends SparkApp[E] 
   override protected def run(sparkSession: SparkSession, env: E): Unit = {
     val executor = env.maxParallelActions.map(Waimak.sparkExecutor(_)).getOrElse(Waimak.sparkExecutor())
     val emptyFlow = Waimak.sparkFlow(sparkSession, env.tmpDir)
-    executor.execute(flow(emptyFlow, env))
+    executor.execute(flow(emptyFlow, env), env.errorOnUnexecutedActions)
   }
 
   def flow(emptyFlow: SparkDataFlow, env: E): SparkDataFlow
