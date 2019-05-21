@@ -23,12 +23,12 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
     it("should generate a correct drop table schema") {
       val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(sparkSession))
-      hiveConnection.dropTableParquetDDL("testTable") should be("drop table if exists testTable")
+      hiveConnection.dropTableParquetDDL("testTable") should be("drop table if exists test.testTable")
     }
 
     it("should generate a correct update table path schema") {
       val hiveConnection: HadoopDBConnector = HiveDummyConnector(SparkFlowContext(sparkSession))
-      hiveConnection.updateTableLocationDDL("testTable", "/path") should be("alter table testTable set location 'file:/path'")
+      hiveConnection.updateTableLocationDDL("testTable", "/path") should be("alter table test.testTable set location 'file:/path'")
     }
 
     it("should generate correct create table statements for non partitioned tables") {
@@ -41,7 +41,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
       //Test non-partition table
       hiveConnection.createTableFromParquetDDL(tableName, tablePath.toURI.getPath) should be(
-        List(s"create external table if not exists $tableName " +
+        List(s"create external table if not exists test.$tableName " +
           "(id integer, item integer, amount integer) stored as " +
           s"parquet location 'file:$testingBaseDirName/testTable'")
       )
@@ -58,12 +58,12 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
       //Test partitioned table
       hiveConnection.createTableFromParquetDDL(tableName, tablePath.toURI.getPath, partitionColumns = Seq(partitionName)) should be(
-        List(s"create external table if not exists $tableName " +
+        List(s"create external table if not exists test.$tableName " +
           "(id integer, item integer)" +
           s" partitioned by ($partitionName string) " +
           s"stored as " +
           s"parquet location 'file:$testingBaseDirName/testTable'",
-          s"alter table $tableName recover partitions")
+          s"alter table test.$tableName recover partitions")
       )
     }
 
@@ -93,16 +93,16 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
       connector1.ranDDLs should be {
         List(List(
-          "drop table if exists items",
-          s"create external table if not exists items (id integer, item integer) partitioned by (amount string) stored as parquet location 'file:$testingBaseDirName/dest/items'",
-          "alter table items recover partitions"
+          "drop table if exists test.items",
+          s"create external table if not exists test.items (id integer, item integer) partitioned by (amount string) stored as parquet location 'file:$testingBaseDirName/dest/items'",
+          "alter table test.items recover partitions"
         ))
       }
 
       connector2.ranDDLs should be {
         List(List(
-          s"create external table if not exists person (id integer, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
-          s"alter table person set location 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
+          s"create external table if not exists test.person (id integer, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
+          s"alter table test.person set location 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
 
@@ -120,8 +120,8 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
       connectorRecreate.ranDDLs should be {
         List(List(
-          "drop table if exists person_recreate",
-          s"create external table if not exists person_recreate (id integer, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
+          "drop table if exists test.person_recreate",
+          s"create external table if not exists test.person_recreate (id integer, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
     }

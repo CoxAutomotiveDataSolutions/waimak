@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.2 - 2019-05-21
+
+### Fixed
+- An issue where mutiple `HiveSparkSQLConnector` with different databases were interfering with each other (tables were being committed into each others' databases)
+
 ## 2.4.1 - 2019-05-14
 
 ### Added
