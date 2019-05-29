@@ -10,9 +10,9 @@ import org.apache.spark.sql.SparkSession
   *
   * spark.waimak.environment.ids: comma-separated unique ids for the environments
   * spark.waimak.environment.{environmentid}.appClassName: the application class to use (must extend [[SparkApp]])
-  * spark.waimak.environment.{environmentid}.action: the environment action to perform (create or cleanup)
+  * spark.waimak.environment.action: the environment action to perform (create or cleanup)
   *
-  * The [[Env]] implementation expects configuration values prefixed with spark.waimak.environment.
+  * The [[Env]] implementation expects configuration values prefixed with spark.waimak.environment.{environmentid}.
   */
 object EnvironmentManager {
 
