@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5 - 2019-05-29
+
+### Changed
+- Can now create or cleanup multiple environments at once in the `EnvironmentManager`
+
 ## 2.4.2 - 2019-05-21
 
 ### Fixed
