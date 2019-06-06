@@ -42,7 +42,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       //Test non-partition table
       hiveConnection.createTableFromParquetDDL(tableName, tablePath.toURI.getPath) should be(
         List(s"create external table if not exists test.$tableName " +
-          "(id integer, item integer, amount integer) stored as " +
+          "(id int, item int, amount int) stored as " +
           s"parquet location 'file:$testingBaseDirName/testTable'")
       )
     }
@@ -59,7 +59,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       //Test partitioned table
       hiveConnection.createTableFromParquetDDL(tableName, tablePath.toURI.getPath, partitionColumns = Seq(partitionName)) should be(
         List(s"create external table if not exists test.$tableName " +
-          "(id integer, item integer)" +
+          "(id int, item int)" +
           s" partitioned by ($partitionName string) " +
           s"stored as " +
           s"parquet location 'file:$testingBaseDirName/testTable'",
@@ -94,14 +94,14 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       connector1.ranDDLs should be {
         List(List(
           "drop table if exists test.items",
-          s"create external table if not exists test.items (id integer, item integer) partitioned by (amount string) stored as parquet location 'file:$testingBaseDirName/dest/items'",
+          s"create external table if not exists test.items (id int, item int) partitioned by (amount string) stored as parquet location 'file:$testingBaseDirName/dest/items'",
           "alter table test.items recover partitions"
         ))
       }
 
       connector2.ranDDLs should be {
         List(List(
-          s"create external table if not exists test.person (id integer, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
+          s"create external table if not exists test.person (id int, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
           s"alter table test.person set location 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
@@ -114,14 +114,14 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
         .openCSV(basePath)("csv_2")
         .alias("csv_2", "person_recreate")
         .commit("connectorRecreateWithSnapshot")("person_recreate")
-            .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
+        .push("connectorRecreateWithSnapshot")(ParquetDataCommitter(baseDest).withHadoopDBConnector(connectorRecreate).withSnapshotFolder("generatedTimestamp=2018-03-13-16-19-00"))
 
       executor.execute(recreateFlow)
 
       connectorRecreate.ranDDLs should be {
         List(List(
           "drop table if exists test.person_recreate",
-          s"create external table if not exists test.person_recreate (id integer, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
+          s"create external table if not exists test.person_recreate (id int, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
     }
@@ -239,6 +239,33 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       res.getMessage should be("HiveSparkSQLConnector does not support running queries that return data. You must use SparkSession.sql directly.")
     }
 
-  }
+    it("should handle complex types") {
 
+      val testDb = "test"
+      val baseDest = testingBaseDir + "/dest"
+      val spark = sparkSession
+      import spark.implicits._
+
+      spark.sql(s"drop database if exists $testDb cascade")
+      spark.sql(s"create database $testDb")
+      spark.sql("show databases").as[String].collect() should contain theSameElementsAs Seq("default", testDb)
+
+      val connector = HiveSparkSQLConnector(SparkFlowContext(sparkSession), testDb)
+
+      val complexTypes = Seq(TComplexTypes(Some(1), Map("a" -> 2, "b" -> 3)))
+
+      val ds = complexTypes.toDS()
+
+      val flow = SparkDataFlow.empty(sparkSession, tmpDir)
+        .addInput("complex_types", Some(ds))
+        .writeParquet(baseDest)("complex_types")
+      val executor = Waimak.sparkExecutor()
+      executor.execute(flow)
+      connector.submitAtomicResultlessQueries(connector.createTableFromParquetDDL("complex_types", s"$baseDest/complex_types"))
+      spark.table(s"$testDb.complex_types").as[TComplexTypes].collect() should be(complexTypes)
+    }
+
+  }
 }
+
+case class TComplexTypes(id: Option[Int], map: Map[String, Int])
