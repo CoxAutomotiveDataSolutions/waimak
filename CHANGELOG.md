@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6 - 2019-06-06
+
+### Fixed
+- `HiveDBConnector` now works for complex types (e.g `MapType`, `StructType`)
+- `HiveEnv` environment cleanup no longer fails if the database does not exist
+
 ## 2.5 - 2019-05-29
 
 ### Changed
