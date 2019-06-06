@@ -199,7 +199,7 @@ trait HiveEnv extends BaseEnv {
 
   override def cleanup(sparkSession: SparkSession): Unit = {
     super.cleanup(sparkSession)
-    allDBs.foreach(dbName => sparkSession.sql(s"drop database $dbName cascade"))
+    allDBs.foreach(dbName => sparkSession.sql(s"drop database if exists $dbName cascade"))
   }
 }
 

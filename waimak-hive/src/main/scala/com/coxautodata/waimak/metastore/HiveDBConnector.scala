@@ -59,7 +59,7 @@ trait HiveDBConnector extends HadoopDBConnector {
       .read
       .parquet(parquetFile.toString)
       .schema
-      .map(c => s"${c.name} ${c.dataType.typeName}")
+      .map(c => s"${c.name} ${c.dataType.catalogString}")
       .mkString("(", ", ", ")")
   }
 }
