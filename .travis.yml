@@ -29,8 +29,13 @@ install:
 script:
   - mvn help:active-profiles -P$MAVEN_PROFILE
   - |
-    if [ "$SKIP_TESTS" != "true" ]; then 
-      mvn clean verify -P$MAVEN_PROFILE $( if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then echo -Preport scoverage:integration-report coveralls:report; fi ) -U $EXTRA_MAVEN_OPTIONS;
+    if [ "$SKIP_TESTS" != "true" ]; then
+      if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then
+        mvn clean verify -P$MAVEN_PROFILE -Preport scoverage:integration-report -U $EXTRA_MAVEN_OPTIONS;
+        bash <(curl -s https://codecov.io/bash);
+      else
+        mvn clean verify -P$MAVEN_PROFILE -U $EXTRA_MAVEN_OPTIONS;
+      fi
     else
       echo "SKIPPING TESTS";
     fi

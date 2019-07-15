@@ -40,6 +40,7 @@ class TestSparkInterceptors extends SparkAndTmpDirSpec {
     it("snapshot") {
       val spark = sparkSession
       import spark.implicits._
+      spark.conf.set(SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION, false)
 
       val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         .openCSV(basePath)("csv_1")
@@ -64,6 +65,7 @@ class TestSparkInterceptors extends SparkAndTmpDirSpec {
     it("combine post and snapshot") {
       val spark = sparkSession
       import spark.implicits._
+      spark.conf.set(SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION, false)
 
       val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         .openCSV(basePath)("csv_1")

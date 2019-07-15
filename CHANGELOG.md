@@ -1,5 +1,64 @@
 # Changelog
 
+## 2.6 - 2019-06-06
+
+### Fixed
+- `HiveDBConnector` now works for complex types (e.g `MapType`, `StructType`)
+- `HiveEnv` environment cleanup no longer fails if the database does not exist
+
+## 2.5 - 2019-05-29
+
+### Changed
+- Can now create or cleanup multiple environments at once in the `EnvironmentManager`
+
+## 2.4.2 - 2019-05-21
+
+### Fixed
+- An issue where mutiple `HiveSparkSQLConnector` with different databases were interfering with each other (tables were being committed into each others' databases)
+
+## 2.4.1 - 2019-05-14
+
+### Added
+- The `errorOnUnexecutedActions` flag can now be configured in the `WaimakEnv` configuration class in the Waimak-App module
+
+## 2.4 - 2019-05-09
+
+### Added
+- An optional Map can now be passed to the case class configuration parser where the parser will look for additional properties not found elsewhere
+- Added `withExecutor` and `execute` functions onto DataFlows allowing DataFlows to be executed inline without needing to create an Executor explicitly and call execute
+
+### Changed
+- When using the case class configuration parser, the prefix `spark.` will automatically be added to configuration keys when looking in the SparkConf.
+If a different prefix is required (e.g. `spark.projectname.`), this can be configured using `spark.waimak.config.sparkConfPropertyPrefix`
+
+### Fixed
+- Parallel scheduler no longer hangs due to Fatal exceptions occurring in actions, but fails the application instead
+
+## 2.3.1 - 2019-04-29
+
+### Changed
+- Databases now set a location based on `baseDatabaseLocation/databaseName` in the experimental Waimak App Env class
+
+## 2.3 - 2019-04-09
+
+### Changed
+- The temporary folder (if given) now gets cleaned up after a flow has been successfully executed. This behaviour can be disabled by setting the configuration property `spark.waimak.dataflow.removeTempAfterExecution` to `false`. In all cases, the directory will not be deleted if flow execution fails.
+- Storage compaction no longer performs `hot -> cold` followed by `cold -> cold` compactions, instead compacting all of the hot regions plus the cold regions under the configured row threshold in a single go. This reduces complexity, and removes the additional round of IOPs and Spark stage.
+
+## 2.2 - 2019-03-29
+
+### Added
+- Generic mechanism to provide properties when using the `CaseClassConfigParser`. An object extending the `PropertyProviderBuilder` can now be configured using the `spark.waimak.config.propertyProviderBuilderObjects` configuration parameter. The `PropertiesFilePropertyProviderBuilder` and `DatabricksSecretsPropertyProviderBuilder` implementations are provided in Waimak
+- Added feature to optionally remove history from storage tables during compaction by setting the `retain_history` flag in the `AuditTableInfo` metadata. For RDBM ingestion actions, if no last updated column is provided in the metadata then history is removed. This can be explicitly disabled by setting `forceRetainStorageHistory` to `Some(true)`
+- Added Waimak [configuration parameter](https://github.com/CoxAutomotiveDataSolutions/waimak/wiki/Configuration-Parameters) `spark.waimak.storage.updateMetadata` to force the update of table metadata (e.g. in case of primary key or history retention changed)
+- Added new experimental module containing currently unstable features
+
+### Changed
+- The force recreate mechanism for recreating tables created using a `HadoopDBConnector` has been moved to the Waimak [configuration parameter](https://github.com/CoxAutomotiveDataSolutions/waimak/wiki/Configuration-Parameters) `spark.waimak.metastore.forceRecreateTables`
+
+### Fixed
+- All paths used in DDLs submitted through a `HadoopDBConnector` now use the full FileSystem URI including the scheme
+
 ## 2.1.1 - 2019-03-15
 
 ### Fixed
@@ -77,7 +136,7 @@
 ## 1.4.2 - 2018-08-06
 
 ### Added
-- Added optional Spark parameter `spark.waimak.fs.defaultFS` to specify the URI of the FileSystem object in the [`SparkFlowContext`](src/main/scala/com/coxautodata/waimak/dataflow/spark/SparkFlowContext.scala)
+- Added optional Spark parameter `spark.waimak.fs.defaultFS` to specify the URI of the FileSystem object in the [`SparkFlowContext`](waimak-core/src/main/scala/com/coxautodata/waimak/dataflow/spark/SparkFlowContext.scala)
 
 ## 1.4.1 - 2018-07-27
 

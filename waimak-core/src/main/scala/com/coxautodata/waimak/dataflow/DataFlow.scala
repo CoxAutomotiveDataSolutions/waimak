@@ -33,6 +33,24 @@ trait DataFlow extends Logging {
   def commitMeta(cm: CommitMeta): this.type
 
   /**
+    * Current [[DataFlowExecutor]] associated with this flow
+    * @return
+    */
+  def executor: DataFlowExecutor
+
+  /**
+    * Add a new executor to this flow, replacing the existing one
+    * @param executor [[DataFlowExecutor]] to add to this flow
+    */
+  def withExecutor(executor: DataFlowExecutor): this.type
+
+  /**
+    * Execute this flow using the current [[executor]] on the flow.
+    * See [[DataFlowExecutor.execute()]] for more information.
+    */
+  def execute(errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], DataFlow) = executor.execute(this, errorOnUnexecutedActions)
+
+  /**
     * Inputs that were explicitly set or produced by previous actions, these are inputs for all following actions.
     * Inputs are preserved in the data flow state, even if they are no longer required by the remaining actions.
     * //TODO: explore the option of removing the inputs that are no longer required by remaining actions!!!
@@ -409,6 +427,15 @@ trait DataFlow extends Logging {
       .flatMap(_.isValidFlowDAG)
       .asInstanceOf[Try[this.type]]
   }
+
+  /**
+    * A function called just after the flow is executed.
+    * By default, the implementation on [[DataFlow]] is no-op,
+    * however it is used in [[spark.SparkDataFlow]] to clean up
+    * the temporary directory
+    *
+    */
+  def finaliseExecution(): Try[this.type] = Success(this)
 
   /**
     * Flow DAG is valid iff:

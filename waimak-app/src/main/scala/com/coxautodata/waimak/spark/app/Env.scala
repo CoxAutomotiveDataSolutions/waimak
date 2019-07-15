@@ -42,6 +42,31 @@ trait Env extends Logging {
 }
 
 /**
+  * Trait for defining Waimak-app specific configuration
+  */
+trait WaimakEnv {
+
+  /**
+    * Override to limit the maximum number of parallel actions to run at once.
+    * If not set, the default executor parallelism will be used.
+    * See [[com.coxautodata.waimak.dataflow.Waimak.sparkExecutor()]] for more information on executor parallelism
+    *
+    * @return Maximum number of parallel tasks to be run at once
+    */
+  def maxParallelActions: Option[Int] = None
+
+  /**
+    * Whether to throw an exception if some actions on the flow did not execute.
+    * Default is true.
+    * See [[com.coxautodata.waimak.dataflow.DataFlowExecutor.execute()]] for more information on executor behaviour
+    *
+    * @return  Whether to throw an exception if some actions do not execute
+    */
+  def errorOnUnexecutedActions: Boolean = true
+
+}
+
+/**
   * Environment which provides a base path into which the application can write its data
   * Unless overridden, paths will be of the form {uri}/data/{environment}/{project}/{branch}
   * where environment is the logical environment (e.g. dev, test), project is the name of the application and
@@ -139,6 +164,11 @@ trait HiveEnv extends BaseEnv {
   }
 
   /**
+    * Base database location (individual databases locations will be baseDatabaseLocation/database_name)
+    */
+  def baseDatabaseLocation: String
+
+  /**
     * Any extra databases to be created in addition to or instead of the base database
     */
   def extraDBs: Seq[String] = Seq.empty
@@ -158,13 +188,18 @@ trait HiveEnv extends BaseEnv {
 
   override def create(sparkSession: SparkSession): Unit = {
     super.create(sparkSession)
+    val fs = FileSystem.get(new URI(uri), sparkSession.sparkContext.hadoopConfiguration)
     logInfo("Creating dbs")
-    allDBs.foreach(dbName => sparkSession.sql(s"create database $dbName"))
+    allDBs.foreach(dbName => {
+      val dbLocation = s"$baseDatabaseLocation/$dbName"
+      fs.mkdirs(new Path(dbLocation))
+      sparkSession.sql(s"create database if not exists $dbName location '$dbLocation'")
+    })
   }
 
   override def cleanup(sparkSession: SparkSession): Unit = {
     super.cleanup(sparkSession)
-    allDBs.foreach(dbName => sparkSession.sql(s"drop database $dbName cascade"))
+    allDBs.foreach(dbName => sparkSession.sql(s"drop database if exists $dbName cascade"))
   }
 }
 

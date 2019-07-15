@@ -1,6 +1,7 @@
 package com.coxautodata.waimak.spark.app
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
+import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import org.apache.spark.sql.SparkSession
 
 import scala.reflect.runtime.universe.TypeTag
@@ -69,7 +70,7 @@ abstract class SparkApp[E <: Env : TypeTag] {
     * @param envPrefix    the prefix for keys in the SparkConf needed by the [[Env]] implementation
     * @return a parsed case class of type [[E]]
     */
-  def parseEnv(sparkSession: SparkSession, envPrefix: String): E = CaseClassConfigParser.fromMap[E](sparkSession.conf.getAll, envPrefix)
+  def parseEnv(sparkSession: SparkSession, envPrefix: String): E = CaseClassConfigParser(SparkFlowContext(sparkSession), envPrefix)
 
   /**
     * Default Spark configuration values to use for the application

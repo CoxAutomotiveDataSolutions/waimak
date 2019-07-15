@@ -6,6 +6,7 @@ import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.apache.hadoop.security.alias.CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH
 import org.apache.spark.SparkConf
 
@@ -150,7 +151,7 @@ trait HadoopDBConnector extends DBConnector {
   }
 
   private[metastore] def updateTableLocationDDL(tableName: String, path: String): String = {
-    s"alter table $tableName set location '$path'"
+    s"alter table $tableName set location '${new Path(path).makeQualified(context.fileSystem.getUri, context.fileSystem.getWorkingDirectory)}'"
   }
 
   /**

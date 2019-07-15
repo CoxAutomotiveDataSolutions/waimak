@@ -101,7 +101,42 @@ trait FileStorageOps {
     * @param cleanUpFolders  list of sub-folders to remove once the writing and committing of the combined data is successful
     * @param appendTimestamp Timestamp of the compaction/append. Used to date the Trash folders.
     */
-  def atomicWriteAndCleanup(tableName: String, compactedData: Dataset[_], newDataPath: Path, cleanUpBase: Path, cleanUpFolders: Seq[String], appendTimestamp: Timestamp)
+  final def atomicWriteAndCleanup(tableName: String, compactedData: Dataset[_], newDataPath: Path, cleanUpBase: Path, cleanUpFolders: Seq[String], appendTimestamp: Timestamp): Unit = {
+    atomicWriteAndCleanup(tableName, compactedData, newDataPath, cleanUpFolders.map(name => new Path(cleanUpBase, name)), appendTimestamp)
+  }
+
+
+  /**
+    * During compaction, data from multiple folders need to be merged and re-written into one folder with fewer files.
+    * The operation has to be fail safe; moving out data can only take place after new version is fully written and committed.
+    *
+    * E.g. data from fromBase=/data/db/tbl1/type=hot and fromSubFolders=Seq("region=11", "region=12", "region=13", "region=14")
+    * will be merged and coalesced into optimal number of partitions in Dataset data and will be written out into
+    * newDataPath=/data/db/tbl1/type=cold/region=15 with old folder being moved into table's trash folder.
+    *
+    * Starting state:
+    *
+    * /data/db/tbl1/type=hot/region=11
+    * .../region=12
+    * .../region=13
+    * .../region=14
+    *
+    * Final state:
+    *
+    * /data/db/tbl1/type=cold/region=15
+    * /data/db/.Trash/tbl1/${appendTimestamp}/region=11
+    * .../region=12
+    * .../region=13
+    * .../region=14
+    *
+    * @param tableName       name of the table
+    * @param compactedData   the data set with data from fromSubFolders already repartitioned, it will be saved into
+    *                        newDataPath
+    * @param newDataPath     path into which combined and repartitioned data from the dataset will be committed into
+    * @param cleanUpPaths    list of sub-folders to remove once the writing and committing of the combined data is successful
+    * @param appendTimestamp Timestamp of the compaction/append. Used to date the Trash folders.
+    */
+  def atomicWriteAndCleanup(tableName: String, compactedData: Dataset[_], newDataPath: Path, cleanUpPaths: Seq[Path], appendTimestamp: Timestamp)
 
   /**
     * Purge the trash folder for a given table. All trashed region folders that were placed into the trash
@@ -199,15 +234,14 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
 
   override def mkdirs(path: Path): Boolean = fs.mkdirs(path)
 
-  override def atomicWriteAndCleanup(tableName: String, data: Dataset[_], newDataPath: Path, cleanUpBase: Path, cleanUpFolders: Seq[String], appendTimestamp: Timestamp): Unit = {
+  override def atomicWriteAndCleanup(tableName: String, data: Dataset[_], newDataPath: Path, cleanUpPaths: Seq[Path], appendTimestamp: Timestamp): Unit = {
     val writePath = new Path(new Path(tmpFolder, tableName), newDataPath.getName)
     data.write.mode(SaveMode.Overwrite).parquet(writePath.toString)
     if (!FSUtils.moveOverwriteFolder(fs, writePath, newDataPath)) throw new StorageException(s"Can not write compacted data for table [${tableName}] into folder [${newDataPath.toString}]")
     val trashRootPath = new Path(trashBinFolder, tableName)
     val trashPath = new Path(trashRootPath, appendTimestamp.getTime.toString)
-    cleanUpFolders.foreach { fName =>
-      val from = new Path(cleanUpBase, fName)
-      val trash = new Path(trashPath, fName)
+    cleanUpPaths.foreach { from =>
+      val trash = new Path(trashPath, from.getName)
       if (!FSUtils.moveOverwriteFolder(fs, from, trash)) throw new StorageException(s"Can not move old folder [${from.toString}] into folder [${trash.toString}]")
     }
   }

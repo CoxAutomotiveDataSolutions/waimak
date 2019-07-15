@@ -11,39 +11,46 @@ import org.apache.hadoop.fs.Path
   */
 trait HiveDBConnector extends HadoopDBConnector {
 
+  def database: String
+
   private[metastore] override def createTableFromParquetDDL(tableName: String, pathWithoutUri: String, external: Boolean, partitionColumns: Seq[String], ifNotExists: Boolean = true): Seq[String] = {
+
+    val qualifiedTableName = s"$database.$tableName"
 
     // Qualify the path for this filesystem
     val path = new Path(pathWithoutUri).makeQualified(context.fileSystem.getUri, context.fileSystem.getWorkingDirectory)
 
     //Find glob paths catering for partitions
-    val globPath = {
-      if (partitionColumns.isEmpty) new Path(s"$path/part-*.parquet")
-      else new Path(path + partitionColumns.mkString("/", "=*/", "=*/part-*.parquet"))
-    }
+    val globPath = ("part-*.parquet" +: partitionColumns.map(_ + "=*")).foldRight(path)((c, p) => new Path(p, c))
 
     logInfo("Get paths for ddls " + globPath.toString)
     val parquetFile = context.fileSystem.globStatus(globPath).sortBy(_.getPath.toUri.getPath).headOption.map(_.getPath).getOrElse(throw new DataFlowException(s"Could not find parquet file at " +
-      s"'$path' to infer schema for table '$tableName'"))
+      s"'$path' to infer schema for table '$qualifiedTableName'"))
 
     //Create ddl
     val ifNotExistsString = if (ifNotExists) "if not exists " else ""
     val externalString = if (external) "external " else ""
     val schemaString = getSchema(parquetFile)
     if (partitionColumns.isEmpty) {
-      Seq(s"create ${externalString}table $ifNotExistsString$tableName $schemaString stored as parquet location '$path'")
+      Seq(s"create ${externalString}table $ifNotExistsString$qualifiedTableName $schemaString stored as parquet location '$path'")
     } else {
       val partitionDef = partitionColumns.map(_ + " string").mkString(", ")
       Seq(
-        s"create ${externalString}table $ifNotExistsString$tableName $schemaString partitioned by ($partitionDef) stored as parquet location '$path'",
-        s"alter table $tableName recover partitions"
+        s"create ${externalString}table $ifNotExistsString$qualifiedTableName $schemaString partitioned by ($partitionDef) stored as parquet location '$path'",
+        s"alter table $qualifiedTableName recover partitions"
       )
     }
   }
 
+  private[metastore] override def dropTableParquetDDL(tableName: String, ifExistsOption: Boolean): String = {
+    val qualifiedTableName = s"$database.$tableName"
+    super.dropTableParquetDDL(qualifiedTableName, ifExistsOption)
+  }
+
   override private[metastore] def updateTableLocationDDL(tableName: String, pathWithoutUri: String): String = {
+    val qualifiedTableName = s"$database.$tableName"
     val path = new Path(pathWithoutUri).makeQualified(context.fileSystem.getUri, context.fileSystem.getWorkingDirectory)
-    s"alter table $tableName set location '$path'"
+    s"alter table $qualifiedTableName set location '$path'"
   }
 
   private[metastore] def getSchema(parquetFile: Path): String = {
@@ -52,7 +59,7 @@ trait HiveDBConnector extends HadoopDBConnector {
       .read
       .parquet(parquetFile.toString)
       .schema
-      .map(c => s"${c.name} ${c.dataType.typeName}")
+      .map(c => s"${c.name} ${c.dataType.catalogString}")
       .mkString("(", ", ", ")")
   }
 }
@@ -65,6 +72,7 @@ trait HiveDBConnector extends HadoopDBConnector {
   *
   */
 case class HiveDummyConnector(context: SparkFlowContext) extends HiveDBConnector {
+  val database: String = "test"
   var ranDDLs: List[List[String]] = List.empty
 
   override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {
@@ -88,8 +96,7 @@ case class HiveSparkSQLConnector(context: SparkFlowContext,
                                  createDatabaseIfNotExists: Boolean = false) extends HiveDBConnector {
 
   override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
-    val ddlWithUse = s"use $database" +: ddls
-    val allDdls = if (createDatabaseIfNotExists) s"create database if not exists $database" +: ddlWithUse else ddlWithUse
+    val allDdls = if (createDatabaseIfNotExists) s"create database if not exists $database" +: ddls else ddls
     allDdls.foreach(context.spark.sql)
     Unit
   }
