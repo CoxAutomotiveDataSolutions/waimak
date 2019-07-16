@@ -29,10 +29,10 @@ trait DataFlow extends Logging {
 
   def extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState]
 
-  def updateExtensionMetadata(extensionKey: DataFlowExtension, updateMeta: DataFlowMetadataState => DataFlowMetadataState, flowToApplyTo: this.type => this.type = _ => this): this.type = {
+  def updateExtensionMetadata(extensionKey: DataFlowExtension, updateMeta: DataFlowMetadataState => DataFlowMetadataState, flowToApplyTo: this.type => this.type = f => f): this.type = {
 
     val oldMeta = extensionMetadata.getOrElse(extensionKey, extensionKey.initialState)
-    setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
+    flowToApplyTo(this).setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
 
   }
 
@@ -411,19 +411,20 @@ trait DataFlow extends Logging {
   def prepareForExecution(): Try[this.type] = {
 
     def loopUntilStable(flow: this.type): this.type = {
-      val (newFlow, changed) = extensionMetadata
+      val (newFlow, changed) = flow.extensionMetadata
         .foldLeft[(this.type, Boolean)]((flow, false)) {
           case ((z, updated), (ex, meta)) =>
             ex.preExecutionManipulation[this.type](z, meta) match {
               case None => (z, updated)
-              case Some(f) => (f, true)
+              case Some(f) =>
+                (f, true)
             }
         }
       if (changed) loopUntilStable(newFlow.asInstanceOf[this.type])
       else newFlow.asInstanceOf[this.type]
     }
 
-    Try(loopUntilStable(this))
+    Try{loopUntilStable(this)}
       .flatMap(_.isValidFlowDAG)
       .asInstanceOf[Try[this.type]]
   }

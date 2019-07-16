@@ -24,11 +24,10 @@ case object CommitExtension extends DataFlowExtension {
     if (!meta.isInstanceOf[CommitMeta]) throw new RuntimeException
     val commitMeta = meta.getMetadataAsType[CommitMeta]
 
-    commitMeta.validate(flow)
+    commitMeta.validate(flow).get
 
     if (commitMeta.pushes.isEmpty) None
     else Some {
-
       commitMeta.pushes.foldLeft(flow) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
         val commitName = pushCommitter._1
         val commitUUID = UUID.randomUUID()
