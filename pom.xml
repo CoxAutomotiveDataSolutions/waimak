@@ -78,6 +78,7 @@
         <module>waimak-experimental</module>
         <module>waimak-configuration-databricks</module>
         <module>waimak-app</module>
+        <module>waimak-deequ</module>
     </modules>
     <profiles>
         <!-- Spark profiles -->
