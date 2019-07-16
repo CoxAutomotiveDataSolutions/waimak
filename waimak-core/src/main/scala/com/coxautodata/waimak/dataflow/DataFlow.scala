@@ -208,7 +208,7 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
     val newTagState = tagState.copy(activeDependentOnTags = tagState.activeDependentOnTags union newDeps)
     val intermediateFlow = tagDependentFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeDependentOnTags = intermediateFlow.tagState.activeDependentOnTags diff newDeps)
-    intermediateFlow.tagState(finalTagState).asInstanceOf[Self]
+    intermediateFlow.tagState(finalTagState)
   }
 
   /**
