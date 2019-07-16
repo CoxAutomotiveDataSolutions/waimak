@@ -69,10 +69,6 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow with Logging {
 
   override def tagState(ts: DataFlowTagState): SparkDataFlow.this.type = new SparkDataFlow(info.copy(tagState = ts)).asInstanceOf[this.type]
 
-  override def commitMeta: CommitMeta = info.commitMeta
-
-  override def commitMeta(cm: CommitMeta): SparkDataFlow.this.type = new SparkDataFlow(info.copy(commitMeta = cm)).asInstanceOf[this.type]
-
   override def executed(executed: DataFlowAction, outputs: Seq[Option[Any]]): this.type = {
     val res = super.executed(executed, outputs)
     // multiple sql actions might request same table, the simplest way of avoiding the race conditions of multiple actions
@@ -120,6 +116,10 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow with Logging {
   override def executor: DataFlowExecutor = info.executor
 
   override def withExecutor(executor: DataFlowExecutor): this.type = new SparkDataFlow(info.copy(executor = executor)).asInstanceOf[this.type]
+
+  override def setExtensionMetadata(newMetadata: Map[DataFlowExtension, DataFlowMetadataState]): SparkDataFlow.this.type = new SparkDataFlow(info.copy(extensionMetadata = newMetadata)).asInstanceOf[this.type]
+
+  override def extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState] = this.info.extensionMetadata
 }
 
 case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
@@ -184,7 +184,7 @@ case class SparkDataFlowInfo(spark: SparkSession,
                              schedulingMeta: SchedulingMeta,
                              commitLabels: Map[String, LabelCommitDefinition] = Map.empty,
                              tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty),
-                             commitMeta: CommitMeta = CommitMeta.empty,
+                             extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState] = Map.empty,
                              executor: DataFlowExecutor = Waimak.sparkExecutor())
 
 object SparkDataFlow {

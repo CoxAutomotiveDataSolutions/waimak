@@ -1,11 +1,10 @@
 package com.coxautodata.waimak.dataflow
 
-import java.util.UUID
-
+import com.coxautodata.waimak.dataflow.DataFlow.{CACHE_REUSED_COMMITTED_LABELS, CACHE_REUSED_COMMITTED_LABELS_DEFAULT}
+import com.coxautodata.waimak.dataflow.extensions.{CommitExtension, CommitMeta}
 import com.coxautodata.waimak.log.Logging
 
-import scala.annotation.tailrec
-import scala.util.{Failure, Success, Try}
+import scala.util.{Success, Try}
 
 /**
   * Defines a state of the data flow. State is defined by the inputs that are ready to be consumed and actions that need
@@ -20,26 +19,34 @@ import scala.util.{Failure, Success, Try}
   */
 trait DataFlow extends Logging {
 
-  import DataFlow._
-
   def flowContext: FlowContext
 
   def schedulingMeta: SchedulingMeta
 
   def schedulingMeta(sc: SchedulingMeta): this.type
 
-  def commitMeta: CommitMeta
+  def setExtensionMetadata(newMetadata: Map[DataFlowExtension, DataFlowMetadataState]): this.type
 
-  def commitMeta(cm: CommitMeta): this.type
+  def extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState]
+
+  def updateExtensionMetadata(extensionKey: DataFlowExtension, updateMeta: DataFlowMetadataState => DataFlowMetadataState, flowToApplyTo: this.type => this.type = _ => this): this.type = {
+
+    val oldMeta = extensionMetadata.getOrElse(extensionKey, extensionKey.initialState)
+    setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
+
+  }
+
 
   /**
     * Current [[DataFlowExecutor]] associated with this flow
+    *
     * @return
     */
   def executor: DataFlowExecutor
 
   /**
     * Add a new executor to this flow, replacing the existing one
+    *
     * @param executor [[DataFlowExecutor]] to add to this flow
     */
   def withExecutor(executor: DataFlowExecutor): this.type
@@ -209,6 +216,81 @@ trait DataFlow extends Logging {
   }
 
   /**
+    * Groups labels to commit under a commit name.
+    * Can be called multiple times with same same commit name, thus adding labels to it.
+    * There can be multiple commit names defined in a single data flow.
+    *
+    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
+    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
+    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
+    *
+    * @param commitName  name of the commit, which will be used to define its push implementation
+    * @param partitions  list of partition columns for the labels specified in this commit invocation. It will not
+    *                    impact labels from previous or following invocations of the commit with same commit name.
+    * @param repartition to repartition the data
+    * @param labels      labels added to the commit name with partitions config
+    * @return
+    */
+  def commit(commitName: String, partitions: Seq[String], repartition: Boolean = true)(labels: String*): this.type = {
+    commit(commitName, Some(Left(partitions)), repartition = partitions.nonEmpty && repartition)(labels: _*)
+  }
+
+  /**
+    * Groups labels to commit under a commit name.
+    * Can be called multiple times with same same commit name, thus adding labels to it.
+    * There can be multiple commit names defined in a single data flow.
+    *
+    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
+    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
+    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
+    *
+    * @param commitName  name of the commit, which will be used to define its push implementation
+    * @param repartition how many partitions to repartition the data by
+    * @param labels      labels added to the commit name with partitions config
+    * @return
+    */
+  def commit(commitName: String, repartition: Int)(labels: String*): this.type = {
+    commit(commitName, Some(Right(repartition)), repartition = true)(labels: _*)
+  }
+
+  /**
+    * Groups labels to commit under a commit name.
+    * Can be called multiple times with same same commit name, thus adding labels to it.
+    * There can be multiple commit names defined in a single data flow.
+    *
+    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
+    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
+    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
+    *
+    * @param commitName name of the commit, which will be used to define its push implementation
+    * @param labels     labels added to the commit name with partitions config
+    * @return
+    */
+  def commit(commitName: String)(labels: String*): this.type = {
+    commit(commitName, None, repartition = false)(labels: _*)
+  }
+
+  private def commit(commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean)(labels: String*): this.type = {
+    val cacheLabels = this.flowContext.getBoolean(CACHE_REUSED_COMMITTED_LABELS, CACHE_REUSED_COMMITTED_LABELS_DEFAULT)
+
+    updateCommitMeta(_.addCommits(commitName, labels, partitions, repartition, cacheLabels))
+  }
+
+
+  /**
+    * Associates commit name with an implementation of a data committer. There must be only one data committer per one commit name.
+    *
+    * @param commitName
+    * @param committer
+    * @return
+    */
+  def push(commitName: String)(committer: DataCommitter): this.type = updateCommitMeta(_.addPush(commitName, committer))
+
+  private def updateCommitMeta(update: CommitMeta => CommitMeta): this.type =
+    updateExtensionMetadata(CommitExtension, m => update(m.getMetadataAsType[CommitMeta]))
+
+
+  /**
     * Creates a code block with all actions inside of it being run on the specified execution pool. Same execution pool
     * name can be used multiple times and nested pools are allowed, the name closest to the action will be assigned to it.
     *
@@ -226,7 +308,6 @@ trait DataFlow extends Logging {
     *
     * @param executionPoolName pool name to assign to all actions inside of it, but it can be overwritten by the nested execution pools.
     * @param nestedFlow
-    * @tparam S
     * @return
     */
   def executionPool(executionPoolName: String)(nestedFlow: this.type => this.type): this.type = schedulingMeta(_.setExecutionPoolName(executionPoolName))(nestedFlow)
@@ -236,7 +317,6 @@ trait DataFlow extends Logging {
     *
     * @param mutateState function that adds attributes to the state
     * @param nestedFlow  all actions inside of this flow will be associated with the mutated state
-    * @tparam S
     * @return
     */
   def schedulingMeta(mutateState: SchedulingMetaState => SchedulingMetaState)(nestedFlow: this.type => this.type): this.type = {
@@ -305,99 +385,6 @@ trait DataFlow extends Logging {
     withInputs
   }
 
-  /**
-    * Groups labels to commit under a commit name.
-    * Can be called multiple times with same same commit name, thus adding labels to it.
-    * There can be multiple commit names defined in a single data flow.
-    *
-    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
-    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
-    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
-    *
-    * @param commitName  name of the commit, which will be used to define its push implementation
-    * @param partitions  list of partition columns for the labels specified in this commit invocation. It will not
-    *                    impact labels from previous or following invocations of the commit with same commit name.
-    * @param repartition to repartition the data
-    * @param labels      labels added to the commit name with partitions config
-    * @return
-    */
-  def commit(commitName: String, partitions: Seq[String], repartition: Boolean = true)(labels: String*): this.type = {
-    commit(commitName, Some(Left(partitions)), repartition = partitions.nonEmpty && repartition)(labels: _*)
-  }
-
-  /**
-    * Groups labels to commit under a commit name.
-    * Can be called multiple times with same same commit name, thus adding labels to it.
-    * There can be multiple commit names defined in a single data flow.
-    *
-    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
-    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
-    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
-    *
-    * @param commitName  name of the commit, which will be used to define its push implementation
-    * @param repartition how many partitions to repartition the data by
-    * @param labels      labels added to the commit name with partitions config
-    * @return
-    */
-  def commit(commitName: String, repartition: Int)(labels: String*): this.type = {
-    commit(commitName, Some(Right(repartition)), repartition = true)(labels: _*)
-  }
-
-  /**
-    * Groups labels to commit under a commit name.
-    * Can be called multiple times with same same commit name, thus adding labels to it.
-    * There can be multiple commit names defined in a single data flow.
-    *
-    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
-    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
-    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
-    *
-    * @param commitName name of the commit, which will be used to define its push implementation
-    * @param labels     labels added to the commit name with partitions config
-    * @return
-    */
-  def commit(commitName: String)(labels: String*): this.type = {
-    commit(commitName, None, repartition = false)(labels: _*)
-  }
-
-  private def commit(commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean)(labels: String*): this.type = {
-    val cacheLabels = flowContext.getBoolean(CACHE_REUSED_COMMITTED_LABELS, CACHE_REUSED_COMMITTED_LABELS_DEFAULT)
-    commitMeta(commitMeta.addCommits(commitName, labels, partitions, repartition, cacheLabels))
-  }
-
-  /**
-    * Associates commit name with an implementation of a data committer. There must be only one data committer per one commit name.
-    *
-    * @param commitName
-    * @param committer
-    * @return
-    */
-  def push(commitName: String)(committer: DataCommitter): this.type = commitMeta(commitMeta.addPush(commitName, committer))
-
-  /**
-    * During data flow preparation for execution stage, it interacts with data committer to add actions that implement
-    * stages of the data committer.
-    *
-    * This build uses tags to separate the stages of the data committer: cache, move, finish.
-    *
-    * @return
-    */
-  protected[dataflow] def buildCommits(): this.type = commitMeta.pushes.foldLeft(this) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
-    val commitName = pushCommitter._1
-    val commitUUID = UUID.randomUUID()
-    val committer = pushCommitter._2.head
-    val labels = commitMeta.commits(commitName)
-    resFlow.tag(commitName) {
-      committer.stageToTempFlow(commitName, commitUUID, labels, _)
-    }.tagDependency(commitName) {
-      _.tag(commitName + "_AFTER_COMMIT") {
-        committer.moveToPermanentStorageFlow(commitName, commitUUID, labels, _)
-      }
-    }.tagDependency(commitName + "_AFTER_COMMIT") {
-      committer.finish(commitName, commitUUID, labels, _)
-    }
-  }.asInstanceOf[this.type]
-
   private def actionHasNoTagDependencies(action: DataFlowAction): Boolean = {
     // All tags that this action depends on
     val actionTagDeps = tagState.taggedActions.get(action.guid).map(_.dependentOnTags).getOrElse(Set.empty)
@@ -422,8 +409,21 @@ trait DataFlow extends Logging {
     *
     */
   def prepareForExecution(): Try[this.type] = {
-    commitMeta.validate(this, inputs.keySet ++ actions.flatMap(_.outputLabels).toSet, actions.flatMap(_.inputLabels).toSet)
-      .map(_ => buildCommits())
+
+    def loopUntilStable(flow: this.type): this.type = {
+      val (newFlow, changed) = extensionMetadata
+        .foldLeft[(this.type, Boolean)]((flow, false)) {
+          case ((z, updated), (ex, meta)) =>
+            ex.preExecutionManipulation[this.type](z, meta) match {
+              case None => (z, updated)
+              case Some(f) => (f, true)
+            }
+        }
+      if (changed) loopUntilStable(newFlow.asInstanceOf[this.type])
+      else newFlow.asInstanceOf[this.type]
+    }
+
+    Try(loopUntilStable(this))
       .flatMap(_.isValidFlowDAG)
       .asInstanceOf[Try[this.type]]
   }
@@ -580,7 +580,6 @@ case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[
   *
   * @param state       describes a current state of schedulingMeta
   * @param actionState Map[DataFlowAction.schedulingGuid, Execution Pool Name] - association between actions and execution pool names
-  * @tparam C
   */
 case class SchedulingMeta(state: SchedulingMetaState, actionState: Map[String, SchedulingMetaState]) {
 
@@ -639,78 +638,24 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
 
 }
 
-/**
-  * Contains configurations for commits and pushes, while configs are added, there are no modifications to the
-  * dataflow, as it waits for a validation before execution.
-  *
-  * @param commits Map[ COMMIT_NAME, Seq[CommitEntry] ]
-  * @param pushes  Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
-  *                lazy definitions of the data flows, validation will have to catch it.
-  */
-case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter]]) {
-
-  def addCommits(commitName: String, labels: Seq[String], partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cacheLabels: Boolean): CommitMeta = {
-    val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition, cacheLabels))
-    this.copy(commits = commits + (commitName -> nextCommits))
-  }
-
-  def labelsUsedInMultipleCommits(): Option[Map[String, Seq[String]]] = {
-    val labelCommits: Map[String, Seq[String]] = commits.toSeq.flatMap(kv => kv._2.map(c => (c.label, c.commitName))).groupBy(_._1).filter(_._2.size > 1).mapValues(_.map(_._2))
-    Option(labelCommits).filter(_.nonEmpty)
-  }
-
-  def addPush(commitName: String, committer: DataCommitter): CommitMeta = {
-    val nextPushes = pushes.getOrElse(commitName, Seq.empty) :+ committer
-    this.copy(pushes = pushes + (commitName -> nextPushes))
-  }
-
-  def pushesWithoutCommits(): Set[String] = pushes.keySet.diff(commits.keySet)
-
-  def commitsWithoutPushes(): Set[String] = commits.keySet.diff(pushes.keySet)
-
-  def validateCommitters(dataFlow: DataFlow): Try[Unit] = {
-
-    @tailrec
-    def loopTest(pushesToValidate: Set[String], result: Try[Unit]): Try[Unit] = {
-      if (pushesToValidate.isEmpty || result.isFailure) result
-      else {
-        val commit = pushesToValidate.head
-        val committers = pushes(commit)
-        if (committers.size != 1) Failure(new DataFlowException(s"Commit with name [${commit}] has ${committers.size} instead of 1"))
-        else loopTest(pushesToValidate.tail, committers.head.validate(dataFlow, commit, commits(commit)))
-      }
-    }
-
-    loopTest(pushes.keySet.intersect(commits.keySet), Success())
-  }
-
-  /**
-    * Checks if commits refer to labels that are not produced in the flow.
-    *
-    * @param presentLabels labels that are produced in the data flow
-    * @return Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
-    */
-  def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty)
-
-  def validate(dataFlow: DataFlow, outputLabels: Set[String], inputLabels: Set[String]): Try[Unit] = {
-    Try {
-      val c = commitsWithoutPushes().toArray
-      if (c.nonEmpty) throw new DataFlowException(s"There are no push definitions for commits: ${c.sorted.mkString("[", ", ", "]")}")
-
-      val pushes = pushesWithoutCommits().toArray
-      if (pushes.nonEmpty) throw new DataFlowException(s"There are no commits definitions for pushes: ${pushes.sorted.mkString("[", ", ", "]")}")
-
-      val notPresent = phantomLabels(outputLabels).mapValues(_.mkString("{", ", ", "}"))
-      if (notPresent.nonEmpty) throw new DataFlowException(s"Commit definitions with labels that are not produced by any action: ${notPresent.mkString("[", ", ", "]")}")
-
-    }.flatMap(_ => validateCommitters(dataFlow))
-  }
-}
-
-object CommitMeta {
-
-  def empty: CommitMeta = new CommitMeta(Map.empty, Map.empty)
-
-}
-
 case class CommitEntry(label: String, commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cache: Boolean)
+
+trait DataFlowExtension {
+
+  def initialState: DataFlowMetadataState
+
+  def preExecutionManipulation[S <: DataFlow](flow: S, meta: DataFlowMetadataState): Option[S]
+
+}
+
+trait DataFlowMetadataState {
+
+  def getMetadataAsType[A <: DataFlowMetadataState]: A = {
+    Try(this.asInstanceOf[A])
+      .recover {
+        case e: ClassCastException => throw new DataFlowException("Metadata State object was not of correct type", e)
+      }
+      .get
+  }
+
+}
