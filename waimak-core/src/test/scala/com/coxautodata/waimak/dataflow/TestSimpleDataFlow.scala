@@ -3,7 +3,6 @@ package com.coxautodata.waimak.dataflow
 import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.DataFlow._
-import com.coxautodata.waimak.dataflow.extensions.{CommitExtension, CommitMeta}
 import org.scalatest.{FunSpec, Matchers}
 
 import scala.util.{Success, Try}
@@ -1063,8 +1062,8 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       val emptyLabels = flow
         .commit("test")()
 
-      emptyLabels.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.isEmpty should be (true)
-      emptyLabels.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.keySet should be (Set("test"))
+      emptyLabels.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.isEmpty should be(true)
+      emptyLabels.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.keySet should be(Set("test"))
 
     }
 

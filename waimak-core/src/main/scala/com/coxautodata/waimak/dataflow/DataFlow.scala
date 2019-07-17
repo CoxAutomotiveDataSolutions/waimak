@@ -1,7 +1,5 @@
 package com.coxautodata.waimak.dataflow
 
-import com.coxautodata.waimak.dataflow.DataFlow.{CACHE_REUSED_COMMITTED_LABELS, CACHE_REUSED_COMMITTED_LABELS_DEFAULT}
-import com.coxautodata.waimak.dataflow.extensions.{CommitExtension, CommitMeta}
 import com.coxautodata.waimak.log.Logging
 
 import scala.util.{Success, Try}
@@ -334,7 +332,7 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
     *
     */
   def prepareForExecution(): Try[Self] = {
-//TODO max loops
+    //TODO max loops
     def loopUntilStable(flow: Self): Self = {
       val (newFlow, changed) = flow.extensionMetadata
         .foldLeft[(Self, Boolean)]((flow, false)) {
@@ -564,8 +562,6 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
   def setContext(cntx: Option[Any]): SchedulingMetaState = SchedulingMetaState(executionPoolName, cntx)
 
 }
-
-case class CommitEntry(label: String, commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cache: Boolean)
 
 trait DataFlowExtension {
 

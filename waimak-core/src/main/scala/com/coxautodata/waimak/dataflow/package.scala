@@ -1,7 +1,6 @@
 package com.coxautodata.waimak
 
 import com.coxautodata.waimak.dataflow.DataFlow.{CACHE_REUSED_COMMITTED_LABELS, CACHE_REUSED_COMMITTED_LABELS_DEFAULT}
-import com.coxautodata.waimak.dataflow.extensions.{CommitExtension, CommitMeta}
 
 /**
   * Created by Alexei Perelighin on 2018/01/11.

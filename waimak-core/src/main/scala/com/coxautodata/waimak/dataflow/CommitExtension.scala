@@ -1,8 +1,6 @@
-package com.coxautodata.waimak.dataflow.extensions
+package com.coxautodata.waimak.dataflow
 
 import java.util.UUID
-
-import com.coxautodata.waimak.dataflow._
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
@@ -121,3 +119,5 @@ case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], 
   }
 
 }
+
+case class CommitEntry(label: String, commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cache: Boolean)
