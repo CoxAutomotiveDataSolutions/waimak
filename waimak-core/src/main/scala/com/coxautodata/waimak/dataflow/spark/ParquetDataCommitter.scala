@@ -32,7 +32,7 @@ import scala.util.Try
 case class ParquetDataCommitter(outputBaseFolder: String,
                                 snapshotFolder: Option[String] = None,
                                 cleanupStrategy: Option[CleanUpStrategy[FileStatus]] = None,
-                                hadoopDBConnector: Option[HadoopDBConnector] = None) extends DataCommitter with Logging {
+                                hadoopDBConnector: Option[HadoopDBConnector] = None) extends DataCommitter[SparkDataFlow] with Logging {
 
   /**
     * Set a snapshot folder for this Parquet Committer
@@ -74,7 +74,7 @@ case class ParquetDataCommitter(outputBaseFolder: String,
     }
   }
 
-  override protected[dataflow] def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override protected[dataflow] def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: SparkDataFlow): SparkDataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder).toString
     labels.foldLeft(sparkFlow) { (resFlow, labelCommitEntry) =>
@@ -88,14 +88,14 @@ case class ParquetDataCommitter(outputBaseFolder: String,
     }
   }
 
-  override protected[dataflow] def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override protected[dataflow] def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: SparkDataFlow): SparkDataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder)
     val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(outputBaseFolder, snapshotFolder, ce.partitions.flatMap(_.left.toOption).getOrElse(Seq.empty), hadoopDBConnector))).toMap
     sparkFlow.addAction(CommitAction(commitLabels, commitTempBase, labels.map(_.label).toList))
   }
 
-  override protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = cleanupStrategy.fold(flow) { strategy =>
+  override protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: SparkDataFlow): SparkDataFlow = cleanupStrategy.fold(flow) { strategy =>
     labels.foldLeft(flow) { (resFlow, labelCommitEntry) =>
       resFlow.addAction(new FSCleanUp(outputBaseFolder, strategy, List(labelCommitEntry.label)))
     }
@@ -113,7 +113,7 @@ case class ParquetDataCommitter(outputBaseFolder: String,
     * @param entries
     * @return
     */
-  override protected[dataflow] def validate(flow: DataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = {
+  override protected[dataflow] def validate(flow: SparkDataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = {
     Try {
       if (!classOf[SparkDataFlow].isAssignableFrom(flow.getClass)) throw new DataFlowException(s"""ParquetDataCommitter [$commitName] can only work with data flows derived from ${classOf[SparkDataFlow].getName}""")
       val sparkDataFlow = flow.asInstanceOf[SparkDataFlow]

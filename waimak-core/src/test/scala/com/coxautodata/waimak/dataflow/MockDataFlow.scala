@@ -9,21 +9,19 @@ case class MockDataFlow(flowContext: FlowContext
                        , actions: Seq[DataFlowAction]
                        , tagState: DataFlowTagState
                        , extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState]
-                       , executor: DataFlowExecutor) extends DataFlow {
+                       , executor: DataFlowExecutor) extends DataFlow[MockDataFlow] {
 
+  override def schedulingMeta(sc: SchedulingMeta): MockDataFlow = this.copy(schedulingMeta = sc)
 
-  override def schedulingMeta(sc: SchedulingMeta): MockDataFlow.this.type = this.copy(schedulingMeta = sc).asInstanceOf[this.type]
+  override def inputs(inp: DataFlowEntities): MockDataFlow = this.copy(inputs = inp)
 
-  override def inputs(inp: DataFlowEntities): MockDataFlow.this.type = this.copy(inputs = inp).asInstanceOf[this.type]
+  override def actions(acs: Seq[DataFlowAction]): MockDataFlow = this.copy(actions = acs)
 
-  override def actions(acs: Seq[DataFlowAction]): MockDataFlow.this.type = this.copy(actions = acs).asInstanceOf[this.type]
+  override def tagState(ts: DataFlowTagState): MockDataFlow = this.copy(tagState = ts)
 
-  override def tagState(ts: DataFlowTagState): MockDataFlow.this.type = this.copy(tagState = ts).asInstanceOf[this.type]
+  override def setExtensionMetadata(newMetadata: Map[DataFlowExtension, DataFlowMetadataState]): MockDataFlow = this.copy(extensionMetadata = newMetadata)
 
-  override def withExecutor(executor: DataFlowExecutor): MockDataFlow.this.type = this.copy(executor = executor).asInstanceOf[this.type]
-
-  override def setExtensionMetadata(newMetadata: Map[DataFlowExtension, DataFlowMetadataState]): this.type = this.copy(extensionMetadata = newMetadata).asInstanceOf[this.type]
-
+  override def withExecutor(executor: DataFlowExecutor): MockDataFlow = this.copy(executor = executor)
 }
 
 object MockDataFlow {

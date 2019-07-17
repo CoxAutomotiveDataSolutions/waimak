@@ -303,10 +303,14 @@ class TestSparkDataFlow extends FunSpec with Matchers {
         .addInput("test_1", Some("value_1"))
         .addInput("test_2", Some("value_2"))
         .tag("tag1") {
-          _.executionPool("p1") { _.addAction(action_1)}
+          _.executionPool("p1") {
+            _.addAction(action_1)
+          }
         }
         .tagDependency("tag1") {
-          _.executionPool("p2") { _.addAction(action_2) }
+          _.executionPool("p2") {
+            _.addAction(action_2)
+          }
         }
 
       flow.schedulingMeta.actionState.size should be(2)
@@ -872,10 +876,10 @@ class TestSparkDataFlow extends FunSpec with Matchers {
     it("default execution pool") {
       val emptyFlow = MockDataFlow.empty
       val flow = emptyFlow
-                    .addAction(action_1)
-                    .addAction(action_2)
-                    .addAction(action_3)
-                    .addAction(action_4)
+        .addAction(action_1)
+        .addAction(action_2)
+        .addAction(action_3)
+        .addAction(action_4)
 
       flow.schedulingMeta.actionState.size should be(4)
       flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be(DEFAULT_POOL_NAME)
@@ -910,10 +914,10 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       val flow = emptyFlow
         .executionPool("first_pool") {
           _.addAction(action_1)
-          .addAction(action_2)
-          .addAction(action_3)
-          .addAction(action_4)
-      }
+            .addAction(action_2)
+            .addAction(action_3)
+            .addAction(action_4)
+        }
 
       flow.schedulingMeta.actionState.size should be(4)
       flow.schedulingMeta.actionState(action_1.schedulingGuid).executionPoolName should be("first_pool")
@@ -953,10 +957,10 @@ class TestSparkDataFlow extends FunSpec with Matchers {
     it("second wave is in default pool") {
       val emptyFlow = MockDataFlow.empty
       val flow = emptyFlow.executionPool("first_pool") {
-          _.addAction(action_1)
-            .addAction(action_2)
-            .addAction(action_3)
-        }
+        _.addAction(action_1)
+          .addAction(action_2)
+          .addAction(action_3)
+      }
         .addAction(action_4)
 
       flow.schedulingMeta.actionState.size should be(4)
@@ -1003,12 +1007,12 @@ class TestSparkDataFlow extends FunSpec with Matchers {
         _.tag("t1") {
           _.addAction(action_1)
         }.executionPool("second_pool") {
-            _.addAction(action_2).executionPool("third_pool") {
-              _.tagDependency("t1") {
-                _.addAction(action_3)
-              }
+          _.addAction(action_2).executionPool("third_pool") {
+            _.tagDependency("t1") {
+              _.addAction(action_3)
             }
-          }.addAction(action_5)
+          }
+        }.addAction(action_5)
 
       }.addAction(action_4)
 
@@ -1052,42 +1056,50 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       .addAction(action_5)
 
     it("no commits") {
-      flow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.isEmpty should be(true)
-      flow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes.isEmpty should be(true)
+      intercept[java.util.NoSuchElementException] {
+        flow.extensionMetadata(CommitExtension)
+      }
+
+      val emptyLabels = flow
+        .commit("test")()
+
+      emptyLabels.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.isEmpty should be (true)
+      emptyLabels.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.keySet should be (Set("test"))
+
     }
 
     describe("one commit, no push") {
 
       it("one label, no partitions") {
         val testFlow = flow.commit("commit_1")("com_1")
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.size should be(1)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", None, repartition = false, cache = true))))
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes.isEmpty should be(true)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.size should be(1)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", None, repartition = false, cache = true))))
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
 
       it("one label, partitions, no repartition") {
         val testFlow = flow.commit("commit_1", Seq("id", "cntry"), repartition = false)("com_1")
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.size should be(1)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = false, cache = true))))
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes.isEmpty should be(true)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.size should be(1)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = false, cache = true))))
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
 
       it("one label, partitions, repartition") {
         val testFlow = flow.commit("commit_1", Seq("id", "cntry"))("com_1")
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.size should be(1)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = true, cache = true))))
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes.isEmpty should be(true)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.size should be(1)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = true, cache = true))))
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
 
       it("one label, partitions, repartition, no cache") {
         flow.flowContext.asInstanceOf[EmptyFlowContext].conf.setProperty(CACHE_REUSED_COMMITTED_LABELS, "false")
         val testFlow = flow.commit("commit_1", Seq("id", "cntry"))("com_1")
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.size should be(1)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = true, cache = false))))
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes.isEmpty should be(true)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.size should be(1)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.get("commit_1") should be(Some(Seq(CommitEntry("com_1", "commit_1", Some(Left(Seq("id", "cntry"))), repartition = true, cache = false))))
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
       }
     }
@@ -1096,31 +1108,31 @@ class TestSparkDataFlow extends FunSpec with Matchers {
 
       it("one push") {
         val testFlow = flow.push("commit_1")(dataCommitter)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.isEmpty should be(true)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes.keySet should be(Set("commit_1"))
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes("commit_1").size should be(1)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.keySet should be(Set("commit_1"))
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes("commit_1").size should be(1)
       }
 
       it("one push, accept multiple committers") { //it should accept, but it will fail validation
         val testFlow = flow
           .push("commit_1")(dataCommitter)
           .push("commit_1")(dataCommitter)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.isEmpty should be(true)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes.keySet should be(Set("commit_1"))
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes("commit_1").size should be(2)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.keySet should be(Set("commit_1"))
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes("commit_1").size should be(2)
       }
 
       it("2 pushes") {
         val testFlow = flow
           .push("commit_1")(dataCommitter)
           .push("commit_2")(dataCommitter)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].commits.isEmpty should be(true)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].commits.isEmpty should be(true)
         testFlow.tagState.activeTags.isEmpty should be(true)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes.keySet should be(Set("commit_1", "commit_2"))
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes("commit_1").size should be(1)
-        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta].pushes("commit_2").size should be(1)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes.keySet should be(Set("commit_1", "commit_2"))
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes("commit_1").size should be(1)
+        testFlow.extensionMetadata(CommitExtension).getMetadataAsType[CommitMeta[MockDataFlow]].pushes("commit_2").size should be(1)
       }
 
     }
@@ -1128,11 +1140,11 @@ class TestSparkDataFlow extends FunSpec with Matchers {
     describe("build committers, no validations") {
 
       it("single commit, single label") {
-        val testFlow = emptyFlow
+        val commitFlow = emptyFlow
           .commit("commit_1")("label_1")
           .push("commit_1")(dataCommitter)
-            .prepareForExecution()
-            .get
+
+        val testFlow = CommitExtension.buildCommits(commitFlow, commitFlow.extensionMetadata(CommitExtension).getMetadataAsType)
 
         testFlow.actions.size should be(3)
         testFlow.tagState.taggedActions.keySet should be(testFlow.actions.map(_.guid).toSet)
@@ -1154,13 +1166,14 @@ class TestSparkDataFlow extends FunSpec with Matchers {
       }
 
       it("multiple commits, single label") {
-        val testFlow = emptyFlow
+        val commitFlow = emptyFlow
           .commit("commit_1")("label_1")
           .push("commit_1")(dataCommitter)
           .push("commit_2")(dataCommitter)
           .commit("commit_2")("label_2")
-          .prepareForExecution()
-            .get
+
+        val testFlow = CommitExtension.buildCommits(commitFlow, commitFlow.extensionMetadata(CommitExtension).getMetadataAsType)
+
 
         testFlow.actions.size should be(6)
         testFlow.tagState.taggedActions.keySet should be(testFlow.actions.map(_.guid).toSet)
@@ -1206,20 +1219,20 @@ class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[Stri
 
 }
 
-class TestDataCommitter extends DataCommitter {
+class TestDataCommitter extends DataCommitter[MockDataFlow] {
 
-  override def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: MockDataFlow): MockDataFlow = {
     labels.map(_.label).foldLeft(flow) { (res, label) => res.addAction(new TestEmptyAction(List(label + "_input"), List(label + "_output"))) }
   }
 
-  override def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: MockDataFlow): MockDataFlow = {
     flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
   }
 
-  override def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: MockDataFlow): MockDataFlow = {
     flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
   }
 
-  override protected[dataflow] def validate(flow: DataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = Success(Unit)
+  override protected[dataflow] def validate(flow: MockDataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = Success(Unit)
 
 }

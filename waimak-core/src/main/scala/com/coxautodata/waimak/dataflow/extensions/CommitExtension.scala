@@ -19,31 +19,34 @@ case object CommitExtension extends DataFlowExtension {
     *
     * @return
     */
-  override def preExecutionManipulation[S <: DataFlow](flow: S, meta: DataFlowMetadataState): Option[S] = {
+  override def preExecutionManipulation[S <: DataFlow[S]](flow: S, meta: DataFlowMetadataState): Option[S] = {
 
-    if (!meta.isInstanceOf[CommitMeta]) throw new RuntimeException
-    val commitMeta = meta.getMetadataAsType[CommitMeta]
+    val commitMeta = meta.getMetadataAsType[CommitMeta[S]]
 
     commitMeta.validate(flow).get
 
     if (commitMeta.pushes.isEmpty) None
     else Some {
-      commitMeta.pushes.foldLeft(flow) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
-        val commitName = pushCommitter._1
-        val commitUUID = UUID.randomUUID()
-        val committer = pushCommitter._2.head
-        val labels = commitMeta.commits(commitName)
-        resFlow.tag(commitName) {
-          committer.stageToTempFlow(commitName, commitUUID, labels, _)
-        }.tagDependency(commitName) {
-          _.tag(commitName + "_AFTER_COMMIT") {
-            committer.moveToPermanentStorageFlow(commitName, commitUUID, labels, _)
-          }
-        }.tagDependency(commitName + "_AFTER_COMMIT") {
-          committer.finish(commitName, commitUUID, labels, _)
-        }
-      }
+      buildCommits(flow, commitMeta)
         .updateExtensionMetadata(this, _ => initialState)
+    }
+  }
+
+  def buildCommits[S <: DataFlow[S]](flow: S, commitMeta: CommitMeta[S]): S = {
+    commitMeta.pushes.foldLeft(flow) { (resFlow, pushCommitter: (String, Seq[DataCommitter[S]])) =>
+      val commitName = pushCommitter._1
+      val commitUUID = UUID.randomUUID()
+      val committer = pushCommitter._2.head
+      val labels = commitMeta.commits(commitName)
+      resFlow.tag(commitName) {
+        committer.stageToTempFlow(commitName, commitUUID, labels, _)
+      }.tagDependency(commitName) {
+        _.tag(commitName + "_AFTER_COMMIT") {
+          committer.moveToPermanentStorageFlow(commitName, commitUUID, labels, _)
+        }
+      }.tagDependency(commitName + "_AFTER_COMMIT") {
+        committer.finish(commitName, commitUUID, labels, _)
+      }
     }
   }
 
@@ -57,9 +60,9 @@ case object CommitExtension extends DataFlowExtension {
   * @param pushes  Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
   *                lazy definitions of the data flows, validation will have to catch it.
   */
-case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter]]) extends DataFlowMetadataState {
+case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter[S]]]) extends DataFlowMetadataState {
 
-  def addCommits(commitName: String, labels: Seq[String], partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cacheLabels: Boolean): CommitMeta = {
+  def addCommits(commitName: String, labels: Seq[String], partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cacheLabels: Boolean): CommitMeta[S] = {
     val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition, cacheLabels))
     this.copy(commits = commits + (commitName -> nextCommits))
   }
@@ -69,7 +72,7 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
     Option(labelCommits).filter(_.nonEmpty)
   }
 
-  def addPush(commitName: String, committer: DataCommitter): CommitMeta = {
+  def addPush(commitName: String, committer: DataCommitter[S]): CommitMeta[S] = {
     val nextPushes = pushes.getOrElse(commitName, Seq.empty) :+ committer
     this.copy(pushes = pushes + (commitName -> nextPushes))
   }
@@ -78,7 +81,7 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
 
   def commitsWithoutPushes(): Set[String] = commits.keySet.diff(pushes.keySet)
 
-  def validateCommitters(dataFlow: DataFlow): Try[Unit] = {
+  def validateCommitters(dataFlow: S): Try[Unit] = {
 
     @tailrec
     def loopTest(pushesToValidate: Set[String], result: Try[Unit]): Try[Unit] = {
@@ -86,7 +89,7 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
       else {
         val commit = pushesToValidate.head
         val committers = pushes(commit)
-        if (committers.size != 1) Failure(new DataFlowException(s"Commit with name [${commit}] has ${committers.size} instead of 1"))
+        if (committers.size != 1) Failure(new DataFlowException(s"Commit with name [$commit] has ${committers.size} instead of 1"))
         else loopTest(pushesToValidate.tail, committers.head.validate(dataFlow, commit, commits(commit)))
       }
     }
@@ -102,7 +105,7 @@ case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String
     */
   def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty)
 
-  def validate(dataFlow: DataFlow): Try[Unit] = {
+  def validate(dataFlow: S): Try[Unit] = {
     val outputLabels: Set[String] = dataFlow.inputs.keySet ++ dataFlow.actions.flatMap(_.outputLabels).toSet
     Try {
       val c = commitsWithoutPushes().toArray

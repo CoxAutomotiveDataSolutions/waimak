@@ -13,7 +13,7 @@ import scala.util.Try
   *
   * Created by Alexei Perelighin
   */
-abstract class DataCommitter {
+abstract class DataCommitter[A <: DataFlow[A]] {
 
   /**
     * Adds cache actions to the flow.
@@ -24,7 +24,7 @@ abstract class DataCommitter {
     * @param flow       data flow to which the caching actions are added to
     * @return           data flow with caching actions
     */
-  protected[dataflow] def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow
+  protected[dataflow] def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: A): A
 
   /**
     * Adds actions to the flow that move data to the permanent storage, simulating a wave commit
@@ -35,7 +35,7 @@ abstract class DataCommitter {
     * @param flow       data flow to which move actions are added to
     * @return           data flow with move actions
     */
-  protected[dataflow] def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow
+  protected[dataflow] def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: A): A
 
   /**
     * Adds actions that are preformed when all data is fully committed/moved into permanent storage. Can be used
@@ -47,7 +47,7 @@ abstract class DataCommitter {
     * @param flow       data flow to which to add finalise actions
     * @return           data flow with finalise actions
     */
-  protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow
+  protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: A): A
 
   /**
     * Checks if data flow that will be used to cache, commit and finalise steps contains all necessary configurations.
@@ -55,6 +55,6 @@ abstract class DataCommitter {
     * @param flow data flow to validate
     * @return
     */
-  protected[dataflow] def validate(flow: DataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit]
+  protected[dataflow] def validate(flow: A, commitName: String, entries: Seq[CommitEntry]): Try[Unit]
 
 }

@@ -17,25 +17,25 @@ import scala.util.{Success, Try}
   * Also inputs are useful for unit testing, as they give access to all intermediate outputs of actions.
   *
   */
-trait DataFlow extends Logging {
+trait DataFlow[Self <: DataFlow[Self]] extends Logging {
+  this: Self =>
 
   def flowContext: FlowContext
 
   def schedulingMeta: SchedulingMeta
 
-  def schedulingMeta(sc: SchedulingMeta): this.type
+  def schedulingMeta(sc: SchedulingMeta): Self
 
-  def setExtensionMetadata(newMetadata: Map[DataFlowExtension, DataFlowMetadataState]): this.type
+  def setExtensionMetadata(newMetadata: Map[DataFlowExtension, DataFlowMetadataState]): Self
 
   def extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState]
 
-  def updateExtensionMetadata(extensionKey: DataFlowExtension, updateMeta: DataFlowMetadataState => DataFlowMetadataState, flowToApplyTo: this.type => this.type = f => f): this.type = {
+  def updateExtensionMetadata(extensionKey: DataFlowExtension, updateMeta: DataFlowMetadataState => DataFlowMetadataState, flowToApplyTo: Self => Self = f => f): Self = {
 
     val oldMeta = extensionMetadata.getOrElse(extensionKey, extensionKey.initialState)
     flowToApplyTo(this).setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
 
   }
-
 
   /**
     * Current [[DataFlowExecutor]] associated with this flow
@@ -49,13 +49,13 @@ trait DataFlow extends Logging {
     *
     * @param executor [[DataFlowExecutor]] to add to this flow
     */
-  def withExecutor(executor: DataFlowExecutor): this.type
+  def withExecutor(executor: DataFlowExecutor): Self
 
   /**
     * Execute this flow using the current [[executor]] on the flow.
     * See [[DataFlowExecutor.execute()]] for more information.
     */
-  def execute(errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], DataFlow) = executor.execute(this, errorOnUnexecutedActions)
+  def execute(errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], Self) = executor.execute(this, errorOnUnexecutedActions)
 
   /**
     * Inputs that were explicitly set or produced by previous actions, these are inputs for all following actions.
@@ -66,7 +66,7 @@ trait DataFlow extends Logging {
     */
   def inputs: DataFlowEntities
 
-  def inputs(inp: DataFlowEntities): this.type
+  def inputs(inp: DataFlowEntities): Self
 
   /**
     * Actions to execute, these will be scheduled when inputs become available. Executed actions must be removed from
@@ -76,11 +76,11 @@ trait DataFlow extends Logging {
     */
   def actions: Seq[DataFlowAction]
 
-  def actions(acs: Seq[DataFlowAction]): this.type
+  def actions(acs: Seq[DataFlowAction]): Self
 
   def tagState: DataFlowTagState
 
-  def tagState(ts: DataFlowTagState): this.type
+  def tagState(ts: DataFlowTagState): Self
 
   /**
     * Creates new state of the dataflow by adding an action to it.
@@ -91,7 +91,7 @@ trait DataFlow extends Logging {
     *                            1) at least one of the input labels is not present in the inputs
     *                            2) at least one of the input labels is not present in the outputs of existing actions
     */
-  def addAction[A <: DataFlowAction](action: A): this.type = {
+  def addAction[A <: DataFlowAction](action: A): Self = {
 
     action.outputLabels.foreach(l => if (labelIsInputOrProduced(l)) {
       throw new DataFlowException(s"Output label [${l}] is already in the inputs or is produced by another action.")
@@ -110,7 +110,7 @@ trait DataFlow extends Logging {
     * @param f A function that transforms a dataflow object
     * @return New dataflow
     */
-  def map[R >: this.type](f: this.type => R): R = f(this)
+  def map[R >: Self](f: Self => R): R = f(this)
 
   /**
     * Optionally transform a dataflow depending on the output of the
@@ -120,7 +120,7 @@ trait DataFlow extends Logging {
     * @param f A function that returns an Option[DataFlow]
     * @return DataFlow object that may have been transformed
     */
-  def mapOption[R >: this.type](f: this.type => Option[R]): R = f(this).getOrElse(this)
+  def mapOption[R >: Self](f: Self => Option[R]): R = f(this).getOrElse(this)
 
   /**
     * Fold left over a collection, where the current DataFlow is the zero value.
@@ -130,7 +130,7 @@ trait DataFlow extends Logging {
     * @param f        Function to apply during the flow
     * @return A DataFlow produced after repeated applications of f for each element in the collection
     */
-  def foldLeftOver[A, S >: this.type <: DataFlow](foldOver: Iterable[A])(f: (S, A) => S): S = {
+  def foldLeftOver[A, S >: Self](foldOver: Iterable[A])(f: (S, A) => S): S = {
     foldOver.foldLeft[S](this)(f)
   }
 
@@ -142,7 +142,7 @@ trait DataFlow extends Logging {
     * @param value - values of the input
     * @return - new state with the input
     */
-  def addInput(label: String, value: Option[Any]): this.type = {
+  def addInput(label: String, value: Option[Any]): Self = {
     if (inputs.labels.contains(label)) throw new DataFlowException(s"Input label [$label] already exists")
     inputs(inputs + (label -> value))
   }
@@ -156,7 +156,7 @@ trait DataFlow extends Logging {
     * @param interceptor
     * @return
     */
-  def addInterceptor(interceptor: InterceptorAction, guidToIntercept: String): this.type = {
+  def addInterceptor(interceptor: InterceptorAction, guidToIntercept: String): Self = {
     val newActions = actions.foldLeft(Seq.empty[DataFlowAction]) { (res, action) =>
       if (action.guid == guidToIntercept) res :+ interceptor else res :+ action
     }
@@ -181,7 +181,7 @@ trait DataFlow extends Logging {
     * @param taggedFlow An intermediate flow that actions can be added to that will be be marked with the tag
     * @return
     */
-  def tag[S <: DataFlow](tags: String*)(taggedFlow: this.type => S): this.type = {
+  def tag(tags: String*)(taggedFlow: Self => Self): Self = {
     val (alreadyActiveTags, newTags) = tags.toSet.partition(tagState.activeTags.contains)
 
     alreadyActiveTags
@@ -191,7 +191,7 @@ trait DataFlow extends Logging {
     val newTagState = tagState.copy(activeTags = tagState.activeTags union newTags)
     val intermediateFlow = taggedFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeTags = intermediateFlow.tagState.activeTags diff newTags)
-    intermediateFlow.tagState(finalTagState).asInstanceOf[this.type]
+    intermediateFlow.tagState(finalTagState)
   }
 
   /**
@@ -202,7 +202,7 @@ trait DataFlow extends Logging {
     * @param tagDependentFlow An intermediate flow that actions can be added to that will depended on tagged actions to have completed before running
     * @return
     */
-  def tagDependency[S <: DataFlow](depTags: String*)(tagDependentFlow: this.type => S): this.type = {
+  def tagDependency(depTags: String*)(tagDependentFlow: Self => Self): Self = {
     val (alreadyActiveDeps, newDeps) = depTags.toSet.partition(tagState.activeDependentOnTags.contains)
 
     alreadyActiveDeps
@@ -212,7 +212,7 @@ trait DataFlow extends Logging {
     val newTagState = tagState.copy(activeDependentOnTags = tagState.activeDependentOnTags union newDeps)
     val intermediateFlow = tagDependentFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeDependentOnTags = intermediateFlow.tagState.activeDependentOnTags diff newDeps)
-    intermediateFlow.tagState(finalTagState).asInstanceOf[this.type]
+    intermediateFlow.tagState(finalTagState)
   }
 
   /**
@@ -231,7 +231,7 @@ trait DataFlow extends Logging {
     * @param labels      labels added to the commit name with partitions config
     * @return
     */
-  def commit(commitName: String, partitions: Seq[String], repartition: Boolean = true)(labels: String*): this.type = {
+  def commit(commitName: String, partitions: Seq[String], repartition: Boolean = true)(labels: String*): Self = {
     commit(commitName, Some(Left(partitions)), repartition = partitions.nonEmpty && repartition)(labels: _*)
   }
 
@@ -249,7 +249,7 @@ trait DataFlow extends Logging {
     * @param labels      labels added to the commit name with partitions config
     * @return
     */
-  def commit(commitName: String, repartition: Int)(labels: String*): this.type = {
+  def commit(commitName: String, repartition: Int)(labels: String*): Self = {
     commit(commitName, Some(Right(repartition)), repartition = true)(labels: _*)
   }
 
@@ -266,11 +266,11 @@ trait DataFlow extends Logging {
     * @param labels     labels added to the commit name with partitions config
     * @return
     */
-  def commit(commitName: String)(labels: String*): this.type = {
+  def commit(commitName: String)(labels: String*): Self = {
     commit(commitName, None, repartition = false)(labels: _*)
   }
 
-  private def commit(commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean)(labels: String*): this.type = {
+  private def commit(commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean)(labels: String*): Self = {
     val cacheLabels = this.flowContext.getBoolean(CACHE_REUSED_COMMITTED_LABELS, CACHE_REUSED_COMMITTED_LABELS_DEFAULT)
 
     updateCommitMeta(_.addCommits(commitName, labels, partitions, repartition, cacheLabels))
@@ -284,10 +284,10 @@ trait DataFlow extends Logging {
     * @param committer
     * @return
     */
-  def push(commitName: String)(committer: DataCommitter): this.type = updateCommitMeta(_.addPush(commitName, committer))
+  def push(commitName: String)(committer: DataCommitter[Self]): Self = updateCommitMeta(_.addPush(commitName, committer))
 
-  private def updateCommitMeta(update: CommitMeta => CommitMeta): this.type =
-    updateExtensionMetadata(CommitExtension, m => update(m.getMetadataAsType[CommitMeta]))
+  private def updateCommitMeta(update: CommitMeta[Self] => CommitMeta[Self]): Self =
+    updateExtensionMetadata(CommitExtension, m => update(m.getMetadataAsType[CommitMeta[Self]]))
 
 
   /**
@@ -310,7 +310,7 @@ trait DataFlow extends Logging {
     * @param nestedFlow
     * @return
     */
-  def executionPool(executionPoolName: String)(nestedFlow: this.type => this.type): this.type = schedulingMeta(_.setExecutionPoolName(executionPoolName))(nestedFlow)
+  def executionPool(executionPoolName: String)(nestedFlow: Self => Self): Self = schedulingMeta(_.setExecutionPoolName(executionPoolName))(nestedFlow)
 
   /**
     * Generic method that can be used to add context and state to all actions inside the block.
@@ -319,7 +319,7 @@ trait DataFlow extends Logging {
     * @param nestedFlow  all actions inside of this flow will be associated with the mutated state
     * @return
     */
-  def schedulingMeta(mutateState: SchedulingMetaState => SchedulingMetaState)(nestedFlow: this.type => this.type): this.type = {
+  def schedulingMeta(mutateState: SchedulingMetaState => SchedulingMetaState)(nestedFlow: Self => Self): Self = {
     val previousState = schedulingMeta.state
     val nestedMeta = schedulingMeta.setState(mutateState(previousState))
     val intermediateFlow = nestedFlow(schedulingMeta(nestedMeta))
@@ -354,7 +354,7 @@ trait DataFlow extends Logging {
     * @return - next stage data flow without the executed action, but with its outpus as inputs
     * @throws DataFlowException if number of provided outputs is not equal to the number of output labels of the action
     */
-  def executed(executed: DataFlowAction, outputs: Seq[Option[Any]]): this.type = {
+  def executed(executed: DataFlowAction, outputs: Seq[Option[Any]]): Self = {
     if (outputs.size != executed.outputLabels.size) throw new DataFlowException(s"Action produced different number of results. Expected ${executed.outputLabels.size}, but was ${outputs.size}. ${executed.logLabel}")
     val newActions = actions.filter(_.guid != executed.guid)
     val newInputs = executed.outputLabels.zip(outputs).foldLeft(inputs)((resInput, value) => resInput + value)
@@ -408,25 +408,26 @@ trait DataFlow extends Logging {
     * It would be responsible for preparing an execution environment such as cleaning temporary directories.
     *
     */
-  def prepareForExecution(): Try[this.type] = {
-
-    def loopUntilStable(flow: this.type): this.type = {
+  def prepareForExecution(): Try[Self] = {
+//TODO max loops
+    def loopUntilStable(flow: Self): Self = {
       val (newFlow, changed) = flow.extensionMetadata
-        .foldLeft[(this.type, Boolean)]((flow, false)) {
-          case ((z, updated), (ex, meta)) =>
-            ex.preExecutionManipulation[this.type](z, meta) match {
-              case None => (z, updated)
-              case Some(f) =>
-                (f, true)
-            }
-        }
-      if (changed) loopUntilStable(newFlow.asInstanceOf[this.type])
-      else newFlow.asInstanceOf[this.type]
+        .foldLeft[(Self, Boolean)]((flow, false)) {
+        case ((z, updated), (ex, meta)) =>
+          ex.preExecutionManipulation[Self](z, meta) match {
+            case None => (z, updated)
+            case Some(f) =>
+              (f, true)
+          }
+      }
+      if (changed) loopUntilStable(newFlow)
+      else newFlow
     }
 
-    Try{loopUntilStable(this)}
+    Try {
+      loopUntilStable(this)
+    }
       .flatMap(_.isValidFlowDAG)
-      .asInstanceOf[Try[this.type]]
   }
 
   /**
@@ -436,7 +437,7 @@ trait DataFlow extends Logging {
     * the temporary directory
     *
     */
-  def finaliseExecution(): Try[this.type] = Success(this)
+  def finaliseExecution(): Try[Self] = Success(this)
 
   /**
     * Flow DAG is valid iff:
@@ -450,7 +451,7 @@ trait DataFlow extends Logging {
     *
     * @return
     */
-  def isValidFlowDAG: Try[this.type] = {
+  def isValidFlowDAG: Try[Self] = {
 
     Try {
       // Condition 1
@@ -645,7 +646,7 @@ trait DataFlowExtension {
 
   def initialState: DataFlowMetadataState
 
-  def preExecutionManipulation[S <: DataFlow](flow: S, meta: DataFlowMetadataState): Option[S]
+  def preExecutionManipulation[S <: DataFlow[S]](flow: S, meta: DataFlowMetadataState): Option[S]
 
 }
 
@@ -658,5 +659,4 @@ trait DataFlowMetadataState {
       }
       .get
   }
-
 }
