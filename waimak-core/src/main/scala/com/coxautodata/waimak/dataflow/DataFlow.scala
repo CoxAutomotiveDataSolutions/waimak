@@ -28,10 +28,10 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
 
   def extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState]
 
-  def updateExtensionMetadata(extensionKey: DataFlowExtension, updateMeta: DataFlowMetadataState => DataFlowMetadataState, flowToApplyTo: Self => Self = f => f): Self = {
+  def updateExtensionMetadata(extensionKey: DataFlowExtension, updateMeta: DataFlowMetadataState => DataFlowMetadataState): Self = {
 
     val oldMeta = extensionMetadata.getOrElse(extensionKey, extensionKey.initialState)
-    flowToApplyTo(this).setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
+    setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
 
   }
 
