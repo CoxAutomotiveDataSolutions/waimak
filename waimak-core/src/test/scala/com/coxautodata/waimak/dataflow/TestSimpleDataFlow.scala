@@ -1203,20 +1203,20 @@ class TestEmptyAction(val inputLabels: List[String], val outputLabels: List[Stri
 
 }
 
-class TestDataCommitter extends DataCommitter {
+class TestDataCommitter extends DataCommitter[MockDataFlow] {
 
-  override def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: MockDataFlow): MockDataFlow = {
     labels.map(_.label).foldLeft(flow) { (res, label) => res.addAction(new TestEmptyAction(List(label + "_input"), List(label + "_output"))) }
   }
 
-  override def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: MockDataFlow): MockDataFlow = {
     flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
   }
 
-  override def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: DataFlow): DataFlow = {
+  override def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: MockDataFlow): MockDataFlow = {
     flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
   }
 
-  override protected[dataflow] def validate(flow: DataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = Success(Unit)
+  override protected[dataflow] def validate(flow: MockDataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = Success(Unit)
 
 }
