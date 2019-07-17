@@ -2,9 +2,10 @@ package com.coxautodata.waimak.dataflow.spark
 
 import java.io.File
 
+import com.coxautodata.waimak.dataflow.spark.CacheAsParquetExtension.CACHE_ONLY_REUSED_LABELS
 import com.coxautodata.waimak.dataflow.{ActionResult, _}
 import org.apache.commons.io.FileUtils
-import org.apache.hadoop.fs.{FileAlreadyExistsException, FileSystem, Path}
+import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{AnalysisException, Dataset, SparkSession}
 
@@ -20,7 +21,6 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
   // Need to explicitly use sequential like executor with preference to loaders
   val executor = Waimak.sparkExecutor(1, DFExecutorPriorityStrategies.preferLoaders)
 
-  import SparkActions._
   import TestSparkData._
 
   describe("csv") {
@@ -152,7 +152,10 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     }
 
     it("stage and commit parquet, and force a cache as parquet") {
+      import CacheAsParquetExtension._
       val spark = sparkSession
+      spark.conf.set(CACHE_ONLY_REUSED_LABELS, false)
+
       import spark.implicits._
       val baseDest = testingBaseDir + "/dest"
       val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
@@ -163,6 +166,8 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
         .inPlaceTransform("parquet_1")(df => df)
         .commit("commit")("parquet_1")
         .push("commit")(ParquetDataCommitter(baseDest).withSnapshotFolder("generated_timestamp=20180509094500"))
+        .prepareForExecution()
+        .get
 
       // Check all post actions made it through
       val interceptorAction = flow.actions.filter(_.outputLabels.contains("parquet_1")).head.asInstanceOf[PostActionInterceptor[Dataset[_]]]
@@ -275,7 +280,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
           .alias("csv_1", "bad-name")
           .sql("bad-name")("bad-output", "select * from bad-name")
       }
-      res.text should be ("The following labels contain invalid characters to be used as Spark SQL view names: [bad-name]. " +
+      res.text should be("The following labels contain invalid characters to be used as Spark SQL view names: [bad-name]. " +
         "You can alias the label to a valid name before calling the sql action.")
     }
   }
@@ -595,7 +600,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
             _.openCSV(basePath)("csv_1")
           }
 
-        val res = intercept[DataFlowException]{
+        val res = intercept[DataFlowException] {
           executor.execute(flow)
         }
         res.text should be(
@@ -637,10 +642,53 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
               .alias("csv_1", "items")
               .alias("csv_2", "person")
           }.tagDependency("tag_1") {
-          _.transform("items")("one_item") { _.filter("id = 1")}
+          _.transform("items")("one_item") {
+            _.filter("id = 1")
+          }
         }.show("one_item")
 
-        val flowWithCache = flowNoCache.cacheAsParquet("items")
+        val flowWithCacheNoReuse = flowNoCache.cacheAsParquet("items")
+
+        flowNoCache.actions.size should be(flowWithCacheNoReuse.actions.size)
+        flowNoCache.tagState.taggedActions.size should be(flowWithCacheNoReuse.tagState.taggedActions.size)
+
+        val noCacheActionGUIDs = flowNoCache.actions.map(_.guid).toSet
+        flowWithCacheNoReuse.prepareForExecution().get.actions.forall(a => noCacheActionGUIDs.contains(a.guid)) should be(true)
+
+        val flowWithCache = flowWithCacheNoReuse.show("items").prepareForExecution().get
+        flowWithCache.actions.forall(a => noCacheActionGUIDs.contains(a.guid)) should be(false)
+        val cacheAction = flowWithCache.actions.filter(a => !noCacheActionGUIDs.contains(a.guid)).head
+        cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
+
+        flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
+        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("tag_1")))
+      }
+
+      it("tagged interceptor on tagged action") {
+        val spark = sparkSession
+        val baseDest = testingBaseDir + "/dest"
+
+        spark.conf.set(CACHE_ONLY_REUSED_LABELS, false)
+
+        val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
+          .tag("tag_1") {
+            _.openCSV(basePath)("csv_1", "csv_2")
+              .alias("csv_1", "items")
+              .alias("csv_2", "person")
+          }.tagDependency("tag_1") {
+          _.transform("items")("one_item") {
+            _.filter("id = 1")
+          }
+        }.show("one_item")
+
+        val flowWithCache = flowNoCache
+          .tag("cache_tag_1") {
+            _.cacheAsParquet("items")
+          }
+          .prepareForExecution()
+          .get
+
+        flowWithCache.actions.foreach(a => println("DEBUG a " + a.logLabel))
 
         flowNoCache.actions.size should be(flowWithCache.actions.size)
         flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
@@ -653,52 +701,26 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
         flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("tag_1")))
       }
 
-      it("tagged interceptor on tagged action") {
-        val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
-
-        val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-          .tag("tag_1") {
-            _.openCSV(basePath)("csv_1", "csv_2")
-              .alias("csv_1", "items")
-              .alias("csv_2", "person")
-          }.tagDependency("tag_1") {
-          _.transform("items")("one_item") { _.filter("id = 1")}
-        }.show("one_item")
-
-        val flowWithCache = flowNoCache
-            .tag("cache_tag_1") {
-              _.cacheAsParquet("items")
-            }
-
-        flowWithCache.actions.foreach(a => println("DEBUG a " + a.logLabel))
-
-        flowNoCache.actions.size should be(flowWithCache.actions.size)
-        flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
-
-        val noCacheActionGUIDs = flowNoCache.actions.map(_.guid).toSet
-        val cacheAction = flowWithCache.actions.filter(a => !noCacheActionGUIDs.contains(a.guid)).head
-        cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
-
-        flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
-        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("tag_1", "cache_tag_1")))
-      }
-
       it("tagged interceptor on non tagged action") {
         val spark = sparkSession
         val baseDest = testingBaseDir + "/dest"
+        spark.conf.set(CACHE_ONLY_REUSED_LABELS, false)
 
         val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1", "csv_2")
           .alias("csv_1", "items")
           .alias("csv_2", "person")
-          .transform("items")("one_item") { _.filter("id = 1") }
+          .transform("items")("one_item") {
+            _.filter("id = 1")
+          }
           .show("one_item")
 
         val flowWithCache = flowNoCache
           .tag("cache_tag_1") {
             _.cacheAsParquet("items")
           }
+          .prepareForExecution()
+          .get
 
         flowNoCache.actions.size should be(flowWithCache.actions.size)
         flowNoCache.tagState.taggedActions.size should be(flowWithCache.tagState.taggedActions.size)
@@ -708,7 +730,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
         cacheAction.logLabel.contains("Action: PostActionInterceptor Inputs") should be(true)
 
         flowNoCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(None)
-        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set("cache_tag_1")))
+        flowWithCache.tagState.taggedActions.get(cacheAction.guid).map(_.tags) should be(Some(Set()))
       }
     }
 
@@ -741,7 +763,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
           .alias("csv_1", "bad-name")
           .debugAsTable("bad-name")
       }
-      res.text should be ("The following labels contain invalid characters to be used as Spark SQL view names: [bad-name]. " +
+      res.text should be("The following labels contain invalid characters to be used as Spark SQL view names: [bad-name]. " +
         "You can alias the label to a valid name before calling the debugAsTable action.")
     }
 
@@ -822,35 +844,35 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
   describe("finaliseExecution") {
 
-    it("should delete a temporary folder after execution by default"){
+    it("should delete a temporary folder after execution by default") {
       val emptyFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
 
       Waimak.sparkExecutor().execute(emptyFlow)
-      emptyFlow.flowContext.fileSystem.exists(tmpDir) should be (false)
+      emptyFlow.flowContext.fileSystem.exists(tmpDir) should be(false)
 
     }
 
-    it("should not delete a temporary folder after execution if configuration is set"){
+    it("should not delete a temporary folder after execution if configuration is set") {
 
       sparkSession.conf.set("spark.waimak.dataflow.removeTempAfterExecution", false)
       val emptyFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
 
       Waimak.sparkExecutor().execute(emptyFlow)
-      emptyFlow.flowContext.fileSystem.exists(tmpDir) should be (true)
+      emptyFlow.flowContext.fileSystem.exists(tmpDir) should be(true)
 
     }
 
-    it("should not delete a temporary folder after execution the flow fails"){
+    it("should not delete a temporary folder after execution the flow fails") {
 
       val badFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString).open("bad", _ => throw new RuntimeException("bad action"))
 
-      badFlow.flowContext.getBoolean("spark.waimak.dataflow.removeTempAfterExecution", SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION_DEFAULT) should be (true)
+      badFlow.flowContext.getBoolean("spark.waimak.dataflow.removeTempAfterExecution", SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION_DEFAULT) should be(true)
 
       intercept[RuntimeException] {
         Waimak.sparkExecutor().execute(badFlow)
-      }.getCause.getMessage should be ("bad action")
+      }.getCause.getMessage should be("bad action")
 
-      badFlow.flowContext.fileSystem.exists(tmpDir) should be (true)
+      badFlow.flowContext.fileSystem.exists(tmpDir) should be(true)
 
     }
 
@@ -861,6 +883,8 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     it("should handle multiple types in the flow") {
 
       val emptyFlow = SparkDataFlow.empty(sparkSession, tmpDir)
+      sparkSession.conf.set(CACHE_ONLY_REUSED_LABELS, false)
+
       val flow = emptyFlow.addInput("integer_1", Some(1))
         .addInput("dataset_1", Some(sparkSession.emptyDataFrame))
         .addAction(new TestOutputMultipleTypesAction(List("integer_1", "dataset_1"), List("integer_2", "dataset_2"),

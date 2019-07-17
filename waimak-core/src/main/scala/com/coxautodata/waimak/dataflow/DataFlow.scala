@@ -24,11 +24,11 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
 
   def schedulingMeta(sc: SchedulingMeta): Self
 
-  def setExtensionMetadata(newMetadata: Map[DataFlowExtension, DataFlowMetadataState]): Self
+  def setExtensionMetadata(newMetadata: Map[DataFlowExtension[Self], DataFlowMetadataState]): Self
 
-  def extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState]
+  def extensionMetadata: Map[DataFlowExtension[Self], DataFlowMetadataState]
 
-  def updateExtensionMetadata(extensionKey: DataFlowExtension, updateMeta: DataFlowMetadataState => DataFlowMetadataState): Self = {
+  def updateExtensionMetadata(extensionKey: DataFlowExtension[Self], updateMeta: DataFlowMetadataState => DataFlowMetadataState): Self = {
 
     val oldMeta = extensionMetadata.getOrElse(extensionKey, extensionKey.initialState)
     setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
@@ -337,7 +337,7 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
       val (newFlow, changed) = flow.extensionMetadata
         .foldLeft[(Self, Boolean)]((flow, false)) {
         case ((z, updated), (ex, meta)) =>
-          ex.preExecutionManipulation[Self](z, meta) match {
+          ex.preExecutionManipulation(z, meta) match {
             case None => (z, updated)
             case Some(f) =>
               (f, true)
@@ -557,11 +557,11 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
 
 }
 
-trait DataFlowExtension {
+trait DataFlowExtension[S <: DataFlow[S]] {
 
   def initialState: DataFlowMetadataState
 
-  def preExecutionManipulation[S <: DataFlow[S]](flow: S, meta: DataFlowMetadataState): Option[S]
+  def preExecutionManipulation(flow: S, meta: DataFlowMetadataState): Option[S]
 
 }
 

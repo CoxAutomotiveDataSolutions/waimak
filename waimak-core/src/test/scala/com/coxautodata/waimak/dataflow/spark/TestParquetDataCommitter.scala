@@ -132,6 +132,8 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
     describe("success") {
 
+      import CommitExtension._
+
       it("bare minimum") {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)

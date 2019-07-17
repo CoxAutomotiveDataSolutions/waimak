@@ -2,19 +2,10 @@ package com.coxautodata.waimak.dataflow
 
 import java.util.UUID
 
-import com.coxautodata.waimak.dataflow.DataFlow.dataFlowParamPrefix
-
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
-case object CommitExtension extends DataFlowExtension {
-
-  /**
-    * Whether to cache labels before they are committed if they are reused
-    * elsewhere in the flow.
-    */
-  val CACHE_REUSED_COMMITTED_LABELS: String = s"$dataFlowParamPrefix.cacheReusedCommittedLabels"
-  val CACHE_REUSED_COMMITTED_LABELS_DEFAULT: Boolean = true
+case class CommitExtension[S <: DataFlow[S]]() extends DataFlowExtension[S] {
 
   override def initialState: DataFlowMetadataState = CommitMeta(Map.empty, Map.empty)
 
@@ -26,7 +17,7 @@ case object CommitExtension extends DataFlowExtension {
     *
     * @return
     */
-  override def preExecutionManipulation[S <: DataFlow[S]](flow: S, meta: DataFlowMetadataState): Option[S] = {
+  override def preExecutionManipulation(flow: S, meta: DataFlowMetadataState): Option[S] = {
 
     val commitMeta = meta.getMetadataAsType[CommitMeta[S]]
 
@@ -39,7 +30,7 @@ case object CommitExtension extends DataFlowExtension {
     }
   }
 
-  def buildCommits[S <: DataFlow[S]](flow: S, commitMeta: CommitMeta[S]): S = {
+  def buildCommits(flow: S, commitMeta: CommitMeta[S]): S = {
     commitMeta.pushes.foldLeft(flow) { (resFlow, pushCommitter: (String, Seq[DataCommitter[S]])) =>
       val commitName = pushCommitter._1
       val commitUUID = UUID.randomUUID()
@@ -57,6 +48,19 @@ case object CommitExtension extends DataFlowExtension {
     }
   }
 
+}
+
+object CommitExtension {
+
+  import DataFlow._
+
+  /**
+    * Whether to cache labels before they are committed if they are reused
+    * elsewhere in the flow.
+    */
+  val CACHE_REUSED_COMMITTED_LABELS: String = s"$dataFlowParamPrefix.cacheReusedCommittedLabels"
+  val CACHE_REUSED_COMMITTED_LABELS_DEFAULT: Boolean = true
+  
 }
 
 /**

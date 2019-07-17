@@ -117,9 +117,9 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
 
   override def executor: DataFlowExecutor = info.executor
 
-  override def setExtensionMetadata(newMetadata: Map[DataFlowExtension, DataFlowMetadataState]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = newMetadata))
+  override def setExtensionMetadata(newMetadata: Map[DataFlowExtension[SparkDataFlow], DataFlowMetadataState]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = newMetadata))
 
-  override def extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState] = this.info.extensionMetadata
+  override def extensionMetadata: Map[DataFlowExtension[SparkDataFlow], DataFlowMetadataState] = this.info.extensionMetadata
 
   override def withExecutor(executor: DataFlowExecutor): SparkDataFlow = new SparkDataFlow(info.copy(executor = executor))
 
@@ -127,8 +127,8 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
 
 case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
 
-private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefinition], tempPath: Path, labelsToWaitFor: List[String]) extends SparkDataFlowAction with Logging {
-  val inputLabels: List[String] = labelsToWaitFor
+private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefinition], tempPath: Path) extends SparkDataFlowAction with Logging {
+  val inputLabels: List[String] = List.empty
   val outputLabels: List[String] = List.empty
 
   override val requiresAllInputs = false
@@ -187,7 +187,7 @@ case class SparkDataFlowInfo(spark: SparkSession,
                              schedulingMeta: SchedulingMeta,
                              commitLabels: Map[String, LabelCommitDefinition] = Map.empty,
                              tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty),
-                             extensionMetadata: Map[DataFlowExtension, DataFlowMetadataState] = Map.empty,
+                             extensionMetadata: Map[DataFlowExtension[SparkDataFlow], DataFlowMetadataState] = Map.empty,
                              executor: DataFlowExecutor = Waimak.sparkExecutor())
 
 object SparkDataFlow {

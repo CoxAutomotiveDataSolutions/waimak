@@ -2,7 +2,6 @@ package com.coxautodata.waimak.dataflow.spark
 
 import java.util.UUID
 
-import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.{ActionResult, _}
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.metastore.HadoopDBConnector
@@ -82,12 +81,12 @@ case class ParquetDataCommitter(outputBaseFolder: String,
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder)
     val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(outputBaseFolder, snapshotFolder, ce.partitions.flatMap(_.left.toOption).getOrElse(Seq.empty), hadoopDBConnector))).toMap
-    sparkFlow.addAction(CommitAction(commitLabels, commitTempBase, labels.map(_.label).toList))
+    sparkFlow.addAction(CommitAction(commitLabels, commitTempBase))
   }
 
   override protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: SparkDataFlow): SparkDataFlow = cleanupStrategy.fold(flow) { strategy =>
     labels.foldLeft(flow) { (resFlow, labelCommitEntry) =>
-      resFlow.addAction(new FSCleanUp(outputBaseFolder, strategy, List(labelCommitEntry.label)))
+      resFlow.addAction(FSCleanUp(outputBaseFolder, strategy, List(labelCommitEntry.label)))
     }
   }
 
@@ -166,15 +165,14 @@ object ParquetDataCommitter {
 /**
   * Action that deletes snapshots based on the cleanup strategy. It can cleanup one or more labels.
   *
-  * @param baseFolder  root folder that contains label folders
-  * @param toRemove    returns list of snapshot/folder to remove
-  * @param inputLabels list of labels, whose snapshots need to be cleaned up
-  * @param actionName
+  * @param baseFolder root folder that contains label folders
+  * @param toRemove   returns list of snapshot/folder to remove
   */
-class FSCleanUp(baseFolder: String
-                , toRemove: CleanUpStrategy[FileStatus]
-                , val inputLabels: List[String]
-                , override val actionName: String = "FSCleanUp") extends SparkDataFlowAction with Logging {
+case class FSCleanUp(baseFolder: String
+                     , toRemove: CleanUpStrategy[FileStatus]
+                     , labelsToClean: Seq[String]
+                    ) extends SparkDataFlowAction with Logging {
+  override val actionName: String = "FSCleanUp"
 
   /**
     * Perform the action
@@ -185,7 +183,7 @@ class FSCleanUp(baseFolder: String
     */
   override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = {
     val basePath = new Path(baseFolder)
-    val foldersToRemove = inputLabels
+    val foldersToRemove = labelsToClean
       .map(l => (l, new Path(basePath, l)))
       .filter(lp => flowContext.fileSystem.exists(lp._2))
       .map(lp => (lp._1, flowContext.fileSystem.listStatus(lp._2).filter(_.isDirectory)))
@@ -216,5 +214,5 @@ class FSCleanUp(baseFolder: String
     * The unique identifiers for the outputs to this action
     */
   override val outputLabels: List[String] = List.empty
-
+  override val inputLabels: List[String] = List.empty
 }
