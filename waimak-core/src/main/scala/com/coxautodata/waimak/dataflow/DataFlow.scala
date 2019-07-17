@@ -326,14 +326,17 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
 
   /**
     * A function called just before the flow is executed.
-    * By default, this function has just checks the tagging state of the flow, and could be overloaded to have implementation specific
+    * This function keeps calling any extension preparation steps first, then
+    * checks the tagging state of the flow, and could be overloaded to have implementation specific
     * preparation steps. An overloaded function should call this function first.
     * It would be responsible for preparing an execution environment such as cleaning temporary directories.
     *
     */
   def prepareForExecution(): Try[Self] = {
-    //TODO max loops
-    def loopUntilStable(flow: Self): Self = {
+    import DataFlow._
+    val maxIters = flowContext.getInt(MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE, MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE_DEFAULT)
+
+    def loopUntilStable(flow: Self, itersLeft: Int): Self = {
       val (newFlow, changed) = flow.extensionMetadata
         .foldLeft[(Self, Boolean)]((flow, false)) {
         case ((z, updated), (ex, meta)) =>
@@ -343,12 +346,16 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
               (f, true)
           }
       }
-      if (changed) loopUntilStable(newFlow)
+      if (changed && itersLeft <= 0)
+        throw new DataFlowException(s"Maximum number of iterations [$maxIters] reached before extension manipulations stabilised. " +
+          s"You can increase this limit using the flag [$MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE].")
+      else if (changed)
+        loopUntilStable(newFlow, itersLeft - 1)
       else newFlow
     }
 
     Try {
-      loopUntilStable(this)
+      loopUntilStable(this, maxIters)
     }
       .flatMap(_.isValidFlowDAG)
   }
@@ -471,6 +478,13 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
 object DataFlow {
 
   val dataFlowParamPrefix: String = "spark.waimak.dataflow"
+
+  /**
+    * Maximum number of iterations to pass through all extension manipulations before
+    * all are stabilised.
+    */
+  val MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE: String = s"$dataFlowParamPrefix.maxIterationsForExtensionManipulationsToStabalise"
+  val MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE_DEFAULT: Int = 10
 
 }
 
