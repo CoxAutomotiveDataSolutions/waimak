@@ -64,16 +64,6 @@ case class ParquetDataCommitter(outputBaseFolder: String,
       .getOrElse(throw new DataFlowException(s"Cannot add ParquetDataCommitter for commit name [$commitName] as no flow temporary folder has been given"))
   }
 
-  private def optionallyCacheLabel(flow: SparkDataFlow, commitEntry: CommitEntry): SparkDataFlow = {
-    if (flow.actions.exists(_.inputLabels.contains(commitEntry.label)))
-      SparkInterceptors.addCacheAsParquet(flow, commitEntry.label, commitEntry.partitions, commitEntry.repartition)
-    else {
-      logInfo(s"Committed label [${commitEntry.label}] will not be cached even though cacheLabels hint was given as it is not used " +
-        s"as input for any other actions")
-      flow
-    }
-  }
-
   override protected[dataflow] def stageToTempFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: SparkDataFlow): SparkDataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder).toString
@@ -81,7 +71,7 @@ case class ParquetDataCommitter(outputBaseFolder: String,
       logInfo(s"Commit: $commitName, label: ${labelCommitEntry.label}, writing parquet into temp.")
       resFlow
         .map {
-          case f if labelCommitEntry.cache => optionallyCacheLabel(f, labelCommitEntry)
+          case f if labelCommitEntry.cache => CacheAsParquetExtension.addCacheAsParquet(f, labelCommitEntry.label, labelCommitEntry.partitions, labelCommitEntry.repartition)
           case f => f
         }
         .writeRepartitionedPartitionedParquet(commitTempBase, labelCommitEntry.partitions, labelCommitEntry.repartition)(labelCommitEntry.label)

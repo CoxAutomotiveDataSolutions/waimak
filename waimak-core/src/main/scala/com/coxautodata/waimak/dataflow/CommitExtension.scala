@@ -2,10 +2,19 @@ package com.coxautodata.waimak.dataflow
 
 import java.util.UUID
 
+import com.coxautodata.waimak.dataflow.DataFlow.dataFlowParamPrefix
+
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
 case object CommitExtension extends DataFlowExtension {
+
+  /**
+    * Whether to cache labels before they are committed if they are reused
+    * elsewhere in the flow.
+    */
+  val CACHE_REUSED_COMMITTED_LABELS: String = s"$dataFlowParamPrefix.cacheReusedCommittedLabels"
+  val CACHE_REUSED_COMMITTED_LABELS_DEFAULT: Boolean = true
 
   override def initialState: DataFlowMetadataState = CommitMeta(Map.empty, Map.empty)
 
