@@ -8,7 +8,7 @@ case class MockDataFlow(flowContext: FlowContext
                        , inputs: DataFlowEntities
                        , actions: Seq[DataFlowAction]
                        , tagState: DataFlowTagState
-                       , extensionMetadata: Map[DataFlowExtension[MockDataFlow], DataFlowMetadataState]
+                       , extensionMetadata: Map[DataFlowMetadataExtension[MockDataFlow], MetadataExtensionState]
                        , executor: DataFlowExecutor) extends DataFlow[MockDataFlow] {
 
   override def schedulingMeta(sc: SchedulingMeta): MockDataFlow = this.copy(schedulingMeta = sc)
@@ -19,7 +19,7 @@ case class MockDataFlow(flowContext: FlowContext
 
   override def tagState(ts: DataFlowTagState): MockDataFlow = this.copy(tagState = ts)
 
-  override def setExtensionMetadata(newMetadata: Map[DataFlowExtension[MockDataFlow], DataFlowMetadataState]): MockDataFlow = this.copy(extensionMetadata = newMetadata)
+  override def setExtensionMetadata(newMetadata: Map[DataFlowMetadataExtension[MockDataFlow], MetadataExtensionState]): MockDataFlow = this.copy(extensionMetadata = newMetadata)
 
   override def withExecutor(executor: DataFlowExecutor): MockDataFlow = this.copy(executor = executor)
 }

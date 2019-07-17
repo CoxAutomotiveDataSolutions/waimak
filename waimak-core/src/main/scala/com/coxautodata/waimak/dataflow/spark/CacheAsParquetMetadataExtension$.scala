@@ -2,10 +2,10 @@ package com.coxautodata.waimak.dataflow.spark
 
 import com.coxautodata.waimak.dataflow.DataFlow.dataFlowParamPrefix
 import com.coxautodata.waimak.dataflow.spark.SparkActionHelpers._
-import com.coxautodata.waimak.dataflow.{DataFlowExtension, DataFlowMetadataState}
+import com.coxautodata.waimak.dataflow.{DataFlowMetadataExtension, MetadataExtensionState}
 import com.coxautodata.waimak.log.Logging
 
-case object CacheAsParquetExtension extends DataFlowExtension[SparkDataFlow] with Logging {
+case object CacheAsParquetMetadataExtension$ extends DataFlowMetadataExtension[SparkDataFlow] with Logging {
 
   /**
     * Cache only labels that are used more than once as inputs in the flow.
@@ -14,7 +14,7 @@ case object CacheAsParquetExtension extends DataFlowExtension[SparkDataFlow] wit
   val CACHE_ONLY_REUSED_LABELS: String = s"$dataFlowParamPrefix.cacheOnlyReusedLabels"
   val CACHE_ONLY_REUSED_LABELS_DEFAULT: Boolean = true
 
-  override def initialState: DataFlowMetadataState = CacheMeta(Map.empty)
+  override def initialState: MetadataExtensionState = CacheMeta(Map.empty)
 
   def addCacheAsParquet(sparkFlow: SparkDataFlow, outputLabel: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean): SparkDataFlow = {
     sparkFlow.updateExtensionMetadata(this, {
@@ -25,7 +25,7 @@ case object CacheAsParquetExtension extends DataFlowExtension[SparkDataFlow] wit
     })
   }
 
-  override def preExecutionManipulation(flow: SparkDataFlow, meta: DataFlowMetadataState): Option[SparkDataFlow] = {
+  override def preExecutionManipulation(flow: SparkDataFlow, meta: MetadataExtensionState): Option[SparkDataFlow] = {
 
     val cacheMeta = meta.getMetadataAsType[CacheMeta]
     if (cacheMeta.cached.isEmpty) None
@@ -53,7 +53,7 @@ case object CacheAsParquetExtension extends DataFlowExtension[SparkDataFlow] wit
 
 }
 
-case class CacheMeta(cached: Map[String, (Option[Either[Seq[String], Int]], Boolean)]) extends DataFlowMetadataState {
+case class CacheMeta(cached: Map[String, (Option[Either[Seq[String], Int]], Boolean)]) extends MetadataExtensionState {
 
   def addOrIgnore(label: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean): CacheMeta = {
     if (cached.keySet.contains(label)) this

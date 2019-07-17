@@ -117,9 +117,9 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
 
   override def executor: DataFlowExecutor = info.executor
 
-  override def setExtensionMetadata(newMetadata: Map[DataFlowExtension[SparkDataFlow], DataFlowMetadataState]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = newMetadata))
+  override def setExtensionMetadata(newMetadata: Map[DataFlowMetadataExtension[SparkDataFlow], MetadataExtensionState]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = newMetadata))
 
-  override def extensionMetadata: Map[DataFlowExtension[SparkDataFlow], DataFlowMetadataState] = this.info.extensionMetadata
+  override def extensionMetadata: Map[DataFlowMetadataExtension[SparkDataFlow], MetadataExtensionState] = this.info.extensionMetadata
 
   override def withExecutor(executor: DataFlowExecutor): SparkDataFlow = new SparkDataFlow(info.copy(executor = executor))
 
@@ -187,7 +187,7 @@ case class SparkDataFlowInfo(spark: SparkSession,
                              schedulingMeta: SchedulingMeta,
                              commitLabels: Map[String, LabelCommitDefinition] = Map.empty,
                              tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty),
-                             extensionMetadata: Map[DataFlowExtension[SparkDataFlow], DataFlowMetadataState] = Map.empty,
+                             extensionMetadata: Map[DataFlowMetadataExtension[SparkDataFlow], MetadataExtensionState] = Map.empty,
                              executor: DataFlowExecutor = Waimak.sparkExecutor())
 
 object SparkDataFlow {

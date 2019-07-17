@@ -2,7 +2,7 @@ package com.coxautodata.waimak.dataflow.spark
 
 import java.io.File
 
-import com.coxautodata.waimak.dataflow.spark.CacheAsParquetExtension.CACHE_ONLY_REUSED_LABELS
+import com.coxautodata.waimak.dataflow.spark.CacheAsParquetMetadataExtension$.CACHE_ONLY_REUSED_LABELS
 import com.coxautodata.waimak.dataflow.{ActionResult, _}
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.{FileSystem, Path}
@@ -152,7 +152,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     }
 
     it("stage and commit parquet, and force a cache as parquet") {
-      import CacheAsParquetExtension._
+      import CacheAsParquetMetadataExtension$._
       val spark = sparkSession
       spark.conf.set(CACHE_ONLY_REUSED_LABELS, false)
 

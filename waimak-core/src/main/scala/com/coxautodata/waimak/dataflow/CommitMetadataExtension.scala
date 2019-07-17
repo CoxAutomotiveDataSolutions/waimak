@@ -5,19 +5,11 @@ import java.util.UUID
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
-case class CommitExtension[S <: DataFlow[S]]() extends DataFlowExtension[S] {
+case class CommitMetadataExtension[S <: DataFlow[S]]() extends DataFlowMetadataExtension[S] {
 
-  override def initialState: DataFlowMetadataState = CommitMeta(Map.empty, Map.empty)
+  override def initialState: MetadataExtensionState = CommitMeta(Map.empty, Map.empty)
 
-  /**
-    * During data flow preparation for execution stage, it interacts with data committer to add actions that implement
-    * stages of the data committer.
-    *
-    * This build uses tags to separate the stages of the data committer: cache, move, finish.
-    *
-    * @return
-    */
-  override def preExecutionManipulation(flow: S, meta: DataFlowMetadataState): Option[S] = {
+  override def preExecutionManipulation(flow: S, meta: MetadataExtensionState): Option[S] = {
 
     val commitMeta = meta.getMetadataAsType[CommitMeta[S]]
 
@@ -30,6 +22,13 @@ case class CommitExtension[S <: DataFlow[S]]() extends DataFlowExtension[S] {
     }
   }
 
+  /**
+    * During data flow preparation for execution stage, it interacts with data committer to add actions that implement
+    * stages of the data committer.
+    *
+    * This build uses tags to separate the stages of the data committer: cache, move, finish.
+    *
+    */
   def buildCommits(flow: S, commitMeta: CommitMeta[S]): S = {
     commitMeta.pushes.foldLeft(flow) { (resFlow, pushCommitter: (String, Seq[DataCommitter[S]])) =>
       val commitName = pushCommitter._1
@@ -50,7 +49,7 @@ case class CommitExtension[S <: DataFlow[S]]() extends DataFlowExtension[S] {
 
 }
 
-object CommitExtension {
+object CommitMetadataExtension {
 
   import DataFlow._
 
@@ -60,7 +59,7 @@ object CommitExtension {
     */
   val CACHE_REUSED_COMMITTED_LABELS: String = s"$dataFlowParamPrefix.cacheReusedCommittedLabels"
   val CACHE_REUSED_COMMITTED_LABELS_DEFAULT: Boolean = true
-  
+
 }
 
 /**
@@ -71,7 +70,7 @@ object CommitExtension {
   * @param pushes  Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
   *                lazy definitions of the data flows, validation will have to catch it.
   */
-case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter[S]]]) extends DataFlowMetadataState {
+case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter[S]]]) extends MetadataExtensionState {
 
   def addCommits(commitName: String, labels: Seq[String], partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cacheLabels: Boolean): CommitMeta[S] = {
     val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition, cacheLabels))

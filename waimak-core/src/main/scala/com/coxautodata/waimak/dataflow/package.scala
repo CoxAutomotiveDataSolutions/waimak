@@ -1,6 +1,6 @@
 package com.coxautodata.waimak
 
-import com.coxautodata.waimak.dataflow.CommitExtension._
+import com.coxautodata.waimak.dataflow.CommitMetadataExtension._
 
 /**
   * Created by Alexei Perelighin on 2018/01/11.
@@ -85,7 +85,7 @@ package object dataflow {
     def push(commitName: String)(committer: DataCommitter[Self]): Self = updateCommitMeta(_.addPush(commitName, committer))
 
     private def updateCommitMeta(update: CommitMeta[Self] => CommitMeta[Self]): Self =
-      flow.updateExtensionMetadata(CommitExtension[Self], m => update(m.getMetadataAsType[CommitMeta[Self]]))
+      flow.updateExtensionMetadata(CommitMetadataExtension[Self], m => update(m.getMetadataAsType[CommitMeta[Self]]))
 
   }
 

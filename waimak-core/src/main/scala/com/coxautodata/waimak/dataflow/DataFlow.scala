@@ -24,11 +24,11 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
 
   def schedulingMeta(sc: SchedulingMeta): Self
 
-  def setExtensionMetadata(newMetadata: Map[DataFlowExtension[Self], DataFlowMetadataState]): Self
+  def setExtensionMetadata(newMetadata: Map[DataFlowMetadataExtension[Self], MetadataExtensionState]): Self
 
-  def extensionMetadata: Map[DataFlowExtension[Self], DataFlowMetadataState]
+  def extensionMetadata: Map[DataFlowMetadataExtension[Self], MetadataExtensionState]
 
-  def updateExtensionMetadata(extensionKey: DataFlowExtension[Self], updateMeta: DataFlowMetadataState => DataFlowMetadataState): Self = {
+  def updateExtensionMetadata(extensionKey: DataFlowMetadataExtension[Self], updateMeta: MetadataExtensionState => MetadataExtensionState): Self = {
 
     val oldMeta = extensionMetadata.getOrElse(extensionKey, extensionKey.initialState)
     setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
@@ -571,17 +571,46 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
 
 }
 
-trait DataFlowExtension[S <: DataFlow[S]] {
+/**
+  * Trait used to define a DataFlow Metadata extension.
+  * This type of extension adds custom metadata to a flow and is keyed by the
+  * extension instance.
+  *
+  * Extension instances are used as keys so ensure either case objects or case classes
+  * are used.
+  */
+trait DataFlowMetadataExtension[S <: DataFlow[S]] {
 
-  def initialState: DataFlowMetadataState
+  /**
+    * Initial state of the metadata held for this extension
+    */
+  def initialState: MetadataExtensionState
 
-  def preExecutionManipulation(flow: S, meta: DataFlowMetadataState): Option[S]
+  /**
+    * Function that is called just before a flow is executed.
+    * This function can be used to:
+    * * Validate a flow (using the metadata state)
+    * * Change the flow in some way (using the metadata state)
+    *
+    * This function can be called multiple times until all invocations stabilise.
+    * Return Some(flow) if flow manipulations occurred, and None if not.
+    * This function can return Some multiple times in a row, however it must stabilise
+    * at some point for a flow to be ready to be executed.
+    */
+  def preExecutionManipulation(flow: S, meta: MetadataExtensionState): Option[S]
 
 }
 
-trait DataFlowMetadataState {
+/**
+  * Trait used to represent some state for an extension
+  */
+trait MetadataExtensionState {
 
-  def getMetadataAsType[A <: DataFlowMetadataState]: A = {
+  /**
+    * Down-cast a generic state type to a specific type for an extension.
+    * Throws an exception if not of correct type.
+    */
+  def getMetadataAsType[A <: MetadataExtensionState]: A = {
     Try(this.asInstanceOf[A])
       .recover {
         case e: ClassCastException => throw new DataFlowException("Metadata State object was not of correct type", e)

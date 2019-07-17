@@ -2,12 +2,12 @@ package com.coxautodata.waimak.dataflow
 
 import org.scalatest.{FunSpec, Matchers}
 
-class TestDataFlowExtension extends FunSpec with Matchers {
+class TestDataFlowMetadataExtension extends FunSpec with Matchers {
 
   describe("Stabilisation of extension manipulations") {
 
     it("should fail after maximum iterations reached") {
-      val extension = new TestExtension(15)
+      val extension = new TestMetadataExtension(15)
 
       intercept[DataFlowException] {
         MockDataFlow
@@ -20,7 +20,7 @@ class TestDataFlowExtension extends FunSpec with Matchers {
     }
 
     it("should not fail if under maximum iterations reached") {
-      val extension = new TestExtension(10)
+      val extension = new TestMetadataExtension(10)
 
       MockDataFlow
         .empty
@@ -31,7 +31,7 @@ class TestDataFlowExtension extends FunSpec with Matchers {
     }
 
     it("should not fail if maximum iterations increased") {
-      val extension = new TestExtension(15)
+      val extension = new TestMetadataExtension(15)
 
       val context = new EmptyFlowContext
       context.conf.setProperty("spark.waimak.dataflow.maxIterationsForExtensionManipulationsToStabalise", "15")
@@ -49,13 +49,13 @@ class TestDataFlowExtension extends FunSpec with Matchers {
 
 }
 
-class TestExtension(val timeToStabilise: Int) extends DataFlowExtension[MockDataFlow] {
+class TestMetadataExtension(val timeToStabilise: Int) extends DataFlowMetadataExtension[MockDataFlow] {
 
   var count: Int = 0
 
-  override def initialState: DataFlowMetadataState = TestMetadataState
+  override def initialState: MetadataExtensionState = TestMetadataExtensionState$
 
-  override def preExecutionManipulation(flow: MockDataFlow, meta: DataFlowMetadataState): Option[MockDataFlow] = {
+  override def preExecutionManipulation(flow: MockDataFlow, meta: MetadataExtensionState): Option[MockDataFlow] = {
     if (count >= timeToStabilise) None
     else {
       count += 1
@@ -64,4 +64,4 @@ class TestExtension(val timeToStabilise: Int) extends DataFlowExtension[MockData
   }
 }
 
-object TestMetadataState extends DataFlowMetadataState
+object TestMetadataExtensionState$ extends MetadataExtensionState
