@@ -577,7 +577,9 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
   */
 trait DataFlowMetadataExtension[S <: DataFlow[S]] {
 
-
+  /**
+    * Used to identify an extension instance on the flow
+    */
   def identifier: DataFlowMetadataExtensionIdentifier
 
   /**
@@ -593,4 +595,7 @@ trait DataFlowMetadataExtension[S <: DataFlow[S]] {
 
 }
 
+/**
+  * Trait used as an identifier for an instance of an extension.
+  */
 trait DataFlowMetadataExtensionIdentifier

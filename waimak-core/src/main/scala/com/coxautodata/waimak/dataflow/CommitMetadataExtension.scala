@@ -11,7 +11,7 @@ case class CommitMetadataExtension[S <: DataFlow[S]](commitMeta: CommitMeta[S]) 
 
     commitMeta.validate(flow).get
 
-    buildCommits(flow, commitMeta)
+    buildCommits(flow)
       .updateMetadataExtension[CommitMetadataExtension[S]](identifier, _ => None)
 
   }
@@ -23,7 +23,7 @@ case class CommitMetadataExtension[S <: DataFlow[S]](commitMeta: CommitMeta[S]) 
     * This build uses tags to separate the stages of the data committer: cache, move, finish.
     *
     */
-  def buildCommits(flow: S, commitMeta: CommitMeta[S]): S = {
+  def buildCommits(flow: S): S = {
     commitMeta.pushes.foldLeft(flow) { (resFlow, pushCommitter: (String, Seq[DataCommitter[S]])) =>
       val commitName = pushCommitter._1
       val commitUUID = UUID.randomUUID()

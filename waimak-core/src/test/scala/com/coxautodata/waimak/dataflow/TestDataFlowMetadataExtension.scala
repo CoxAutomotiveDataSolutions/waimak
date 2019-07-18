@@ -53,10 +53,7 @@ case class TestMetadataExtension(timeToStabilise: Int, count: Int = 0) extends D
 
   override def preExecutionManipulation(flow: MockDataFlow): MockDataFlow = {
     if (count >= timeToStabilise) flow.updateMetadataExtension[TestMetadataExtension](identifier, _ => None)
-    else {
-      count += 1
-      flow.updateMetadataExtension[TestMetadataExtension](identifier, _ => Some(this.copy(count = count + 1)))
-    }
+    else flow.updateMetadataExtension[TestMetadataExtension](identifier, _ => Some(this.copy(count = count + 1)))
   }
 
   override def identifier: DataFlowMetadataExtensionIdentifier = TestMetadataExtensionIdentifier
