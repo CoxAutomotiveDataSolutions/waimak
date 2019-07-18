@@ -117,12 +117,11 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
 
   override def executor: DataFlowExecutor = info.executor
 
-  override def setExtensionMetadata(newMetadata: Map[DataFlowMetadataExtension[SparkDataFlow], MetadataExtensionState]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = newMetadata))
-
-  override def extensionMetadata: Map[DataFlowMetadataExtension[SparkDataFlow], MetadataExtensionState] = this.info.extensionMetadata
+  override def metadataExtensions: Set[DataFlowMetadataExtension[SparkDataFlow]] = this.info.extensionMetadata
 
   override def withExecutor(executor: DataFlowExecutor): SparkDataFlow = new SparkDataFlow(info.copy(executor = executor))
 
+  override def setMetadataExtensions(extensions: Set[DataFlowMetadataExtension[SparkDataFlow]]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = extensions))
 }
 
 case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
@@ -187,7 +186,7 @@ case class SparkDataFlowInfo(spark: SparkSession,
                              schedulingMeta: SchedulingMeta,
                              commitLabels: Map[String, LabelCommitDefinition] = Map.empty,
                              tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty),
-                             extensionMetadata: Map[DataFlowMetadataExtension[SparkDataFlow], MetadataExtensionState] = Map.empty,
+                             extensionMetadata: Set[DataFlowMetadataExtension[SparkDataFlow]] = Set.empty,
                              executor: DataFlowExecutor = Waimak.sparkExecutor())
 
 object SparkDataFlow {

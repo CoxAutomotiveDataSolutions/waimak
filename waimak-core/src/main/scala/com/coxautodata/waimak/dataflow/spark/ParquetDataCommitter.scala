@@ -70,7 +70,7 @@ case class ParquetDataCommitter(outputBaseFolder: String,
       logInfo(s"Commit: $commitName, label: ${labelCommitEntry.label}, writing parquet into temp.")
       resFlow
         .map {
-          case f if labelCommitEntry.cache => CacheAsParquetMetadataExtension$.addCacheAsParquet(f, labelCommitEntry.label, labelCommitEntry.partitions, labelCommitEntry.repartition)
+          case f if labelCommitEntry.cache => CacheAsParquetMetadataExtension.addCacheAsParquet(f, labelCommitEntry.label, labelCommitEntry.partitions, labelCommitEntry.repartition)
           case f => f
         }
         .writeRepartitionedPartitionedParquet(commitTempBase, labelCommitEntry.partitions, labelCommitEntry.repartition)(labelCommitEntry.label)

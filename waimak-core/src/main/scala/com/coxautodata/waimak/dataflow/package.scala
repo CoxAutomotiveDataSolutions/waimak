@@ -85,7 +85,16 @@ package object dataflow {
     def push(commitName: String)(committer: DataCommitter[Self]): Self = updateCommitMeta(_.addPush(commitName, committer))
 
     private def updateCommitMeta(update: CommitMeta[Self] => CommitMeta[Self]): Self =
-      flow.updateExtensionMetadata(CommitMetadataExtension[Self], m => update(m.getMetadataAsType[CommitMeta[Self]]))
+      flow
+        .updateMetadataExtension[CommitMetadataExtension[Self]](
+        CommitMetadataExtensionIdentifier,
+        {
+          m =>
+            val existing = m.map(_.commitMeta).getOrElse(CommitMeta.empty)
+
+            Some(CommitMetadataExtension(update(existing)))
+        }
+      )
 
   }
 

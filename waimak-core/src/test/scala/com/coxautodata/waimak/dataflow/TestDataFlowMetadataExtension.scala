@@ -7,12 +7,12 @@ class TestDataFlowMetadataExtension extends FunSpec with Matchers {
   describe("Stabilisation of extension manipulations") {
 
     it("should fail after maximum iterations reached") {
-      val extension = new TestMetadataExtension(15)
+      val extension = TestMetadataExtension(15)
 
       intercept[DataFlowException] {
         MockDataFlow
           .empty
-          .updateExtensionMetadata(extension, _ => extension.initialState)
+          .updateMetadataExtension[TestMetadataExtension](TestMetadataExtensionIdentifier, _ => Some(extension))
           .prepareForExecution()
           .get
       }.text should be("Maximum number of iterations [10] reached before extension manipulations stabilised. " +
@@ -20,18 +20,18 @@ class TestDataFlowMetadataExtension extends FunSpec with Matchers {
     }
 
     it("should not fail if under maximum iterations reached") {
-      val extension = new TestMetadataExtension(10)
+      val extension = TestMetadataExtension(10)
 
       MockDataFlow
         .empty
-        .updateExtensionMetadata(extension, _ => extension.initialState)
+        .updateMetadataExtension[TestMetadataExtension](TestMetadataExtensionIdentifier, _ => Some(extension))
         .prepareForExecution()
         .get
 
     }
 
     it("should not fail if maximum iterations increased") {
-      val extension = new TestMetadataExtension(15)
+      val extension = TestMetadataExtension(15)
 
       val context = new EmptyFlowContext
       context.conf.setProperty("spark.waimak.dataflow.maxIterationsForExtensionManipulationsToStabalise", "15")
@@ -39,7 +39,7 @@ class TestDataFlowMetadataExtension extends FunSpec with Matchers {
       MockDataFlow
         .empty
         .copy(flowContext = context)
-        .updateExtensionMetadata(extension, _ => extension.initialState)
+        .updateMetadataExtension[TestMetadataExtension](TestMetadataExtensionIdentifier, _ => Some(extension))
         .prepareForExecution()
         .get
 
@@ -49,19 +49,18 @@ class TestDataFlowMetadataExtension extends FunSpec with Matchers {
 
 }
 
-class TestMetadataExtension(val timeToStabilise: Int) extends DataFlowMetadataExtension[MockDataFlow] {
+case class TestMetadataExtension(timeToStabilise: Int, count: Int = 0) extends DataFlowMetadataExtension[MockDataFlow] {
 
-  var count: Int = 0
-
-  override def initialState: MetadataExtensionState = TestMetadataExtensionState$
-
-  override def preExecutionManipulation(flow: MockDataFlow, meta: MetadataExtensionState): Option[MockDataFlow] = {
-    if (count >= timeToStabilise) None
+  override def preExecutionManipulation(flow: MockDataFlow): MockDataFlow = {
+    if (count >= timeToStabilise) flow.updateMetadataExtension[TestMetadataExtension](identifier, _ => None)
     else {
       count += 1
-      Some(flow)
+      flow.updateMetadataExtension[TestMetadataExtension](identifier, _ => Some(this.copy(count = count + 1)))
     }
   }
+
+  override def identifier: DataFlowMetadataExtensionIdentifier = TestMetadataExtensionIdentifier
+
 }
 
-object TestMetadataExtensionState$ extends MetadataExtensionState
+case object TestMetadataExtensionIdentifier extends DataFlowMetadataExtensionIdentifier

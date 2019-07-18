@@ -5,21 +5,15 @@ import java.util.UUID
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
-case class CommitMetadataExtension[S <: DataFlow[S]]() extends DataFlowMetadataExtension[S] {
+case class CommitMetadataExtension[S <: DataFlow[S]](commitMeta: CommitMeta[S]) extends DataFlowMetadataExtension[S] {
 
-  override def initialState: MetadataExtensionState = CommitMeta(Map.empty, Map.empty)
-
-  override def preExecutionManipulation(flow: S, meta: MetadataExtensionState): Option[S] = {
-
-    val commitMeta = meta.getMetadataAsType[CommitMeta[S]]
+  override def preExecutionManipulation(flow: S): S = {
 
     commitMeta.validate(flow).get
 
-    if (commitMeta.pushes.isEmpty) None
-    else Some {
-      buildCommits(flow, commitMeta)
-        .updateExtensionMetadata(this, _ => initialState)
-    }
+    buildCommits(flow, commitMeta)
+      .updateMetadataExtension[CommitMetadataExtension[S]](identifier, _ => None)
+
   }
 
   /**
@@ -47,6 +41,7 @@ case class CommitMetadataExtension[S <: DataFlow[S]]() extends DataFlowMetadataE
     }
   }
 
+  override def identifier: DataFlowMetadataExtensionIdentifier = CommitMetadataExtensionIdentifier
 }
 
 object CommitMetadataExtension {
@@ -62,6 +57,8 @@ object CommitMetadataExtension {
 
 }
 
+case object CommitMetadataExtensionIdentifier extends DataFlowMetadataExtensionIdentifier
+
 /**
   * Contains configurations for commits and pushes, while configs are added, there are no modifications to the
   * dataflow, as it waits for a validation before execution.
@@ -70,7 +67,7 @@ object CommitMetadataExtension {
   * @param pushes  Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
   *                lazy definitions of the data flows, validation will have to catch it.
   */
-case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter[S]]]) extends MetadataExtensionState {
+case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter[S]]]) {
 
   def addCommits(commitName: String, labels: Seq[String], partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cacheLabels: Boolean): CommitMeta[S] = {
     val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition, cacheLabels))
@@ -130,6 +127,10 @@ case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], 
     }.flatMap(_ => validateCommitters(dataFlow))
   }
 
+}
+
+object CommitMeta {
+  def empty[S <: DataFlow[S]]: CommitMeta[S] = CommitMeta[S](Map.empty, Map.empty)
 }
 
 case class CommitEntry(label: String, commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cache: Boolean)

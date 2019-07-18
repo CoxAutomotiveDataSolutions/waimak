@@ -2,6 +2,7 @@ package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.log.Logging
 
+import scala.reflect.ClassTag
 import scala.util.{Success, Try}
 
 /**
@@ -24,14 +25,17 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
 
   def schedulingMeta(sc: SchedulingMeta): Self
 
-  def setExtensionMetadata(newMetadata: Map[DataFlowMetadataExtension[Self], MetadataExtensionState]): Self
+  def setMetadataExtensions(extensions: Set[DataFlowMetadataExtension[Self]]): Self
 
-  def extensionMetadata: Map[DataFlowMetadataExtension[Self], MetadataExtensionState]
+  def metadataExtensions: Set[DataFlowMetadataExtension[Self]]
 
-  def updateExtensionMetadata(extensionKey: DataFlowMetadataExtension[Self], updateMeta: MetadataExtensionState => MetadataExtensionState): Self = {
+  def updateMetadataExtension[S <: DataFlowMetadataExtension[Self] : ClassTag](identifier: DataFlowMetadataExtensionIdentifier, combineStates: Option[S] => Option[S]): Self = {
 
-    val oldMeta = extensionMetadata.getOrElse(extensionKey, extensionKey.initialState)
-    setExtensionMetadata(extensionMetadata.updated(extensionKey, updateMeta(oldMeta)))
+    val existingExtension = metadataExtensions.collectFirst { case e : S if e.identifier == identifier => e }
+    val newExtension = combineStates(existingExtension)
+
+    val newExtensions = metadataExtensions.filterNot(_.identifier == identifier)
+    setMetadataExtensions(newExtensions ++ newExtension.toSet)
 
   }
 
@@ -337,19 +341,11 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
     val maxIters = flowContext.getInt(MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE, MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE_DEFAULT)
 
     def loopUntilStable(flow: Self, itersLeft: Int): Self = {
-      val (newFlow, changed) = flow.extensionMetadata
-        .foldLeft[(Self, Boolean)]((flow, false)) {
-        case ((z, updated), (ex, meta)) =>
-          ex.preExecutionManipulation(z, meta) match {
-            case None => (z, updated)
-            case Some(f) =>
-              (f, true)
-          }
-      }
-      if (changed && itersLeft <= 0)
+      val newFlow = flow.metadataExtensions.foldLeft(flow)((z, ex) => ex.preExecutionManipulation(z))
+      if (newFlow.metadataExtensions.nonEmpty && itersLeft <= 0)
         throw new DataFlowException(s"Maximum number of iterations [$maxIters] reached before extension manipulations stabilised. " +
           s"You can increase this limit using the flag [$MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE].")
-      else if (changed)
+      else if (newFlow.metadataExtensions.nonEmpty)
         loopUntilStable(newFlow, itersLeft - 1)
       else newFlow
     }
@@ -581,10 +577,8 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
   */
 trait DataFlowMetadataExtension[S <: DataFlow[S]] {
 
-  /**
-    * Initial state of the metadata held for this extension
-    */
-  def initialState: MetadataExtensionState
+
+  def identifier: DataFlowMetadataExtensionIdentifier
 
   /**
     * Function that is called just before a flow is executed.
@@ -593,28 +587,10 @@ trait DataFlowMetadataExtension[S <: DataFlow[S]] {
     * * Change the flow in some way (using the metadata state)
     *
     * This function can be called multiple times until all invocations stabilise.
-    * Return Some(flow) if flow manipulations occurred, and None if not.
-    * This function can return Some multiple times in a row, however it must stabilise
-    * at some point for a flow to be ready to be executed.
+    * Ensure you remove the extension from the flow to prevent the extension being called again.
     */
-  def preExecutionManipulation(flow: S, meta: MetadataExtensionState): Option[S]
+  def preExecutionManipulation(flow: S): S
 
 }
 
-/**
-  * Trait used to represent some state for an extension
-  */
-trait MetadataExtensionState {
-
-  /**
-    * Down-cast a generic state type to a specific type for an extension.
-    * Throws an exception if not of correct type.
-    */
-  def getMetadataAsType[A <: MetadataExtensionState]: A = {
-    Try(this.asInstanceOf[A])
-      .recover {
-        case e: ClassCastException => throw new DataFlowException("Metadata State object was not of correct type", e)
-      }
-      .get
-  }
-}
+trait DataFlowMetadataExtensionIdentifier

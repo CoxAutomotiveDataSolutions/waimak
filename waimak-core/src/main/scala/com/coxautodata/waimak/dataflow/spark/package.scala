@@ -636,7 +636,7 @@ package object spark {
     def cacheAsParquet(labels: String*): SparkDataFlow = {
       if (labels.isEmpty) throw new DataFlowException(s"At least one label must be specified for cacheAsParquet")
 
-      labels.foldLeft(sparkDataFlow) { (flow, label) => CacheAsParquetMetadataExtension$.addCacheAsParquet(flow, label, None, repartition = false) }
+      labels.foldLeft(sparkDataFlow) { (flow, label) => CacheAsParquetMetadataExtension.addCacheAsParquet(flow, label, None, repartition = false) }
     }
 
     /**
@@ -651,7 +651,7 @@ package object spark {
     def cacheAsPartitionedParquet(partitions: Seq[String], repartition: Boolean = true)(labels: String*): SparkDataFlow = {
       if (labels.isEmpty) throw new DataFlowException(s"At least one label must be specified for cacheAsParquet")
 
-      labels.foldLeft(sparkDataFlow) { (flow, label) => CacheAsParquetMetadataExtension$.addCacheAsParquet(flow, label, Some(Left(partitions)), repartition) }
+      labels.foldLeft(sparkDataFlow) { (flow, label) => CacheAsParquetMetadataExtension.addCacheAsParquet(flow, label, Some(Left(partitions)), repartition) }
     }
 
     /**
