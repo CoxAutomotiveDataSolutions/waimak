@@ -29,9 +29,17 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
 
   def metadataExtensions: Set[DataFlowMetadataExtension[Self]]
 
+  /**
+    * Add, update or remove a metadata extension from the flow using the `identifier` argument to find an existing extension.
+    *
+    * @param identifier    Identifier of extension to update or remove
+    * @param combineStates Function that manipulates the extension on the flow. Input will be None if no existing extension with matching identifier
+    *                      exists on the flow. Return None to remove an existing extension with matching identifier from the flow.
+    * @tparam S Type of the DataFlowMetadataExtension
+    */
   def updateMetadataExtension[S <: DataFlowMetadataExtension[Self] : ClassTag](identifier: DataFlowMetadataExtensionIdentifier, combineStates: Option[S] => Option[S]): Self = {
 
-    val existingExtension = metadataExtensions.collectFirst { case e : S if e.identifier == identifier => e }
+    val existingExtension = metadataExtensions.collectFirst { case e: S if e.identifier == identifier => e }
     val newExtension = combineStates(existingExtension)
 
     val newExtensions = metadataExtensions.filterNot(_.identifier == identifier)
@@ -572,8 +580,6 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
   * This type of extension adds custom metadata to a flow and is keyed by the
   * extension instance.
   *
-  * Extension instances are used as keys so ensure either case objects or case classes
-  * are used.
   */
 trait DataFlowMetadataExtension[S <: DataFlow[S]] {
 
