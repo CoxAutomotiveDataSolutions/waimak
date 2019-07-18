@@ -39,7 +39,7 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
 
   override def schedulingMeta: SchedulingMeta = info.schedulingMeta
 
-  override def schedulingMeta(sc: SchedulingMeta): SparkDataFlow= new SparkDataFlow(info.copy(schedulingMeta = sc))
+  override def schedulingMeta(sc: SchedulingMeta): SparkDataFlow = new SparkDataFlow(info.copy(schedulingMeta = sc))
 
   /**
     * Inputs that were explicitly set or produced by previous actions, these are inputs for all following actions.
@@ -50,7 +50,7 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
     */
   override def inputs: DataFlowEntities = info.inputs
 
-  override def inputs(inp: DataFlowEntities): SparkDataFlow= new SparkDataFlow(info.copy(inputs = inp))
+  override def inputs(inp: DataFlowEntities): SparkDataFlow = new SparkDataFlow(info.copy(inputs = inp))
 
   /**
     * Actions to execute, these will be scheduled when inputs become available. Executed actions must be removed from
@@ -60,20 +60,18 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
     */
   override def actions: Seq[DataFlowAction] = info.actions
 
-  override def actions(acs: Seq[DataFlowAction]): SparkDataFlow= {
-    val newSQLTables = sqlTables ++ acs.filter(_.getClass == classOf[SparkSimpleAction]).flatMap(a => a.asInstanceOf[SparkSimpleAction].sqlTables).toSet
+  override def actions(acs: Seq[DataFlowAction]): SparkDataFlow = {
+    val newSQLTables = sqlTables ++ acs.collect { case s: SparkSimpleAction => s.sqlTables }.flatten.toSet
     new SparkDataFlow(info.copy(actions = acs, sqlTables = newSQLTables))
   }
 
   override def tagState: DataFlowTagState = info.tagState
 
-  override def tagState(ts: DataFlowTagState): SparkDataFlow= new SparkDataFlow(info.copy(tagState = ts))
+  override def tagState(ts: DataFlowTagState): SparkDataFlow = new SparkDataFlow(info.copy(tagState = ts))
 
-  override def commitMeta: CommitMeta[SparkDataFlow] = info.commitMeta
-
-  override def commitMeta(cm: CommitMeta[SparkDataFlow]): SparkDataFlow= new SparkDataFlow(info.copy(commitMeta = cm))
 
   override def executed(executed: DataFlowAction, outputs: Seq[Option[Any]]): SparkDataFlow = {
+
     val res = super.executed(executed, outputs)
     // multiple sql actions might request same table, the simplest way of avoiding the race conditions of multiple actions
     // trying to register same dataset as an SQL table. To solve it, dataset will be reentered by the producing execution,
@@ -119,13 +117,17 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
 
   override def executor: DataFlowExecutor = info.executor
 
+  override def metadataExtensions: Set[DataFlowMetadataExtension[SparkDataFlow]] = this.info.extensionMetadata
+
   override def withExecutor(executor: DataFlowExecutor): SparkDataFlow = new SparkDataFlow(info.copy(executor = executor))
+
+  override def setMetadataExtensions(extensions: Set[DataFlowMetadataExtension[SparkDataFlow]]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = extensions))
 }
 
 case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
 
-private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefinition], tempPath: Path, labelsToWaitFor: List[String]) extends SparkDataFlowAction with Logging {
-  val inputLabels: List[String] = labelsToWaitFor
+private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefinition], tempPath: Path) extends SparkDataFlowAction with Logging {
+  val inputLabels: List[String] = List.empty
   val outputLabels: List[String] = List.empty
 
   override val requiresAllInputs = false
@@ -184,7 +186,7 @@ case class SparkDataFlowInfo(spark: SparkSession,
                              schedulingMeta: SchedulingMeta,
                              commitLabels: Map[String, LabelCommitDefinition] = Map.empty,
                              tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty),
-                             commitMeta: CommitMeta[SparkDataFlow] = CommitMeta.empty,
+                             extensionMetadata: Set[DataFlowMetadataExtension[SparkDataFlow]] = Set.empty,
                              executor: DataFlowExecutor = Waimak.sparkExecutor())
 
 object SparkDataFlow {
