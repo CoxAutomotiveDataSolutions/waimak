@@ -1,9 +1,8 @@
 package com.coxautodata.waimak.dataflow.spark.deequ
 
-import java.time.{LocalDateTime, ZoneId}
-import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.coxautodata.waimak.dataflow.Waimak
+import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.dataflow.spark.deequ.DataQualityActions._
 
@@ -29,14 +28,14 @@ class TestDataQualityActions extends SparkAndTmpDirSpec {
       val flow = Waimak.sparkFlow(spark, tmpDir.toString)
       val f = flow.addInput("testInput", Some(ds))
         .alias("testInput", "testOutput")
-        .addChecks("testOutput",
-          Check(CheckLevel.Warning, "null_values_check_warning")
-            .hasCompleteness("col1", _ >= 0.8, Some("extra info"))
-          , Check(CheckLevel.Error, "null_values_check_error")
-            .hasCompleteness("col1", completeness =>  completeness >= 0.6 && completeness < 0.8, Some("extra info"))
+        .addDeequValidation("testOutput",
+          _.addChecks(Seq(
+            Check(CheckLevel.Warning, "null_values_check_warning")
+              .hasCompleteness("col1", _ >= 0.8, Some("extra info"))
+            , Check(CheckLevel.Error, "null_values_check_error")
+              .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("extra info"))
+          ))
         )
-      //        .alias("testInput", "testOutput")
-      //        .monitor("testOutput")(NullValuesRule("col1", 20, 30))(TestAlertHandler)(StorageLayerMetricStorage(testingBaseDirName, LocalDateTime.now(ZoneId.of("Europe/London"))))
       Waimak.sparkExecutor().execute(f)
     }
   }
