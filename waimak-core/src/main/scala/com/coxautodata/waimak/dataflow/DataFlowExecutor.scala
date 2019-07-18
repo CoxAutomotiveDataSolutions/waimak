@@ -19,12 +19,12 @@ trait DataFlowExecutor extends Logging {
     * @return (Seq[EXECUTED ACTIONS], FINAL STATE). Final state does not contain the executed actions and the outputs
     *         of the executed actions are now in the inputs
     */
-  def execute(dataFlow: DataFlow, errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], DataFlow) = {
+  def execute[A <: DataFlow[A]](dataFlow: A, errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], A) = {
 
     val (executedActions, ranFlow) = dataFlow
       .prepareForExecution()
       .map(loopExecution(_, initActionScheduler(), Seq.empty))
-      .flatMap { executionResults: (ActionScheduler, Try[(Seq[DataFlowAction], DataFlow)]) =>
+      .flatMap { executionResults: (ActionScheduler, Try[(Seq[DataFlowAction], A)]) =>
         executionResults._1.shutDown() match {
           case Failure(e) => throw new DataFlowException("Problem shutting down execution pools", e)
           case _ => logDebug("Execution pools were shutdown ok.")
@@ -76,10 +76,10 @@ trait DataFlowExecutor extends Logging {
   def initActionScheduler(): ActionScheduler
 
   @tailrec
-  private def loopExecution(currentFlow: DataFlow
+  private def loopExecution[A <: DataFlow[A]](currentFlow: A
                             , actionScheduler: ActionScheduler
                             , successfulActions: Seq[DataFlowAction]
-                           ): (ActionScheduler, Try[(Seq[DataFlowAction], DataFlow)]) = {
+                           ): (ActionScheduler, Try[(Seq[DataFlowAction], A)]) = {
     toSchedule(currentFlow, actionScheduler) match {
       case None if !actionScheduler.hasRunningActions => //No more actions to schedule and none are running => finish data flow execution
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
@@ -116,7 +116,7 @@ trait DataFlowExecutor extends Logging {
     * @param actionScheduler
     * @return (Pool into which to schedule, Action to schedule)
     */
-  protected[dataflow] def toSchedule(currentFlow: DataFlow, actionScheduler: ActionScheduler): Option[(String, DataFlowAction)] = {
+  protected[dataflow] def toSchedule[A <: DataFlow[A]](currentFlow: A, actionScheduler: ActionScheduler): Option[(String, DataFlowAction)] = {
     val toSchedule: Option[(String, DataFlowAction)] = actionScheduler
       .availableExecutionPools()
       .flatMap(executionPoolNames => priorityStrategy(actionScheduler.dropRunning(executionPoolNames, currentFlow.nextRunnable(executionPoolNames)))
@@ -134,9 +134,9 @@ trait DataFlowExecutor extends Logging {
     * @return Success((new state of the flow, appended list of successful actions)), Failure will be returned
     *         if at least one action in the actionResults has failed
     */
-  private[dataflow] def processActionResults(actionResults: Seq[(DataFlowAction, Try[ActionResult])]
-                                             , currentFlow: DataFlow
-                                             , successfulActionsUntilNow: Seq[DataFlowAction]): Try[(DataFlow, Seq[DataFlowAction])] = {
+  private[dataflow] def processActionResults[A <: DataFlow[A]](actionResults: Seq[(DataFlowAction, Try[ActionResult])]
+                                             , currentFlow: A
+                                             , successfulActionsUntilNow: Seq[DataFlowAction]): Try[(A, Seq[DataFlowAction])] = {
     val (success, failed) = actionResults.partition(_._2.isSuccess)
     val res = success.foldLeft((currentFlow, successfulActionsUntilNow)) { (res, actionRes) =>
       val action = actionRes._1
@@ -150,7 +150,7 @@ trait DataFlowExecutor extends Logging {
         // TODO: maybe add to flowReporter info about failed actions
         logError("Failed Action " + t._1.logLabel + " " + t._2.failed)
       }
-      failed.head._2.asInstanceOf[Try[(DataFlow, Seq[DataFlowAction])]]
+      failed.head._2.asInstanceOf[Try[(A, Seq[DataFlowAction])]]
       Failure(new DataFlowException(s"Exception performing action: ${failed.head._1.logLabel}", failed.head._2.failed.get))
     }
   }

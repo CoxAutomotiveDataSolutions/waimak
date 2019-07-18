@@ -46,11 +46,6 @@ object SparkInterceptors extends Logging {
     addPostAction(sparkFlow, outputLabel, CachePostAction(post, outputLabel))
   }
 
-  def addCacheAsParquet(sparkFlow: SparkDataFlow, outputLabel: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean): SparkDataFlow = {
-    val (df, dfw) = applyRepartitionAndPartitionBy(partitions, repartition)
-    addPostCacheAsParquet(sparkFlow, outputLabel)(df)(dfw)
-  }
-
   def addPostTransform(sparkFlow: SparkDataFlow, outputLabel: String)(transform: Dataset[_] => Dataset[_]): SparkDataFlow = {
     def post(data: Option[Any]): Option[Dataset[_]] =
       data
