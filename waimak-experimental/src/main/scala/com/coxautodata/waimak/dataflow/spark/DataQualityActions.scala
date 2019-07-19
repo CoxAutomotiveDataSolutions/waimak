@@ -22,39 +22,39 @@ import org.apache.spark.sql.{Dataset, Encoder}
 import scala.reflect.runtime.universe.TypeTag
 import scala.util.Try
 
-object DataQualityActions {
-
-  implicit class DataQualityActionImplicits(sparkDataFlow: SparkDataFlow) {
-
-    def monitor(labels: String*)(rules: DataQualityRule[_]*)(alerts: DataQualityAlertHandler*)(storage: DataQualityMetricStorage): SparkDataFlow = {
-      sparkDataFlow
-        .asInstanceOf[SparkDataFlow]
-        .foldLeftOver(labels) {
-          (z, l) => z.asInstanceOf[SparkDataFlow].foldLeftOver(rules)((zz, r) => zz.addRule(l, r, storage, alerts))
-        }
-    }
-
-    private[spark] def addRule(label: String, rule: DataQualityRule[_], storage: DataQualityMetricStorage, alerts: Seq[DataQualityAlertHandler]): SparkDataFlow = {
-      sparkDataFlow
-        .cacheAsParquet(label)
-        .transform(label)(rule.produceMetricLabel(label))(rule.produceMetric)
-        .tag(rule.writeMetricTag(label)) {
-          _.subFlow(storage.addMetricWriteToFlow(label, rule))
-        }
-        .tagDependency(rule.writeMetricTag(label)) {
-          _.subFlow(storage.addMetricReadToFlow(label, rule))
-        }
-        .transform(rule.toReduceMetricLabel(label))(rule.reducedMetricLabel(label))(rule.reduceMetricsUntyped)
-        .addAction(AlertAction(label, rule, alerts))
-    }
-
-    private[spark] def subFlow(sub: SparkDataFlow => SparkDataFlow): SparkDataFlow = {
-      sub(sparkDataFlow)
-    }
-
-  }
-
-}
+//object DataQualityActions {
+//
+//  implicit class DataQualityActionImplicits(sparkDataFlow: SparkDataFlow) {
+//
+//    def monitor(labels: String*)(rules: DataQualityRule[_]*)(alerts: DataQualityAlertHandler*)(storage: DataQualityMetricStorage): SparkDataFlow = {
+//      sparkDataFlow
+//        .asInstanceOf[SparkDataFlow]
+//        .foldLeftOver(labels) {
+//          (z, l) => z.asInstanceOf[SparkDataFlow].foldLeftOver(rules)((zz, r) => zz.addRule(l, r, storage, alerts))
+//        }
+//    }
+//
+//    private[spark] def addRule(label: String, rule: DataQualityRule[_], storage: DataQualityMetricStorage, alerts: Seq[DataQualityAlertHandler]): SparkDataFlow = {
+//      sparkDataFlow
+//        .cacheAsParquet(label)
+//        .transform(label)(rule.produceMetricLabel(label))(rule.produceMetric)
+//        .tag(rule.writeMetricTag(label)) {
+//          _.subFlow(storage.addMetricWriteToFlow(label, rule))
+//        }
+//        .tagDependency(rule.writeMetricTag(label)) {
+//          _.subFlow(storage.addMetricReadToFlow(label, rule))
+//        }
+//        .transform(rule.toReduceMetricLabel(label))(rule.reducedMetricLabel(label))(rule.reduceMetricsUntyped)
+//        .addAction(AlertAction(label, rule, alerts))
+//    }
+//
+//    private[spark] def subFlow(sub: SparkDataFlow => SparkDataFlow): SparkDataFlow = {
+//      sub(sparkDataFlow)
+//    }
+//
+//  }
+//
+//}
 
 case class AlertAction(label: String, rule: DataQualityRule[_], alerts: Seq[DataQualityAlertHandler]) extends SparkDataFlowAction {
 

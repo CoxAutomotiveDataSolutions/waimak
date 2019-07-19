@@ -2,7 +2,6 @@ package com.coxautodata.waimak.dataflow.spark.deequ
 
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.coxautodata.waimak.dataflow.Waimak
-import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.dataflow.spark.deequ.DataQualityActions._
 
@@ -30,10 +29,11 @@ class TestDataQualityActions extends SparkAndTmpDirSpec {
         .alias("testInput", "testOutput")
         .addDeequValidation("testOutput",
           _.addChecks(Seq(
-            Check(CheckLevel.Warning, "null_values_check_warning")
+            Check(CheckLevel.Warning, "warning_checks")
               .hasCompleteness("col1", _ >= 0.8, Some("extra info"))
-            , Check(CheckLevel.Error, "null_values_check_error")
+            , Check(CheckLevel.Error, "error_checks")
               .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("extra info"))
+              .isUnique("col2")
           ))
         )
       Waimak.sparkExecutor().execute(f)
