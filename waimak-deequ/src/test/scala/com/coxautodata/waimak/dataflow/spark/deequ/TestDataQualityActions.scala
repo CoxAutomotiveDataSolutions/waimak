@@ -2,7 +2,7 @@ package com.coxautodata.waimak.dataflow.spark.deequ
 
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.coxautodata.waimak.dataflow.Waimak
-import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
+import com.coxautodata.waimak.dataflow.spark.{SlackQualityAlert, SparkAndTmpDirSpec}
 import com.coxautodata.waimak.dataflow.spark.deequ.DataQualityActions._
 
 class TestDataQualityActions extends SparkAndTmpDirSpec {
@@ -30,11 +30,12 @@ class TestDataQualityActions extends SparkAndTmpDirSpec {
         .addDeequValidation("testOutput",
           _.addChecks(Seq(
             Check(CheckLevel.Warning, "warning_checks")
-              .hasCompleteness("col1", _ >= 0.8, Some("extra info"))
+              .hasCompleteness("col1", _ >= 0.8, Some("More than 20% of col1 values were null."))
             , Check(CheckLevel.Error, "error_checks")
-              .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("extra info"))
+              .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("More than 40% of col1 values were null."))
               .isUnique("col2")
           ))
+          , SlackQualityAlert("T40H2LDT4/BHC2JMRHU/tMowK538EKoAhh5VN0cxxuK5")
         )
       Waimak.sparkExecutor().execute(f)
     }

@@ -23,7 +23,10 @@ package object spark {
   implicit class SparkDataFlowExtension(sparkDataFlow: SparkDataFlow) extends Logging {
 
     def doSomething(input: String, f: Dataset[_] => Unit): SparkDataFlow = {
-      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](input))))
+      def run(m: DataFlowEntities): ActionResult = {
+        f(m.get[Dataset[_]](input))
+        Nil
+      }
 
       sparkDataFlow
         .addAction(new SimpleAction(List(input), Nil, run, "not sure what to call this"))
@@ -33,7 +36,7 @@ package object spark {
       def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](input))))
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(input), List(output), run, "typed transform))
+        .addAction(new SimpleAction(List(input), List(output), run, "typed transform"))
     }
     /**
       * Transforms 1 input DataSet to 1 output DataSet using function f, which is a scala function.

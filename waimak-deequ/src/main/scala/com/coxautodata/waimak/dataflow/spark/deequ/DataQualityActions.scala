@@ -1,7 +1,9 @@
 package com.coxautodata.waimak.dataflow.spark.deequ
 
+import com.amazon.deequ.checks.CheckStatus
+import com.amazon.deequ.constraints.ConstraintResult
 import com.amazon.deequ.{VerificationResult, VerificationRunBuilder, VerificationSuite}
-import com.coxautodata.waimak.dataflow.spark.{DataQualityAlertHandler, SparkDataFlow}
+import com.coxautodata.waimak.dataflow.spark.{AlertImportance, Critical, DataQualityAlert, DataQualityAlertHandler, Good, SparkDataFlow, Warning}
 import com.coxautodata.waimak.dataflow.{DataFlowMetadataExtension, DataFlowMetadataExtensionIdentifier}
 import com.coxautodata.waimak.log.Logging
 import org.apache.spark.sql.Dataset
@@ -17,8 +19,9 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
       .map {
         case ((label, alertHandler), check) => DataQualityMeta(label, alertHandler, check)
       }.foldLeft(flow)((f, m) => {
-      f.doSomething(m.label, m.check.getResult(_).alert(m.alertHandler))
+      f.doSomething(m.label, m.check.getResult(_).alerts(m.label).foreach(m.alertHandler.handleAlert))
     })
+      .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](identifier, _ => None)
   }
 }
 
@@ -29,15 +32,10 @@ case class DataQualityMeta[CheckType <: DataQualityCheck[CheckType]](label: Stri
                                                                      , alertHandler: DataQualityAlertHandler
                                                                      , check: CheckType)
 
-
 trait DataQualityResult {
-  def alert(alertHandler: DataQualityAlertHandler): Unit
+  def alerts(label: String): Seq[DataQualityAlert]
 }
 
-class DeequResult extends DataQualityResult {
-
-  override def alert(alertHandler: DataQualityAlertHandler): Unit = ???
-}
 
 trait DataQualityCheck[Self <: DataQualityCheck[Self]] {
 
@@ -47,8 +45,34 @@ trait DataQualityCheck[Self <: DataQualityCheck[Self]] {
 }
 
 case class DeequResult(verificationResult: VerificationResult) extends DataQualityResult {
-  override def alert(alertHandler: DataQualityAlertHandler): Unit = {
+  override def alerts(label: String): Seq[DataQualityAlert] = {
+    verificationResult.status match {
+      case CheckStatus.Success => Nil
+      case _ => verificationResult
+        .checkResults.values
+        .filter(_.status != CheckStatus.Success)
+        .flatMap(
+          result => result.constraintResults
+            .map(constraintResultToAlert(label, _, getAlertImportance(result.status)))
+        )
+        .toSeq
+    }
+  }
 
+  def constraintResultToAlert(label: String, constraintResult: ConstraintResult, alertImportance: AlertImportance): DataQualityAlert = {
+    val message =
+      s"""${alertImportance.description} alert on label $label for constraint ${constraintResult.constraint}
+         | ${constraintResult.message.get}
+       """.stripMargin
+    DataQualityAlert(message, alertImportance)
+  }
+
+  def getAlertImportance(checkStatus: CheckStatus.Value): AlertImportance = {
+    checkStatus match {
+      case CheckStatus.Success => Good
+      case CheckStatus.Warning => Warning
+      case CheckStatus.Error => Critical
+    }
   }
 }
 
@@ -67,22 +91,24 @@ object DataQualityActions {
 
   implicit class DataQualityActionImplicits(sparkDataFlow: SparkDataFlow) {
 
+    def addDataQualityCheck[CheckType <: DataQualityCheck[CheckType]](label: String
+                                                                      , check: CheckType
+                                                                      , alertHandler: DataQualityAlertHandler): SparkDataFlow = {
+      sparkDataFlow
+        .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](DataQualityMetadataExtensionIdentifier[CheckType]()
+        , {
+          m =>
+            val existing = m.map(_.meta).getOrElse(Nil)
+            val newMeta = DataQualityMeta(label, alertHandler, check)
+            Some(DataQualityMetadataExtension(existing :+ newMeta))
+        })
+    }
+
     def addDeequValidation(label: String
                            , checks: VerificationRunBuilder => VerificationRunBuilder
-                           ,): SparkDataFlow = {
+                           , alertHandler: DataQualityAlertHandler): SparkDataFlow = {
       sparkDataFlow
-        .cacheAsParquet(label).transform(label)(s"${label}_check")(df => {
-        val result = checks(VerificationSuite()
-          .onData(df.toDF()))
-          .run()
-        val resultsForAllConstraints = result.checkResults
-          .flatMap { case (_, checkResult) => checkResult.constraintResults }
-        resultsForAllConstraints.foreach(println)
-        VerificationResult
-          .checkResultsAsDataFrame(sparkDataFlow.flowContext.spark,
-            result)
-      })
-        .show(s"${label}_check")
+        .addDataQualityCheck(label, DeequCheck(checks), alertHandler)
     }
   }
 
