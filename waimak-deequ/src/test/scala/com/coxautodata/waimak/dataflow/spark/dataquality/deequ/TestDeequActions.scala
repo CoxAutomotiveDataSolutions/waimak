@@ -1,11 +1,11 @@
-package com.coxautodata.waimak.dataflow.spark.deequ
+package com.coxautodata.waimak.dataflow.spark.dataquality.deequ
 
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.coxautodata.waimak.dataflow.Waimak
-import com.coxautodata.waimak.dataflow.spark.{SlackQualityAlert, SparkAndTmpDirSpec}
-import com.coxautodata.waimak.dataflow.spark.deequ.DataQualityActions._
+import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
+import com.coxautodata.waimak.dataflow.spark.dataquality.SlackQualityAlert
 
-class TestDataQualityActions extends SparkAndTmpDirSpec {
+class TestDeequActions extends SparkAndTmpDirSpec {
   override val appName: String = "TestDataQualityActions"
 
   describe("nulls percentage metric") {
@@ -14,7 +14,7 @@ class TestDataQualityActions extends SparkAndTmpDirSpec {
       import spark.implicits._
       val ds = Seq(
         TestDataForNullsCheck(null, "bla")
-        , TestDataForNullsCheck(null, "bla2")
+        , TestDataForNullsCheck(null, "bla")
         , TestDataForNullsCheck(null, "bla3")
         , TestDataForNullsCheck(null, "bla4")
         , TestDataForNullsCheck("a", "bla5")
@@ -33,7 +33,7 @@ class TestDataQualityActions extends SparkAndTmpDirSpec {
               .hasCompleteness("col1", _ >= 0.8, Some("More than 20% of col1 values were null."))
             , Check(CheckLevel.Error, "error_checks")
               .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("More than 40% of col1 values were null."))
-              .isUnique("col2")
+              .isUnique("col2", Some("col2 was not unique"))
           ))
           , SlackQualityAlert("T40H2LDT4/BHC2JMRHU/tMowK538EKoAhh5VN0cxxuK5")
         )
