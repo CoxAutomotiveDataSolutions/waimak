@@ -17,7 +17,8 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
       .map {
         case ((label, alertHandler), check) => DataQualityMeta(label, alertHandler, check)
       }.foldLeft(flow)((f, m) => {
-      f.doSomething(m.label, m.check.getAlerts(m.label, _).foreach(a => m.alertHandlers.foreach(_.handleAlert(a))))
+      f.cacheAsParquet(m.label)
+        .doSomething(m.label, m.check.getAlerts(m.label, _).foreach(a => m.alertHandlers.foreach(_.handleAlert(a))))
     })
       .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](identifier, _ => None)
   }
