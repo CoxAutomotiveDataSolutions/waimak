@@ -17,7 +17,7 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
       .map {
         case ((label, alertHandler), check) => DataQualityMeta(label, alertHandler, check)
       }.foldLeft(flow)((f, m) => {
-      f.doSomething(m.label, m.check.getResult(_).alerts(m.label).foreach(a => m.alertHandlers.foreach(_.handleAlert(a))))
+      f.doSomething(m.label, m.check..getAlerts(m.label, _).foreach(a => m.alertHandlers.foreach(_.handleAlert(a))))
     })
       .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](identifier, _ => None)
   }
@@ -39,5 +39,5 @@ trait DataQualityCheck[Self <: DataQualityCheck[Self]] {
 
   def ++(other: Self): Self
 
-  def getResult(data: Dataset[_]): DataQualityResult
+  def getAlerts(label: String, data: Dataset[_]): Seq[DataQualityAlert]
 }

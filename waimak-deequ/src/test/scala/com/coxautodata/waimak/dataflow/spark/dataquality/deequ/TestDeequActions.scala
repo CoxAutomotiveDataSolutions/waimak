@@ -3,7 +3,7 @@ package com.coxautodata.waimak.dataflow.spark.dataquality.deequ
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
-import com.coxautodata.waimak.dataflow.spark.dataquality.SlackQualityAlert
+import com.coxautodata.waimak.dataflow.spark.dataquality.{DataQualityAlert, DataQualityAlertHandler, SlackQualityAlert}
 
 class TestDeequActions extends SparkAndTmpDirSpec {
   override val appName: String = "TestDataQualityActions"
@@ -35,7 +35,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
               .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("More than 40% of col1 values were null."))
               .isUnique("col2", Some("col2 was not unique"))
           ))
-          , SlackQualityAlert("T40H2LDT4/BHC2JMRHU/tMowK538EKoAhh5VN0cxxuK5")
+          , TestAlert
         )
       Waimak.sparkExecutor().execute(f)
     }
@@ -46,4 +46,10 @@ class TestDeequActions extends SparkAndTmpDirSpec {
 case class TestDataForNullsCheck(col1: String, col2: String)
 
 case class TestDataForUniqueIDsCheck(idCol: Int, col2: String)
+
+object TestAlert extends DataQualityAlertHandler {
+  override def handleAlert(alert: DataQualityAlert): Unit = {
+    println(alert)
+  }
+}
 
