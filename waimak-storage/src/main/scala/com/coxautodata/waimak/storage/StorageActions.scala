@@ -1,7 +1,7 @@
 package com.coxautodata.waimak.storage
 
 import java.sql.Timestamp
-import java.time.{Duration, ZoneOffset, ZonedDateTime}
+import java.time.{ZoneOffset, ZonedDateTime}
 import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.spark.{SimpleAction, SparkDataFlow}
@@ -11,12 +11,14 @@ import com.coxautodata.waimak.storage.AuditTable.CompactionPartitioner
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
 
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 
 /**
   * Created by Vicky Avison on 11/05/18.
   */
 object StorageActions extends Logging {
+
+  type CompactionDecision = (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean
 
   val storageParamPrefix: String = "spark.waimak.storage"
   /**
@@ -146,42 +148,7 @@ object StorageActions extends Logging {
                               includeHot: Boolean = true,
                               updateTableMetadata: => Boolean = sparkDataFlow.flowContext.getBoolean(UPDATE_TABLE_METADATA, UPDATE_TABLE_METADATA_DEFAULT))(tableNames: String*): SparkDataFlow = {
 
-      val run: DataFlowEntities => ActionResult = _ => {
-
-        val basePath = new Path(storageBasePath)
-
-        val (existingTables, missingTables) = Storage.openFileTables(sparkDataFlow.flowContext.spark, basePath, tableNames, includeHot)
-
-        if (missingTables.nonEmpty && metadataRetrieval.isEmpty) {
-          throw StorageException(s"The following tables were not found in the storage layer and could not be created as no metadata function was defined: ${missingTables.mkString(",")}")
-        }
-
-        if (updateTableMetadata && metadataRetrieval.isEmpty) {
-          throw StorageException(s"$UPDATE_TABLE_METADATA is set to true but no metadata function was defined")
-        }
-
-        val existingTablesWithUpdatedMetadata = if (updateTableMetadata) {
-          existingTables.mapValues(
-            _.flatMap(table => table.updateTableInfo(metadataRetrieval.get.apply(table.tableName))))
-        } else existingTables
-
-        val createdTables = missingTables.map { tableName =>
-          val tableInfo = metadataRetrieval.get.apply(tableName)
-          logInfo(s"Creating table ${tableInfo.table_name} with metadata $tableInfo")
-          tableName -> Storage.createFileTable(sparkDataFlow.flowContext.spark, basePath, tableInfo)
-        }.toMap
-
-        handleTableErrors(createdTables, "Unable to perform create")
-
-        handleTableErrors(existingTables, "Unable to perform read")
-
-        handleTableErrors(existingTablesWithUpdatedMetadata, "Unable to update metadata")
-
-        val allTables = (existingTablesWithUpdatedMetadata.values.map(_.get) ++ createdTables.values.map(_.get)).map(t => t.tableName -> t).toMap
-
-        tableNames.map(allTables).map(Some(_))
-
-      }
+      val run: DataFlowEntities => ActionResult = _ => Storage.getOrCreateFileTables(sparkDataFlow.flowContext.spark, new Path(storageBasePath), tableNames, metadataRetrieval, updateTableMetadata, includeHot).map(Some.apply)
 
       val labelNames = tableNames.map(t => labelPrefix.map(p => p + "_" + t).getOrElse(t)).toList
 
@@ -224,42 +191,21 @@ object StorageActions extends Logging {
     def writeToStorage(labelName: String
                        , lastUpdatedCol: String
                        , appendDateTime: ZonedDateTime
-                       , doCompaction: (Seq[AuditTableRegionInfo], Long, ZonedDateTime) => Boolean = (_, _, _) => false
+                       , doCompaction: CompactionDecision = (_, _, _) => false
                        , auditTableLabelPrefix: String = "audittable"): SparkDataFlow = {
 
       val auditTableLabel = s"${auditTableLabelPrefix}_$labelName"
 
       val run: DataFlowEntities => ActionResult = m => {
-        val flowContext = sparkDataFlow.flowContext
-        val sparkSession = flowContext.spark
-        import sparkSession.implicits._
-
-        val recompactAll = flowContext.getBoolean(RECOMPACT_ALL, RECOMPACT_ALL_DEFAULT)
-        val compactionPartitioner = CompactionPartitionerGenerator.getImplementation(flowContext)
-        val appendTimestamp = Timestamp.valueOf(appendDateTime.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime)
 
         val table: AuditTable = m.get[AuditTable](auditTableLabel)
+        val toAppend: Dataset[_] = m.get[Dataset[_]](labelName)
 
-        table.append(m.get[Dataset[_]](labelName), $"$lastUpdatedCol", appendTimestamp) match {
-          case Success((t, c)) if recompactAll || doCompaction(t.regions, c, appendDateTime) =>
-            logInfo(s"Compaction has been triggered on table [$labelName], with compaction timestamp [$appendTimestamp].")
+        Storage.writeToFileTable(sparkDataFlow.flowContext, table, toAppend, lastUpdatedCol, appendDateTime, doCompaction)
 
-            val trashMaxAge = Duration.ofMillis(flowContext.getLong(TRASH_MAX_AGE_MS, TRASH_MAX_AGE_MS_DEFAULT))
-            val smallRegionRowThreshold = flowContext.getLong(SMALL_REGION_ROW_THRESHOLD, SMALL_REGION_ROW_THRESHOLD_DEFAULT)
-
-            t.compact(compactTS = appendTimestamp
-              , trashMaxAge = trashMaxAge
-              , compactionPartitioner = compactionPartitioner
-              , smallRegionRowThreshold = smallRegionRowThreshold
-              , recompactAll = recompactAll) match {
-              case Success(_) => Seq.empty
-              case Failure(e) => throw StorageException(s"Failed to compact table [$labelName], with compaction timestamp [$appendTimestamp]", e)
-            }
-          case Success(_) => Seq.empty
-          case Failure(e) => throw StorageException(s"Error appending data to table [$labelName], using last updated column [$lastUpdatedCol]", e)
-        }
         Seq.empty
       }
+
       sparkDataFlow.addAction(new SimpleAction(List(labelName, auditTableLabel), List.empty, run, "writeToStorage"))
     }
 
