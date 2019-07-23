@@ -29,11 +29,11 @@
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
-        <!--<dependency>-->
-        <!--<groupId>com.coxautodata</groupId>-->
-        <!--<artifactId>waimak-storage_2.11</artifactId>-->
-        <!--<version>${project.parent.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+        <groupId>com.coxautodata</groupId>
+        <artifactId>waimak-storage_2.11</artifactId>
+        <version>${project.parent.version}</version>
+        </dependency>
         <!--<dependency>-->
         <!--<groupId>com.coxautodata</groupId>-->
         <!--<artifactId>waimak-configuration_2.11</artifactId>-->

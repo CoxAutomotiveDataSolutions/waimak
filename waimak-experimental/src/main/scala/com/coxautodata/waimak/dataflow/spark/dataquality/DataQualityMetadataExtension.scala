@@ -11,12 +11,13 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
   override def identifier: DataFlowMetadataExtensionIdentifier = DataQualityMetadataExtensionIdentifier[CheckType]()
 
   override def preExecutionManipulation(flow: SparkDataFlow): SparkDataFlow = {
-    meta.groupBy(m => (m.label, m.alertHandler))
+    meta
+      .groupBy(m => (m.label, m.alertHandlers))
       .mapValues(_.map(_.check).reduce(_ ++ _))
       .map {
         case ((label, alertHandler), check) => DataQualityMeta(label, alertHandler, check)
       }.foldLeft(flow)((f, m) => {
-      f.doSomething(m.label, m.check.getResult(_).alerts(m.label).foreach(m.alertHandler.handleAlert))
+      f.doSomething(m.label, m.check.getResult(_).alerts(m.label).foreach(a => m.alertHandlers.foreach(_.handleAlert(a))))
     })
       .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](identifier, _ => None)
   }
@@ -26,7 +27,7 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
 case class DataQualityMetadataExtensionIdentifier[CheckType <: DataQualityCheck[CheckType]]() extends DataFlowMetadataExtensionIdentifier
 
 case class DataQualityMeta[CheckType <: DataQualityCheck[CheckType]](label: String
-                                                                     , alertHandler: DataQualityAlertHandler
+                                                                     , alertHandlers: Seq[DataQualityAlertHandler]
                                                                      , check: CheckType)
 
 trait DataQualityResult {
