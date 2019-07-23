@@ -1,0 +1,42 @@
+package com.amazon.deequ
+
+import java.sql.Timestamp
+import java.time.{ZoneOffset, ZonedDateTime}
+
+import com.amazon.deequ.analyzers.runners.AnalyzerContext
+import com.amazon.deequ.repository.{AnalysisResult, MetricsRepository, MetricsRepositoryMultipleResultsLoader, ResultKey}
+import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
+import com.coxautodata.waimak.storage.{AuditTableInfo, Storage}
+import org.apache.hadoop.fs.Path
+
+class StorageLayerMetricsRepository(storageBasePath: Path, metricsTableName: String, sparkFlowContext: SparkFlowContext) extends MetricsRepository {
+
+  import sparkFlowContext.spark.implicits._
+
+  val info = AuditTableInfo(metricsTableName, Seq("tags"), Map.empty, true)
+
+  override def save(resultKey: ResultKey, analyzerContext: AnalyzerContext): Unit = {
+
+    val table = Storage.getOrCreateFileTables(sparkFlowContext.spark, storageBasePath, Seq(metricsTableName), Some(_ => info), false).head
+    val ds = sparkFlowContext.spark.createDataset[SerializableAnalysisResult](Seq(
+      SerializableAnalysisResult(resultKey.tags.toSeq, new Timestamp(resultKey.dataSetDate), new AnalysisResult(resultKey, analyzerContext))
+    ))
+    Storage.writeToFileTable(sparkFlowContext, table, ds, "dataSetDateTS", ZonedDateTime.now(ZoneOffset.UTC), (_, _, _) => true)
+  }
+
+  override def loadByKey(resultKey: ResultKey): Option[AnalyzerContext] = load().get().find(_.resultKey == resultKey).map(_.analyzerContext)
+
+  override def load(): MetricsRepositoryMultipleResultsLoader = {
+
+    val table = Storage
+      .getOrCreateFileTables(sparkFlowContext.spark, storageBasePath, Seq(metricsTableName), Some(_ => info), false)
+      .head
+      .allBetween(None, None)
+      .map(_.as[SerializableAnalysisResult])
+      .getOrElse(sparkFlowContext.spark.emptyDataset[SerializableAnalysisResult])
+
+    StorageLayerMetricsRepositoryMultipleResultsLoader(table)
+  }
+
+}
+
