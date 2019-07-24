@@ -8,6 +8,7 @@ import com.amazon.deequ.repository.{AnalysisResult, MetricsRepository, MetricsRe
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.storage.{AuditTableInfo, Storage}
 import org.apache.hadoop.fs.Path
+import org.apache.spark.sql.Dataset
 
 class StorageLayerMetricsRepository(storageBasePath: Path, metricsTableName: String, sparkFlowContext: SparkFlowContext) extends MetricsRepository {
 
@@ -18,7 +19,7 @@ class StorageLayerMetricsRepository(storageBasePath: Path, metricsTableName: Str
   override def save(resultKey: ResultKey, analyzerContext: AnalyzerContext): Unit = {
 
     val table = Storage.getOrCreateFileTables(sparkFlowContext.spark, storageBasePath, Seq(metricsTableName), Some(_ => info), false).head
-    val ds = sparkFlowContext.spark.createDataset[SerializableAnalysisResult](Seq(
+    val ds: Dataset[SerializableAnalysisResult] = sparkFlowContext.spark.createDataset[SerializableAnalysisResult](Seq(
       SerializableAnalysisResult(resultKey.tags.toSeq, new Timestamp(resultKey.dataSetDate), new AnalysisResult(resultKey, analyzerContext))
     ))
     Storage.writeToFileTable(sparkFlowContext, table, ds, "dataSetDateTS", ZonedDateTime.now(ZoneOffset.UTC), (_, _, _) => true)
@@ -28,7 +29,7 @@ class StorageLayerMetricsRepository(storageBasePath: Path, metricsTableName: Str
 
   override def load(): MetricsRepositoryMultipleResultsLoader = {
 
-    val table = Storage
+    val table: Dataset[SerializableAnalysisResult] = Storage
       .getOrCreateFileTables(sparkFlowContext.spark, storageBasePath, Seq(metricsTableName), Some(_ => info), false)
       .head
       .allBetween(None, None)

@@ -23,16 +23,16 @@ case class StorageLayerMetricsRepositoryMultipleResultsLoader(ds: Dataset[Serial
   override def before(dateTime: Long): MetricsRepositoryMultipleResultsLoader = this.copy(before = Some(dateTime))
 
   override def get(): Seq[AnalysisResult] = {
+
     ds
+      .collect()
       .filter { result => after.isEmpty || after.get <= result.dataSetDate }
       .filter { result => before.isEmpty || result.dataSetDate <= before.get }
       .filter { result =>
         tagValues.isEmpty ||
           tagValues.get.toSet.subsetOf(result.tags.toSet)
       }
-      .collect()
-      .toSeq
-      .flatMap(_.analysisResult)
+      .flatMap(SerializableAnalysisResult.analysisResult)
       .map { analysisResult =>
 
         val requestedMetrics = analysisResult
@@ -43,18 +43,17 @@ case class StorageLayerMetricsRepositoryMultipleResultsLoader(ds: Dataset[Serial
         val requestedAnalyzerContext = AnalyzerContext(requestedMetrics)
 
         new AnalysisResult(analysisResult.resultKey, requestedAnalyzerContext)
-
       }
   }
+
 }
 
 case class SerializableAnalysisResult(tags: Seq[(String, String)], dataSetDateTS: Timestamp, serializedAnalysisResult: String) {
   def dataSetDate: Long = dataSetDateTS.getTime
-
-  def analysisResult: Seq[AnalysisResult] = AnalysisResultSerde.deserialize(serializedAnalysisResult)
-
 }
 
 object SerializableAnalysisResult {
   def apply(tags: Seq[(String, String)], dataSetDateTS: Timestamp, analysisResult: AnalysisResult): SerializableAnalysisResult = SerializableAnalysisResult(tags, dataSetDateTS, AnalysisResultSerde.serialize(Seq(analysisResult)))
+
+  def analysisResult(in: SerializableAnalysisResult): Seq[AnalysisResult] = AnalysisResultSerde.deserialize(in.serializedAnalysisResult)
 }
