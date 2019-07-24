@@ -2,26 +2,29 @@ package com.coxautodata.waimak.dataflow.spark.dataquality.deequ
 
 import com.amazon.deequ.checks.CheckStatus
 import com.amazon.deequ.constraints.{ConstraintResult, ConstraintStatus}
+import com.amazon.deequ.repository.ResultKey
 import com.amazon.deequ.{VerificationResult, VerificationRunBuilder, VerificationRunBuilderWithRepository, VerificationSuite}
+import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.dataflow.spark.dataquality._
 import org.apache.spark.sql.Dataset
 
 
 case class DeequCheck(checks: VerificationRunBuilder => VerificationRunBuilder = identity,
-                      anomalyChecks: Option[VerificationRunBuilderWithRepository => VerificationRunBuilderWithRepository] = None) extends DataQualityCheck[DeequCheck] {
+                      anomalyChecks: Option[VerificationRunBuilderWithRepository => VerificationRunBuilderWithRepository] = None,
+                      maybeMetadata: Option[DeequMetadata]) extends DataQualityCheck[DeequCheck] {
 
   override def ++(other: DeequCheck): DeequCheck =
     DeequCheck(
       checks andThen other.checks,
       (anomalyChecks, other.anomalyChecks) match {
-        case (v@Some(_), None) => v
-        case (None, v@Some(_)) => v
         case (Some(a), Some(b)) => Some(a andThen b)
-        case (None, None) => None
-      })
+        case (a, b) => a.orElse(b)
+      },
+      maybeMetadata.orElse(other.maybeMetadata)
+    )
 
   override def getAlerts(label: String, data: Dataset[_]): Seq[DataQualityAlert] = {
-    val verificationResult = getResult(data)
+    val verificationResult = getResult(label, data)
     verificationResult.status match {
       case CheckStatus.Success => Nil
       case _ => verificationResult
@@ -35,9 +38,20 @@ case class DeequCheck(checks: VerificationRunBuilder => VerificationRunBuilder =
     }
   }
 
-  def getResult(data: Dataset[_]): VerificationResult = {
-    checks(VerificationSuite()
+  def getResult(label: String, data: Dataset[_]): VerificationResult = {
+    if (anomalyChecks.isDefined && maybeMetadata.isEmpty) throw new DataFlowException(s"Error checking metrics for [$label]: A metrics repository must be defined when using anomaly metrics")
+
+    val withChecks = checks(VerificationSuite()
       .onData(data.toDF))
+
+    maybeMetadata
+      .map {
+        m =>
+          val withRepository = withChecks.useRepository(m.repoBuilder(label)).saveOrAppendResult(ResultKey(m.metricsDateTime.toEpochSecond))
+          anomalyChecks.map(_.apply(withRepository))
+            .getOrElse(withRepository)
+      }
+      .getOrElse(withChecks)
       .run()
   }
 
