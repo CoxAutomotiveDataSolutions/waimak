@@ -6,6 +6,8 @@ import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
 
+import scala.collection.mutable
+
 class TestDataQualityMetadataExtension extends SparkAndTmpDirSpec {
   override val appName: String = "TestDataQualityActions"
 
@@ -30,7 +32,7 @@ class TestDataQualityMetadataExtension extends SparkAndTmpDirSpec {
         .alias("testInput", "testOutput")
         .addDataQualityCheck[DatasetChecks]("testOutput"
         , DatasetChecks(Seq(NullValuesCheck("col1", 60, 80)))
-        , TestAlert)
+        , new TestAlert)
       Waimak.sparkExecutor().execute(f)
     }
   }
@@ -58,12 +60,15 @@ case class NullValuesCheck(colName: String, percentageNullWarningThreshold: Int,
     })
 
 
+
 case class TestDataForNullsCheck(col1: String, col2: String)
 
-case class TestDataForUniqueIDsCheck(idCol: Int, col2: String)
+class TestAlert extends DataQualityAlertHandler {
 
-object TestAlert extends DataQualityAlertHandler {
+  val alerts: mutable.ListBuffer[DataQualityAlert] = mutable.ListBuffer()
+
   override def handleAlert(alert: DataQualityAlert): Unit = {
-    println(alert)
+    alerts.append(alert)
   }
 }
+

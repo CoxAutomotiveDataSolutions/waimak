@@ -8,10 +8,21 @@ import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.dataflow.spark.dataquality._
 import org.apache.spark.sql.Dataset
 
+import scala.util.{Failure, Success, Try}
+
 
 case class DeequCheck(checks: VerificationRunBuilder => VerificationRunBuilder = identity,
                       anomalyChecks: Option[VerificationRunBuilderWithRepository => VerificationRunBuilderWithRepository] = None,
                       maybeMetadata: Option[DeequMetadata]) extends DataQualityCheck[DeequCheck] {
+
+  override def validateCheck: Try[Unit] = {
+    (anomalyChecks, maybeMetadata) match {
+      case (Some(_), None) => Failure(
+        DeequCheckException("Anomaly checks were specified but no metrics repository was set. " +
+          "Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository"))
+      case _ => Success()
+    }
+  }
 
   override def ++(other: DeequCheck): DeequCheck =
     DeequCheck(
@@ -59,8 +70,7 @@ case class DeequCheck(checks: VerificationRunBuilder => VerificationRunBuilder =
   def constraintResultToAlert(label: String, constraintResult: ConstraintResult, alertImportance: AlertImportance): DataQualityAlert = {
     val message =
       s"""${alertImportance.description} alert for label $label
-         | ${constraintResult.constraint} : ${constraintResult.message.getOrElse("")}
-       """.stripMargin
+         | ${constraintResult.constraint} : ${constraintResult.message.getOrElse("")}""".stripMargin
     DataQualityAlert(message, alertImportance)
   }
 
@@ -73,3 +83,4 @@ case class DeequCheck(checks: VerificationRunBuilder => VerificationRunBuilder =
   }
 }
 
+case class DeequCheckException(message: String) extends RuntimeException(message)

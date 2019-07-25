@@ -7,9 +7,9 @@ import com.amazon.deequ.anomalydetection.RateOfChangeStrategy
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
-import com.coxautodata.waimak.dataflow.spark.dataquality.{DataQualityAlert, DataQualityAlertHandler}
+import com.coxautodata.waimak.dataflow.spark.dataquality.{TestAlert, TestDataForNullsCheck}
 
-import scala.collection.mutable
+import scala.util.Failure
 
 class TestDeequActions extends SparkAndTmpDirSpec {
   override val appName: String = "TestDataQualityActions"
@@ -30,8 +30,9 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         , TestDataForNullsCheck("e", "bla9")
         , TestDataForNullsCheck("f", "bla10")
       ).toDS()
+      val alerter = new TestAlert
       val flow = Waimak.sparkFlow(spark, tmpDir.toString)
-      val f = flow.addInput("testInput", Some(ds))
+      flow.addInput("testInput", Some(ds))
         .alias("testInput", "testOutput")
         .addDeequValidation("testOutput",
           _.addChecks(Seq(
@@ -41,9 +42,13 @@ class TestDeequActions extends SparkAndTmpDirSpec {
               .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("More than 40% of col1 values were null."))
               .isUnique("col2", Some("col2 was not unique"))
           ))
-          , new TestAlert
-        )
-      Waimak.sparkExecutor().execute(f)
+          , alerter
+        ).execute()
+
+      alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs Seq(
+        "Warning alert for label testOutput\n CompletenessConstraint(Completeness(col1,None)) : Value: 0.6 does not meet the constraint requirement! More than 20% of col1 values were null."
+        , "Critical alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col2))) : Value: 0.8 does not meet the constraint requirement! col2 was not unique"
+      )
     }
 
     it("should alert when the percentage of nulls increase in a day") {
@@ -66,7 +71,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
           , alerter
         ).execute()
 
-      alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!\n       ")
+      alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!")
 
       val ds2 = Seq(
         TestDataForNullsCheck("a", "bla")
@@ -82,7 +87,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
           , alerter
         ).execute()
 
-      alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!\n       ")
+      alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!")
 
 
       val ds3 = Seq(
@@ -100,26 +105,39 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         ).execute()
 
       alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List(
-        "Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!\n       ",
-        "Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Value: 0.5 does not meet the constraint requirement!\n       "
+        "Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!",
+        "Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Value: 0.5 does not meet the constraint requirement!"
       )
 
+    }
+
+    it("should fail if there is validation with metrics when no metrics repository has been set") {
+      val spark = sparkSession
+      val alerter = new TestAlert
+      import spark.implicits._
+      val ds1 = Seq(
+        TestDataForNullsCheck(null, "bla")
+        , TestDataForNullsCheck("d", "bla8")
+        , TestDataForNullsCheck("e", "bla9")
+        , TestDataForNullsCheck("f", "bla10")
+      ).toDS()
+      val flow = Waimak.sparkFlow(spark, tmpDir.toString)
+
+      val f = flow.addInput("testInput", Some(ds1))
+        .alias("testInput", "testOutput")
+        //.setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 26, 12, 20, 11, 0, ZoneOffset.UTC))
+        .addDeequValidationWithMetrics("testOutput",
+          _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
+          , alerter
+        )
+        val ex = intercept[DeequCheckException] {
+          f.execute()
+        }
+
+      ex.getMessage should be("Anomaly checks were specified but no metrics repository was set. Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository")
+
+      f.prepareForExecution() should be(Failure(DeequCheckException("Anomaly checks were specified but no metrics repository was set. Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository")))
     }
   }
 
 }
-
-case class TestDataForNullsCheck(col1: String, col2: String)
-
-case class TestDataForUniqueIDsCheck(idCol: Int, col2: String)
-
-class TestAlert extends DataQualityAlertHandler {
-
-  val alerts: mutable.ListBuffer[DataQualityAlert] = mutable.ListBuffer()
-
-  override def handleAlert(alert: DataQualityAlert): Unit = {
-    alerts.append(alert)
-    println(alert)
-  }
-}
-

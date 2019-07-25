@@ -5,15 +5,21 @@ import com.coxautodata.waimak.dataflow.{DataFlowMetadataExtension, DataFlowMetad
 import com.coxautodata.waimak.log.Logging
 import org.apache.spark.sql.Dataset
 
+import scala.util.{Success, Try}
+
 case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]](meta: Seq[DataQualityMeta[CheckType]])
   extends DataFlowMetadataExtension[SparkDataFlow] with Logging {
 
   override def identifier: DataFlowMetadataExtensionIdentifier = DataQualityMetadataExtensionIdentifier[CheckType]()
 
   override def preExecutionManipulation(flow: SparkDataFlow): SparkDataFlow = {
-    meta
+    val reducedChecks = meta
       .groupBy(m => (m.label, m.alertHandlers))
       .mapValues(_.map(_.check).reduce(_ ++ _))
+
+    validateChecks(reducedChecks.values.toSeq)
+
+    reducedChecks
       .map {
         case ((label, alertHandler), check) => DataQualityMeta(label, alertHandler, check)
       }.foldLeft(flow)((f, m) => {
@@ -21,6 +27,10 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
         .doSomething(m.label, m.check.getAlerts(m.label, _).foreach(a => m.alertHandlers.foreach(_.handleAlert(a))))
     })
       .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](identifier, _ => None)
+  }
+
+  def validateChecks(checks: Seq[CheckType]): Unit = {
+    checks.map(_.validateCheck).reduce(_.orElse(_)).get
   }
 }
 
@@ -37,6 +47,8 @@ trait DataQualityResult {
 
 
 trait DataQualityCheck[Self <: DataQualityCheck[Self]] {
+
+  def validateCheck: Try[Unit] = Success()
 
   def ++(other: Self): Self
 
