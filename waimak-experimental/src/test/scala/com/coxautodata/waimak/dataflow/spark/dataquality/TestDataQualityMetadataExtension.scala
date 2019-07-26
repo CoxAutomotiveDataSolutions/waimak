@@ -9,31 +9,40 @@ import org.apache.spark.sql.types.IntegerType
 import scala.collection.mutable
 
 class TestDataQualityMetadataExtension extends SparkAndTmpDirSpec {
-  override val appName: String = "TestDataQualityActions"
+  override val appName: String = "TestDataQualityMetadataExtension"
 
-  describe("nulls percentage metric") {
-    it("should alert when the percentage of nulls exceeds a threshold") {
+  describe("data quality actions") {
+    it("allow multiple actions to be added for the same label") {
       val spark = sparkSession
       import spark.implicits._
+      val alerter = new TestAlert
       val ds = Seq(
-        TestDataForNullsCheck(null, "bla")
-        , TestDataForNullsCheck(null, "bla")
-        , TestDataForNullsCheck(null, "bla3")
-        , TestDataForNullsCheck(null, "bla4")
-        , TestDataForNullsCheck("a", "bla5")
-        , TestDataForNullsCheck("b", "bla6")
+        TestDataForNullsCheck(null, null)
+        , TestDataForNullsCheck(null, null)
+        , TestDataForNullsCheck(null, null)
+        , TestDataForNullsCheck(null, null)
+        , TestDataForNullsCheck("a", null)
+        , TestDataForNullsCheck("b", null)
         , TestDataForNullsCheck("c", "bla7")
         , TestDataForNullsCheck("d", "bla8")
         , TestDataForNullsCheck("e", "bla9")
         , TestDataForNullsCheck("f", "bla10")
       ).toDS()
       val flow = Waimak.sparkFlow(spark, tmpDir.toString)
-      val f = flow.addInput("testInput", Some(ds))
+      flow.addInput("testInput", Some(ds))
         .alias("testInput", "testOutput")
-        .addDataQualityCheck[DatasetChecks]("testOutput"
-        , DatasetChecks(Seq(NullValuesCheck("col1", 60, 80)))
-        , new TestAlert)
-      Waimak.sparkExecutor().execute(f)
+        .addDataQualityCheck("testOutput"
+        , DatasetChecks(Seq(NullValuesCheck("col1", 20, 40)))
+        , alerter)
+        .addDataQualityCheck("testOutput"
+        , DatasetChecks(Seq(NullValuesCheck("col2", 20, 40)))
+        , alerter)
+        .execute()
+
+      alerter.alerts.map(_.alertMessage) should contain theSameElementsAs Seq(
+        "Warning alert for null_values on label testOutput. Percentage of nulls in column col1 was 40%. Warning threshold 20%"
+        , "Critical alert for null_values on label testOutput. Percentage of nulls in column col2 was 60%. Critical threshold 40%"
+      )
     }
   }
 
@@ -58,7 +67,6 @@ case class NullValuesCheck(colName: String, percentageNullWarningThreshold: Int,
           s"${alertImportance.description} threshold $thresholdUsed%", alertImportance))
       }).getOrElse(Nil)
     })
-
 
 
 case class TestDataForNullsCheck(col1: String, col2: String)

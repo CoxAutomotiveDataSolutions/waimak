@@ -22,10 +22,15 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
     reducedChecks
       .map {
         case ((label, alertHandler), check) => DataQualityMeta(label, alertHandler, check)
-      }.foldLeft(flow)((f, m) => {
-      f.cacheAsParquet(m.label)
-        .doSomething(m.label, m.check.getAlerts(m.label, _).foreach(a => m.alertHandlers.foreach(_.handleAlert(a))))
-    })
+      }
+      .groupBy(_.label)
+      .foldLeft(flow)((f, m) => {
+        val (label, metaForLabel) = m
+        f.cacheAsParquet(label)
+          .doSomething(label, ds =>
+            metaForLabel
+              .foreach(meta => meta.check.getAlerts(meta.label, ds).foreach(a => meta.alertHandlers.foreach(_.handleAlert(a)))))
+      })
       .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](identifier, _ => None)
   }
 

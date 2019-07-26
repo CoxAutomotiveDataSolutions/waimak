@@ -41,15 +41,11 @@
         <artifactId>waimak-storage_2.11</artifactId>
         <version>${project.parent.version}</version>
         </dependency>
-        <!--<dependency>-->
-        <!--<groupId>com.coxautodata</groupId>-->
-        <!--<artifactId>waimak-configuration_2.11</artifactId>-->
-        <!--<version>${project.parent.version}</version>-->
-        <!--</dependency>-->
         <dependency>
             <groupId>com.amazon.deequ</groupId>
             <artifactId>deequ</artifactId>
             <version>1.0.1</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 </project>

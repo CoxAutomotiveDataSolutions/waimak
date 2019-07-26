@@ -14,8 +14,8 @@ import scala.util.Failure
 class TestDeequActions extends SparkAndTmpDirSpec {
   override val appName: String = "TestDataQualityActions"
 
-  describe("nulls percentage metric") {
-    it("should alert when the percentage of nulls exceeds a threshold") {
+  describe("deequ actions") {
+    it("should allow multiple checks to be added for a single label") {
       val spark = sparkSession
       import spark.implicits._
       val ds = Seq(
@@ -38,12 +38,14 @@ class TestDeequActions extends SparkAndTmpDirSpec {
           _.addChecks(Seq(
             Check(CheckLevel.Warning, "warning_checks")
               .hasCompleteness("col1", _ >= 0.8, Some("More than 20% of col1 values were null."))
-            , Check(CheckLevel.Error, "error_checks")
-              .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("More than 40% of col1 values were null."))
-              .isUnique("col2", Some("col2 was not unique"))
           ))
           , alerter
-        ).execute()
+        )
+        .addDeequCheck("testOutput", Check(CheckLevel.Error, "error_checks")
+          .hasCompleteness("col1", completeness => completeness >= 0.6 && completeness < 0.8, Some("More than 40% of col1 values were null."))
+          .isUnique("col2", Some("col2 was not unique"))
+        )(alerter)
+        .execute()
 
       alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs Seq(
         "Warning alert for label testOutput\n CompletenessConstraint(Completeness(col1,None)) : Value: 0.6 does not meet the constraint requirement! More than 20% of col1 values were null."
@@ -127,12 +129,12 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .alias("testInput", "testOutput")
         //.setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 26, 12, 20, 11, 0, ZoneOffset.UTC))
         .addDeequValidationWithMetrics("testOutput",
-          _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
-          , alerter
-        )
-        val ex = intercept[DeequCheckException] {
-          f.execute()
-        }
+        _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
+        , alerter
+      )
+      val ex = intercept[DeequCheckException] {
+        f.execute()
+      }
 
       ex.getMessage should be("Anomaly checks were specified but no metrics repository was set. Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository")
 
