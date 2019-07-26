@@ -2,11 +2,11 @@ package com.coxautodata.waimak.dataflow.spark.dataquality
 
 import io.circe
 import io.circe.Json
+import io.circe.generic.auto._
+import io.circe.syntax._
 import org.apache.commons.httpclient.HttpClient
 import org.apache.commons.httpclient.methods.{PostMethod, StringRequestEntity}
 import org.apache.http.client.HttpResponseException
-import io.circe.generic.auto._
-import io.circe.syntax._
 
 case class SlackQualityAlert(token: String) extends DataQualityAlertHandler {
 
