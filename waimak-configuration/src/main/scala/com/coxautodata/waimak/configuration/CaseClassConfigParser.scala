@@ -11,7 +11,7 @@ import scala.annotation.StaticAnnotation
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 object CaseClassConfigParser extends Logging {
 
@@ -260,10 +260,12 @@ trait PropertyProvider {
   def get(key: String): Option[String]
 
   def getWithRetry(key: String, timeoutMs: Long, retries: Int): Option[String] = {
-    Try(Await.result(Future(get(key)), Duration(timeoutMs, TimeUnit.MILLISECONDS))) recover {
-      case _: Throwable if retries > 0 => getWithRetry(key, timeoutMs, retries - 1)
+    Try(Await.result(Future(get(key)), Duration(timeoutMs, TimeUnit.MILLISECONDS))) match {
+      case Failure(_) if retries > 0 => getWithRetry(key, timeoutMs, retries - 1)
+      case Failure(e) => throw e
+      case Success(v) => v
     }
-    }.get
+  }
 }
 
 /**
