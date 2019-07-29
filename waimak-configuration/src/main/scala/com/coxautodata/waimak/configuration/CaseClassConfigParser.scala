@@ -134,8 +134,8 @@ object CaseClassConfigParser extends Logging {
       case t if t <:< typeOf[Seq[_]] =>
         val sep = getSeparator(param)
         val arr = getValue(conf, properties, prefix, param.name.toString, timeoutMs, retries).split(sep)
+        // Important to match types as they become more generic
         val casted = {
-
           t match {
             case l if l <:< typeOf[List[_]] => arr.toList
             case l if l <:< typeOf[Vector[_]] => arr.toVector
