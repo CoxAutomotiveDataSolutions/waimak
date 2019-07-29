@@ -4,9 +4,10 @@ import java.util.ServiceLoader
 
 import com.coxautodata.waimak.dataflow.DataFlow._
 import com.coxautodata.waimak.log.Logging
-import scala.reflect.runtime.universe.TypeTag
+
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
+import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Success, Try}
 
 /**
@@ -341,17 +342,17 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
   }
 
   private[dataflow] def getEnabledConfigurationExtensions: Seq[DataFlowConfigurationExtension[Self]] = {
-    import reflect.runtime.currentMirror
+    import scala.reflect.runtime.currentMirror
     import scala.reflect.runtime.universe.typeOf
-    val need = typeOf[DataFlowConfigurationExtension[Self]]
-    val loaded = ServiceLoader.load(classOf[DataFlowConfigurationExtension[Self]]).asScala
-    loaded
-      .foreach { l =>
-        val have = (currentMirror.reflect(l)).symbol.toType
-        println(s"$l $have $need ${have.<:<(need)}")
-      }
 
-    Seq.empty
+    val needType = typeOf[DataFlowConfigurationExtension[Self]]
+    ServiceLoader
+      .load(classOf[DataFlowConfigurationExtension[Self]])
+      .asScala
+      .filter(currentMirror.reflect(_).symbol.toType <:< needType)
+      .filter(e => flowContext.getBoolean(s"${e.extensionPrefix}.enabled", false))
+      .toSeq
+
   }
 
   /**
@@ -377,8 +378,9 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
     }
 
     Try {
-      loopUntilStable(this, maxIters)
+      getEnabledConfigurationExtensions.foldLeft(this)((z, e) => e.preExecutionManipulation(z))
     }
+      .map(loopUntilStable(_, maxIters))
       .flatMap(_.isValidFlowDAG)
   }
 
