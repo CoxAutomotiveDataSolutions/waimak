@@ -350,7 +350,7 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
       .load(classOf[DataFlowConfigurationExtension[Self]])
       .asScala
       .filter(currentMirror.reflect(_).symbol.toType <:< needType)
-      .filter(e => flowContext.getBoolean(s"${e.extensionPrefix}.enabled", false))
+      .filter(e => flowContext.getBoolean(s"${EXTENSIONS_PREFIX}.${e.extensionKey}.enabled", false))
       .toSeq
 
   }
@@ -627,12 +627,25 @@ trait DataFlowMetadataExtension[S <: DataFlow[S]] {
  */
 trait DataFlowMetadataExtensionIdentifier
 
+/**
+ * Trait used to define a DataFlow Configuration extension.
+ * This type of extension adds a pre-execution hook when an extension is enabled
+ * by setting `spark.waimak.dataflow.extensions.${extensionKey}.enabled=true`.
+ *
+ * Instances of this trait must be registered services in the `META-INF/services`
+ * file as they are loaded using [[ServiceLoader]].
+ */
 trait DataFlowConfigurationExtension[S <: DataFlow[S]] {
 
-  def extensionPrefix: String = s"${EXTENSIONS_PREFIX}.$extensionKey"
-
+  /**
+   * Single-word key of this extension
+   * @return
+   */
   def extensionKey: String
 
+  /**
+   * Manipulation function that is invoked once before an flow is executed
+   */
   def preExecutionManipulation(flow: S): S
 
 }

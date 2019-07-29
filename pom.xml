@@ -71,7 +71,6 @@
         <module>waimak-rdbm-export</module>
         <module>waimak-impala</module>
         <module>waimak-storage</module>
-        <module>waimak-configuration</module>
         <module>waimak-azure-table</module>
         <module>waimak-rdbm-ingestion</module>
         <module>waimak-hive</module>
