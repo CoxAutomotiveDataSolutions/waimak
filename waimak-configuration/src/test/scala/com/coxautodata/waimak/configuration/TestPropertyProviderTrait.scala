@@ -11,7 +11,7 @@ class TestPropertyProviderTrait extends FunSpec with Matchers {
 
     it("should retry and succeed the third time") {
       TestPropertyProviderInstance(List(1000, 1000))
-        .getWithRetry("", 200, 3) should be(Some("no timeout"))
+        .getWithRetry("", 0, 3) should be(Some("no timeout"))
     }
 
     it("should retry and succeed with a shorter timeout") {
@@ -34,8 +34,11 @@ case class TestPropertyProviderInstance(failures: List[Long]) extends PropertyPr
 
   private val internalList = failures.toBuffer
 
-  override def get(key: String): Option[String] = Try {
-    Thread.sleep(internalList.remove(0))
-    Some("after timeout")
-  }.getOrElse(Some("no timeout"))
+  override def get(key: String): Option[String] =
+    if (internalList.nonEmpty) {
+      val timeout = internalList.remove(0)
+      Thread.sleep(timeout)
+      Some("after timeout")
+    }
+    else Some("no timeout")
 }
