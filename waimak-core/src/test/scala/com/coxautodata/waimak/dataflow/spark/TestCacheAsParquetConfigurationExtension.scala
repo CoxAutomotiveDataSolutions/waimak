@@ -41,7 +41,7 @@ class TestCacheAsParquetConfigurationExtension extends SparkAndTmpDirSpec {
     val spark = sparkSession
     import spark.implicits._
     spark.conf.set(SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION, false)
-    spark.conf.set("spark.waimak.dataflow.extensions.cacheasparquet.enabled", true)
+    spark.conf.set("spark.waimak.dataflow.extensions", "cacheasparquet")
     spark.conf.set("spark.waimak.dataflow.extensions.cacheasparquet.cacheLabels", "purchases")
 
     val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
@@ -72,7 +72,7 @@ class TestCacheAsParquetConfigurationExtension extends SparkAndTmpDirSpec {
     val spark = sparkSession
     import spark.implicits._
     spark.conf.set(SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION, false)
-    spark.conf.set("spark.waimak.dataflow.extensions.cacheasparquet.enabled", true)
+    spark.conf.set("spark.waimak.dataflow.extensions", "cacheasparquet")
     spark.conf.set("spark.waimak.dataflow.extensions.cacheasparquet.cacheAll", true)
 
     val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)

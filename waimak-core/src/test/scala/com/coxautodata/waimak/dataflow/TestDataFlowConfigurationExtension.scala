@@ -12,7 +12,7 @@ class TestDataFlowConfigurationExtension extends SparkSpec {
 
     it("mockdataflow extension enabled") {
       val flowContext: EmptyFlowContext = new EmptyFlowContext
-      flowContext.conf.setProperty("spark.waimak.dataflow.extensions.mockdataflow.enabled", "true")
+      flowContext.conf.setProperty("spark.waimak.dataflow.extensions", "mockdataflow")
       val res = MockDataFlow.empty.copy(flowContext = flowContext).getEnabledConfigurationExtensions
       res.length should be(1)
       res.head shouldBe a[TestMockDataFlowConfigurationExtension]
@@ -20,11 +20,10 @@ class TestDataFlowConfigurationExtension extends SparkSpec {
 
     it("mockdataflow and sparkdataflow extensions enabled, only mockdataflow supported") {
       val flowContext: EmptyFlowContext = new EmptyFlowContext
-      flowContext.conf.setProperty("spark.waimak.dataflow.extensions.mockdataflow.enabled", "true")
-      flowContext.conf.setProperty("spark.waimak.dataflow.extensions.sparkdataflow.enabled", "true")
-      val res = MockDataFlow.empty.copy(flowContext = flowContext).getEnabledConfigurationExtensions
-      res.length should be(1)
-      res.head shouldBe a[TestMockDataFlowConfigurationExtension]
+      flowContext.conf.setProperty("spark.waimak.dataflow.extensions", "mockdataflow,sparkdataflow")
+      intercept[DataFlowException] {
+        MockDataFlow.empty.copy(flowContext = flowContext).getEnabledConfigurationExtensions
+      }.text should be("The following extensions could not be found: [sparkdataflow]")
     }
   }
 
@@ -35,7 +34,7 @@ class TestDataFlowConfigurationExtension extends SparkSpec {
 
     it("sparkdataflow extension enabled") {
       val spark = sparkSession
-      spark.conf.set("spark.waimak.dataflow.extensions.sparkdataflow.enabled", "true")
+      spark.conf.set("spark.waimak.dataflow.extensions", "sparkdataflow")
       val res = SparkDataFlow.empty(spark).getEnabledConfigurationExtensions
       res.length should be(1)
       res.head shouldBe a[TestSparkDataFlowConfigurationExtension]
@@ -43,11 +42,10 @@ class TestDataFlowConfigurationExtension extends SparkSpec {
 
     it("sparkdataflow and mockdataflow extensions enabled, only sparkdataflow supported") {
       val spark = sparkSession
-      spark.conf.set("spark.waimak.dataflow.extensions.mockdataflow.enabled", "true")
-      spark.conf.set("spark.waimak.dataflow.extensions.sparkdataflow.enabled", "true")
-      val res = SparkDataFlow.empty(spark).getEnabledConfigurationExtensions
-      res.length should be(1)
-      res.head shouldBe a[TestSparkDataFlowConfigurationExtension]
+      spark.conf.set("spark.waimak.dataflow.extensions", "sparkdataflow,mockdataflow")
+      intercept[DataFlowException] {
+        SparkDataFlow.empty(spark).getEnabledConfigurationExtensions
+      }.text should be("The following extensions could not be found: [mockdataflow]")
     }
   }
 }
