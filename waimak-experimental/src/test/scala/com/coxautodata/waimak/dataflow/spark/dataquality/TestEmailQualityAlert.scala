@@ -24,6 +24,8 @@ class TestEmailQualityAlert extends FunSpec with Matchers {
         put("mail.transport.protocol.rfc822", "mocked")
       }
     }
+
+    override def alertOn: List[AlertImportance] = List.empty
   }
 
   it("should send an alert email") {

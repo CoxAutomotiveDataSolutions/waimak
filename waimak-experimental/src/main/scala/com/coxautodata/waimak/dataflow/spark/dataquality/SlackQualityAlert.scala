@@ -8,7 +8,7 @@ import org.apache.commons.httpclient.HttpClient
 import org.apache.commons.httpclient.methods.{PostMethod, StringRequestEntity}
 import org.apache.http.client.HttpResponseException
 
-case class SlackQualityAlert(token: String) extends DataQualityAlertHandler {
+case class SlackQualityAlert(token: String, alertOn: List[AlertImportance] = List.empty) extends DataQualityAlertHandler {
 
   private def toJson(alert: DataQualityAlert): String = {
     val slackColour = alert.importance match {

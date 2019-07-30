@@ -13,5 +13,10 @@ case object Good extends AlertImportance("Good")
 case object Information extends AlertImportance("Information")
 
 trait DataQualityAlertHandler {
+
+  def alertOn: List[AlertImportance]
+
+  def isHandledAlertImportance(alertImportance: AlertImportance): Boolean = alertOn.isEmpty || alertOn.contains(alertImportance)
+
   def handleAlert(alert: DataQualityAlert): Unit
 }

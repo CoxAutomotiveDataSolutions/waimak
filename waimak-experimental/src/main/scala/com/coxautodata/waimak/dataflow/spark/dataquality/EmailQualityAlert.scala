@@ -7,7 +7,7 @@ import javax.mail.Message.RecipientType._
 import javax.mail._
 import javax.mail.internet.{InternetAddress, MimeMessage}
 
-case class EmailQualityAlert(settings: EmailSettings) extends BaseEmailQualityAlert {
+case class EmailQualityAlert(settings: EmailSettings, alertOn: List[AlertImportance] = List.empty) extends BaseEmailQualityAlert {
   override def provider: Option[Provider] = None
 
   override def defaultProperties: Properties = new Properties()

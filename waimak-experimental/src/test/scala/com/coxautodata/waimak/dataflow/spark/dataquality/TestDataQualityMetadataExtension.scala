@@ -78,5 +78,7 @@ class TestAlert extends DataQualityAlertHandler {
   override def handleAlert(alert: DataQualityAlert): Unit = {
     alerts.append(alert)
   }
+
+  override def alertOn: List[AlertImportance] = List.empty
 }
 
