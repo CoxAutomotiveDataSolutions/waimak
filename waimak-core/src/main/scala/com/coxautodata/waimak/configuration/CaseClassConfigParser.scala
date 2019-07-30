@@ -7,6 +7,7 @@ import com.coxautodata.waimak.log.Logging
 import org.apache.spark.sql.RuntimeConfig
 
 import scala.annotation.StaticAnnotation
+import scala.reflect.ClassTag
 import scala.util.Try
 
 object CaseClassConfigParser extends Logging {
@@ -37,9 +38,8 @@ object CaseClassConfigParser extends Logging {
 
   final case class separator(s: String) extends StaticAnnotation
 
-  import reflect.runtime.{currentMirror => cm, universe => ru}
-  import ru.typeOf
-  import scala.reflect.runtime.universe.{TypeTag, symbolOf}
+  import scala.reflect.runtime.universe.{Literal, LiteralTag, Constant, Symbol, TermName, Type, TypeTag, symbolOf, typeOf}
+  import scala.reflect.runtime.{currentMirror => cm, universe => u}
 
   /**
     * Cast a String to a particular type representation
@@ -51,7 +51,7 @@ object CaseClassConfigParser extends Logging {
   @throws(classOf[UnsupportedOperationException])
   @throws(classOf[NumberFormatException])
   @throws(classOf[IllegalArgumentException])
-  private def castAs(value: String, typeSignature: ru.Type): Any = typeSignature match {
+  private def castAs(value: String, typeSignature: Type): Any = typeSignature match {
     // Theoretically we could check the presence of Type.valueOf(String) or Type.apply(String) using reflection
     // and attempt to call these too for the type conversion
     case t if t =:= typeOf[String] => value
@@ -73,9 +73,10 @@ object CaseClassConfigParser extends Logging {
     * @param default Default value if missing
     * @return Separator
     */
-  private def getSeparator(param: ru.Symbol, default: String = ","): String = {
-    param.annotations.find(_.tree.tpe =:= ru.typeOf[separator])
-      .flatMap(_.tree.children.tail.collectFirst { case ru.Literal(ru.Constant(s: String)) => s })
+  private def getSeparator(param: Symbol, default: String = ","): String = {
+    implicitly[ClassTag[Literal]]
+    param.annotations.find(_.tree.tpe =:= typeOf[separator])
+      .flatMap(_.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s })
       .getOrElse(default)
   }
 
@@ -110,7 +111,7 @@ object CaseClassConfigParser extends Logging {
   @throws(classOf[UnsupportedOperationException])
   @throws(classOf[NumberFormatException])
   @throws(classOf[IllegalArgumentException])
-  private def getParam(conf: Map[String, String], prefix: String, param: ru.Symbol, properties: Seq[PropertyProvider]): Any = {
+  private def getParam(conf: Map[String, String], prefix: String, param: Symbol, properties: Seq[PropertyProvider]): Any = {
     param.typeSignature match {
       // Option types cast as the inner type of Option
       case t if t <:< typeOf[Option[_]] => Some(getValue(conf, properties, prefix, param.name.toString)).map { v =>
@@ -121,14 +122,14 @@ object CaseClassConfigParser extends Logging {
         val sep = getSeparator(param)
         val arr = getValue(conf, properties, prefix, param.name.toString).split(sep)
         val casted = {
-          // Important to match types as they become more generic
+
           t match {
             case l if l <:< typeOf[List[_]] => arr.toList
             case l if l <:< typeOf[Vector[_]] => arr.toVector
             case l if l <:< typeOf[Seq[_]] => arr.toSeq
             case e => throw new UnsupportedOperationException(s"Cannot handle collection type ${e.toString}")
           }
-        }
+          }
           .map { v =>
             castAs(v, param.typeSignature.typeArgs.head)
           }
@@ -140,7 +141,7 @@ object CaseClassConfigParser extends Logging {
   }
 
   private def getPropertyProviders(context: SparkFlowContext): Seq[PropertyProvider] = {
-    val m = ru.runtimeMirror(getClass.getClassLoader)
+    val m = u.runtimeMirror(getClass.getClassLoader)
     context
       .getStringList(CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES, CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES_DEFAULT)
       .map(m.staticModule)
@@ -190,7 +191,7 @@ object CaseClassConfigParser extends Logging {
     val classSymbol = symbolOf[A].asClass
     val constructorParams = classSymbol.primaryConstructor.asMethod.paramLists.head
     val companionSymbol = classSymbol.companion
-    val companionApply = companionSymbol.typeSignature.member(ru.TermName("apply")).asMethod
+    val companionApply = companionSymbol.typeSignature.member(TermName("apply")).asMethod
     val im = Try(cm.reflect(cm.reflectModule(companionSymbol.asModule).instance)).recover {
       case e: ScalaReflectionException => throw new UnsupportedOperationException(s"ScalaReflectionException was thrown when " +
         s"inspecting case class: ${runtimeClass.getSimpleName}. This was likely due to the case class being defined " +
@@ -201,7 +202,7 @@ object CaseClassConfigParser extends Logging {
       Try(getParam(conf, prefix, p, properties))
         .recover {
           case e: NoSuchElementException =>
-            val defarg = companionSymbol.typeSignature.member(ru.TermName(s"apply$$default$$${i + 1}"))
+            val defarg = companionSymbol.typeSignature.member(TermName(s"apply$$default$$${i + 1}"))
             if (!defarg.isMethod) throw new NoSuchElementException(s"No SparkConf configuration value, no value in any PropertyProviders or default " +
               s"value found for parameter $prefix${p.name.toString}")
             else im.reflectMethod(defarg.asMethod)()

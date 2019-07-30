@@ -2,6 +2,7 @@ package com.coxautodata.waimak.dataflow.spark.dataquality
 
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
+import com.coxautodata.waimak.dataflow.spark.dataquality.AlertImportance.{Critical, Warning}
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType

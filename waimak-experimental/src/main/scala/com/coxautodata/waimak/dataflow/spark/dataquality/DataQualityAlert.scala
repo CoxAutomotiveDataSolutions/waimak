@@ -1,16 +1,31 @@
 package com.coxautodata.waimak.dataflow.spark.dataquality
 
+import com.coxautodata.waimak.dataflow.DataFlowException
+import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
+
 case class DataQualityAlert(alertMessage: String, importance: AlertImportance)
 
 sealed abstract class AlertImportance(val description: String)
 
-case object Critical extends AlertImportance("Critical")
+object AlertImportance {
 
-case object Warning extends AlertImportance("Warning")
+  def apply(name: String): AlertImportance = name.toLowerCase match {
+    case "critical" => Critical
+    case "warning" => Warning
+    case "good" => Good
+    case "information" => Information
+    case _ => throw new DataFlowException(s"Invalid alert importance name: [$name]")
+  }
 
-case object Good extends AlertImportance("Good")
+  case object Critical extends AlertImportance("Critical")
 
-case object Information extends AlertImportance("Information")
+  case object Warning extends AlertImportance("Warning")
+
+  case object Good extends AlertImportance("Good")
+
+  case object Information extends AlertImportance("Information")
+
+}
 
 trait DataQualityAlertHandler {
 
@@ -19,4 +34,12 @@ trait DataQualityAlertHandler {
   def isHandledAlertImportance(alertImportance: AlertImportance): Boolean = alertOn.isEmpty || alertOn.contains(alertImportance)
 
   def handleAlert(alert: DataQualityAlert): Unit
+}
+
+trait DataQualityAlertHandlerService {
+
+  def handlerKey: String
+
+  def getAlertHandler(flowContext: SparkFlowContext): DataQualityAlertHandler
+
 }

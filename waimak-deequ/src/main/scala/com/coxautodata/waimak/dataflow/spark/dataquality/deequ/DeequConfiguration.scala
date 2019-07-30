@@ -7,5 +7,8 @@ import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfiguratio
 class DeequConfiguration extends DataQualityConfigurationExtension{
   override def extensionKey: String = "deequ"
 
-  override def preExecutionManipulation(flow: SparkDataFlow): SparkDataFlow = ???
+  override def preExecutionManipulation(flow: SparkDataFlow): SparkDataFlow = {
+    val alerters = getConfiguredAlertHandlers(flow.flowContext)
+    ???
+  }
 }

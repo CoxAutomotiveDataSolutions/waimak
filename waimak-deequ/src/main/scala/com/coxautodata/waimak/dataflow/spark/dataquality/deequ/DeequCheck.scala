@@ -5,6 +5,7 @@ import com.amazon.deequ.constraints.{ConstraintResult, ConstraintStatus}
 import com.amazon.deequ.repository.ResultKey
 import com.amazon.deequ.{VerificationResult, VerificationRunBuilder, VerificationRunBuilderWithRepository, VerificationSuite}
 import com.coxautodata.waimak.dataflow.DataFlowException
+import com.coxautodata.waimak.dataflow.spark.dataquality.AlertImportance.{Critical, Good, Warning}
 import com.coxautodata.waimak.dataflow.spark.dataquality._
 import org.apache.spark.sql.Dataset
 

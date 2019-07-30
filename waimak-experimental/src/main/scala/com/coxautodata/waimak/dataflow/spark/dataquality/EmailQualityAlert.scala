@@ -3,6 +3,9 @@ package com.coxautodata.waimak.dataflow.spark.dataquality
 import java.time.Instant
 import java.util.{Date, Properties}
 
+import com.coxautodata.waimak.configuration.CaseClassConfigParser
+import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
+import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfigurationExtension.DATAQUALITY_ALERTERS
 import javax.mail.Message.RecipientType._
 import javax.mail._
 import javax.mail.internet.{InternetAddress, MimeMessage}
@@ -11,6 +14,20 @@ case class EmailQualityAlert(settings: EmailSettings, alertOn: List[AlertImporta
   override def provider: Option[Provider] = None
 
   override def defaultProperties: Properties = new Properties()
+}
+
+class EmailQualityAlertService extends DataQualityAlertHandlerService {
+  override def handlerKey: String = "email"
+
+  override def getAlertHandler(flowContext: SparkFlowContext): DataQualityAlertHandler = {
+    val importanceConf = CaseClassConfigParser[EmailAlertImportance](flowContext, s"${DATAQUALITY_ALERTERS}.email.")
+    val emailConf = CaseClassConfigParser[EmailSettings](flowContext, s"${DATAQUALITY_ALERTERS}.email.")
+    EmailQualityAlert(emailConf, importanceConf.alertOnImportances)
+  }
+}
+
+private[dataquality] case class EmailAlertImportance(alertOn: List[String]) {
+  def alertOnImportances: List[AlertImportance] = alertOn.map(AlertImportance(_))
 }
 
 trait BaseEmailQualityAlert extends DataQualityAlertHandler {

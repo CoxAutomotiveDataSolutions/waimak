@@ -2,6 +2,7 @@ package com.coxautodata.waimak.dataflow.spark.dataquality
 
 import java.util.Properties
 
+import com.coxautodata.waimak.dataflow.spark.dataquality.AlertImportance.Warning
 import javax.mail.Message.RecipientType._
 import javax.mail.Provider
 import org.jvnet.mock_javamail.{Mailbox, MockTransport}

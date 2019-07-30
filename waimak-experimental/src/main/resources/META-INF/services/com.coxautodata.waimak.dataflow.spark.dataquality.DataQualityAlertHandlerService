@@ -1,0 +1,2 @@
+com.coxautodata.waimak.dataflow.spark.dataquality.SlackQualityAlertService
+com.coxautodata.waimak.dataflow.spark.dataquality.EmailQualityAlertService
