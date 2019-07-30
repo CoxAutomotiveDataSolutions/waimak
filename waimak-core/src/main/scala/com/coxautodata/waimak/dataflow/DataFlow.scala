@@ -1,8 +1,13 @@
 package com.coxautodata.waimak.dataflow
 
+import java.util.ServiceLoader
+
+import com.coxautodata.waimak.dataflow.DataFlow._
 import com.coxautodata.waimak.log.Logging
 
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
+import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Success, Try}
 
 /**
@@ -16,7 +21,7 @@ import scala.util.{Success, Try}
   * Also inputs are useful for unit testing, as they give access to all intermediate outputs of actions.
   *
   */
-trait DataFlow[Self <: DataFlow[Self]] extends Logging {
+abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
   this: Self =>
 
   def flowContext: FlowContext
@@ -336,6 +341,20 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
     allLabels.diff(allLabels.distinct).toSet
   }
 
+  private[dataflow] def getEnabledConfigurationExtensions: Seq[DataFlowConfigurationExtension[Self]] = {
+    import scala.reflect.runtime.currentMirror
+    import scala.reflect.runtime.universe.typeOf
+
+    val needType = typeOf[DataFlowConfigurationExtension[Self]]
+    ServiceLoader
+      .load(classOf[DataFlowConfigurationExtension[Self]])
+      .asScala
+      .filter(currentMirror.reflect(_).symbol.toType <:< needType)
+      .filter(e => flowContext.getBoolean(s"${EXTENSIONS_PREFIX}.${e.extensionKey}.enabled", false))
+      .toSeq
+
+  }
+
   /**
     * A function called just before the flow is executed.
     * This function keeps calling any extension preparation steps first, then
@@ -359,8 +378,9 @@ trait DataFlow[Self <: DataFlow[Self]] extends Logging {
     }
 
     Try {
-      loopUntilStable(this, maxIters)
+      getEnabledConfigurationExtensions.foldLeft(this)((z, e) => e.preExecutionManipulation(z))
     }
+      .map(loopUntilStable(_, maxIters))
       .flatMap(_.isValidFlowDAG)
   }
 
@@ -490,6 +510,7 @@ object DataFlow {
   val MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE: String = s"$dataFlowParamPrefix.maxIterationsForExtensionManipulationsToStabalise"
   val MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE_DEFAULT: Int = 10
 
+  val EXTENSIONS_PREFIX: String = s"${dataFlowParamPrefix}.extensions"
 }
 
 /**
@@ -605,3 +626,27 @@ trait DataFlowMetadataExtension[S <: DataFlow[S]] {
   * Trait used as an identifier for an instance of an extension.
   */
 trait DataFlowMetadataExtensionIdentifier
+
+/**
+  * Trait used to define a DataFlow Configuration extension.
+  * This type of extension adds a pre-execution hook when an extension is enabled
+  * by setting `spark.waimak.dataflow.extensions.${extensionKey}.enabled=true`.
+  *
+  * Instances of this trait must be registered services in the `META-INF/services`
+  * file as they are loaded using [[ServiceLoader]].
+  */
+trait DataFlowConfigurationExtension[S <: DataFlow[S]] {
+
+  /**
+    * Single-word key of this extension
+    *
+    * @return
+    */
+  def extensionKey: String
+
+  /**
+    * Manipulation function that is invoked once before an flow is executed
+    */
+  def preExecutionManipulation(flow: S): S
+
+}

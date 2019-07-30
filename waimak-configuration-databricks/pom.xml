@@ -12,7 +12,7 @@
     <dependencies>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-configuration_2.11</artifactId>
+            <artifactId>waimak-core_2.11</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>

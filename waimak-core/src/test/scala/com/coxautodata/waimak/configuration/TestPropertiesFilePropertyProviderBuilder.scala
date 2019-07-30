@@ -2,8 +2,8 @@ package com.coxautodata.waimak.configuration
 
 import java.io.FileNotFoundException
 
-import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, SparkFlowContext}
 import com.coxautodata.waimak.configuration.CaseClassConfigParser._
+import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, SparkFlowContext}
 import org.apache.spark.sql.RuntimeConfig
 
 class TestPropertiesFilePropertyProviderBuilder extends SparkAndTmpDirSpec {
