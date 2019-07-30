@@ -9,18 +9,13 @@ class TestPropertyProviderTrait extends FunSpec with Matchers {
   describe("getWithTimeout") {
 
     it("should retry and succeed the third time") {
-      new TestPropertyProviderInstance(List(1000, 1000))
-        .getWithRetry("", 0, 3) should be(Some("no timeout"))
+      new TestPropertyProviderInstance(List(new RuntimeException, new RuntimeException))
+        .getWithRetry("", 200, 3) should be(Some("no timeout"))
     }
 
-    it("should retry and succeed with a shorter timeout") {
-      new TestPropertyProviderInstance(List(1000, 0))
-        .getWithRetry("", 200, 3) should be(Some("after timeout"))
-    }
-
-    it("should throw an exception due to timeout") {
-      intercept[TimeoutException] {
-        new TestPropertyProviderInstance(List(1000))
+    it("should throw an exception") {
+      intercept[RuntimeException] {
+        new TestPropertyProviderInstance(List(new RuntimeException))
           .getWithRetry("", 200, 0)
       }
     }
@@ -29,14 +24,14 @@ class TestPropertyProviderTrait extends FunSpec with Matchers {
 
 }
 
-class TestPropertyProviderInstance(@volatile private var failures: List[Long]) extends PropertyProvider {
+class TestPropertyProviderInstance(private var failures: List[Throwable]) extends PropertyProvider {
 
-  override def get(key: String): Option[String] = failures match {
-    case Nil => Some("no timeout")
-    case h :: t =>
-      Thread.sleep(h)
-      failures = t
-      Some("after timeout")
+  override def get(key: String): Option[String] = synchronized {
+    failures match {
+      case Nil => Some("no timeout")
+      case h :: t =>
+        failures = t
+        throw h
+    }
   }
-
 }

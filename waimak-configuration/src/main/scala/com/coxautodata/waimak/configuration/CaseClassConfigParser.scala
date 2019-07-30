@@ -260,6 +260,7 @@ trait PropertyProvider {
   def get(key: String): Option[String]
 
   def getWithRetry(key: String, timeoutMs: Long, retries: Int): Option[String] = {
+    println("timeout: ", timeoutMs, " retries: ", retries)
     Try(Await.result(Future(get(key)), Duration(timeoutMs, TimeUnit.MILLISECONDS))) match {
       case Failure(_) if retries > 0 => getWithRetry(key, timeoutMs, retries - 1)
       case Failure(e) => throw e
