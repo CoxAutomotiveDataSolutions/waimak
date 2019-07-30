@@ -21,9 +21,9 @@
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-configuration_2.11</artifactId>
-            <version>${project.parent.version}</version>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-email</artifactId>
+            <version>1.5</version>
         </dependency>
         <dependency>
             <groupId>io.circe</groupId>
