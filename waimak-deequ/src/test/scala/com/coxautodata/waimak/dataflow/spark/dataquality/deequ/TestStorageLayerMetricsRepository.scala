@@ -15,13 +15,14 @@ class TestStorageLayerMetricsRepository extends SparkAndTmpDirSpec {
     val spark = sparkSession
     import spark.implicits._
     val context = SparkFlowContext(spark)
+    val timeMillis = 1564576525201L
     val metricsRepository = new StorageLayerMetricsRepository(new Path(testingBaseDirName), "metrics", context)
 
     val yesterdaysDataset = Seq(
       Item(1, "Thingy A", "awesome thing.", "high", 0),
       Item(2, "Thingy B", "available at http://thingb.com", null, 0)).toDF()
 
-    val yesterdaysKey = ResultKey(System.currentTimeMillis() - 24 * 60 * 1000)
+    val yesterdaysKey = ResultKey(timeMillis - 24 * 60 * 1000)
 
     VerificationSuite()
       .onData(yesterdaysDataset)
@@ -40,7 +41,7 @@ class TestStorageLayerMetricsRepository extends SparkAndTmpDirSpec {
       Item(5, "Thingy E", null, "high", 12)
     ).toDF()
 
-    val todaysKey = ResultKey(System.currentTimeMillis())
+    val todaysKey = ResultKey(timeMillis)
 
     val verificationResult = VerificationSuite()
       .onData(todaysDataset)
@@ -51,22 +52,18 @@ class TestStorageLayerMetricsRepository extends SparkAndTmpDirSpec {
         Size())
       .run()
 
-    if (verificationResult.status != CheckStatus.Success) {
-      println("Anomaly detected in the Size() metric!")
+    verificationResult.status should be(CheckStatus.Warning)
 
-      metricsRepository
-        .load()
-        .forAnalyzers(Seq(Size()))
-        .getSuccessMetricsAsDataFrame(spark)
-        .show()
-    }
+    metricsRepository
+      .load()
+      .forAnalyzers(Seq(Size()))
+      .getSuccessMetricsAsJson() should be("""[{"name":"Size","dataset_date":1.564576525201E12,"instance":"*","entity":"Dataset","value":5.0},{"name":"Size","dataset_date":1.564575085201E12,"instance":"*","entity":"Dataset","value":2.0}]""".stripMargin)
+
   }
 }
 
-case class Item(
-                 id: Long,
+case class Item(id: Long,
                  name: String,
                  description: String,
                  priority: String,
-                 numViews: Long
-               )
+                 numViews: Long)

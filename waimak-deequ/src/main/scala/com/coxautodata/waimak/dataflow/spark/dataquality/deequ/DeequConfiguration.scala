@@ -31,14 +31,15 @@ class DeequConfigurationExtension extends DataQualityConfigurationExtension {
       case h :: t => (h, t)
       case _ => throw new DataFlowException("At least one alerter must be specified when using Deequ")
     }
-    val activeChecks: Seq[String] = flow.flowContext.getStringList(s"${DEEQU_CONFIG}${label}.checks", List.empty)
+    val labelBasePrefix = s"${DEEQU_CONFIG}labels.${label}"
+    val activeChecks: Seq[String] = flow.flowContext.getStringList(s"spark.$labelBasePrefix.checks", List.empty)
     val foundChecks = availableChecks.filter(a => activeChecks.contains(a.checkName))
     val missingChecks = activeChecks.toSet.diff(availableChecks.map(_.checkName).toSet)
     if (missingChecks.nonEmpty) throw new DataFlowException(s"The following checks for label [$label] could not be found: [${missingChecks.mkString(",")}]")
     flow
       .foldLeftOver(foundChecks) {
         (z, c) =>
-          val prefix = s"${DEEQU_CONFIG}${label}.${c.checkName}"
+          val prefix = s"$labelBasePrefix.${c.checkName}."
           z
             .foldLeftOver(c.getChecks(z.flowContext, prefix)) {
               (zz, checks) =>
@@ -53,7 +54,7 @@ class DeequConfigurationExtension extends DataQualityConfigurationExtension {
 }
 
 object DeequConfiguration {
-  val DEEQU_CONFIG: String = "spark.waimak.dataquality.deequ."
+  val DEEQU_CONFIG: String = "waimak.dataquality.deequ."
 
 }
 

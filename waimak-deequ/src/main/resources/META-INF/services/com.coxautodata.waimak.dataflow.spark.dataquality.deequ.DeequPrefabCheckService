@@ -1,1 +1,1 @@
-com.coxautodata.waimak.dataflow.spark.dataquality.deequ.prefabchecks.NullCheck
+com.coxautodata.waimak.dataflow.spark.dataquality.deequ.prefabchecks.CompletenessCheck

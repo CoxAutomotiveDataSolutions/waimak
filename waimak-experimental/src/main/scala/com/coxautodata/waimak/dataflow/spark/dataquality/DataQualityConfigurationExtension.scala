@@ -11,16 +11,17 @@ import scala.collection.JavaConverters._
 trait DataQualityConfigurationExtension extends DataFlowConfigurationExtension[SparkDataFlow] {
 
   def getConfiguredAlertHandlers(context: SparkFlowContext): List[DataQualityAlertHandler] = {
-    val neededServices = context.getStringList(DATAQUALITY_ALERTERS, List.empty)
-    val foundServices = ServiceLoader.load(classOf[DataQualityAlertHandlerService]).asScala.toList.filter(e => neededServices.contains(e.handlerKey))
-    val missingServices = neededServices.toSet.diff(foundServices.map(_.handlerKey).toSet)
+    val neededServices = context.getStringList(s"spark.$DATAQUALITY_ALERTERS", List.empty)
+    val foundServices = ServiceLoader.load(classOf[DataQualityAlertHandlerService]).asScala.toList.filter(e => neededServices.contains(e.handlerKey)).map(e => e.handlerKey -> e).toMap
+    val missingServices = neededServices.toSet.diff(foundServices.keySet)
     if (missingServices.nonEmpty) throw new DataFlowException(s"Failed to find the following alert handler services: [${missingServices.mkString(",")}]")
-    foundServices
+    neededServices
+      .map(foundServices)
       .map(_.getAlertHandler(context))
   }
 
 }
 
 object DataQualityConfigurationExtension {
-  val DATAQUALITY_ALERTERS: String = "spark.waimak.dataquality.alerters"
+  val DATAQUALITY_ALERTERS: String = "waimak.dataquality.alerters"
 }
