@@ -3,7 +3,7 @@ package com.coxautodata.waimak.configuration
 import java.io.InputStreamReader
 import java.util.Properties
 
-import com.coxautodata.waimak.configuration.CaseClassConfigParser._
+import com.coxautodata.waimak.configuration.CaseClassConfigParser.CONFIG_PROPERTIES_FILE_URI
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
