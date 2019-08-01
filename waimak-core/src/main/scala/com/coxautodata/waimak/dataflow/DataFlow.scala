@@ -354,12 +354,14 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
       .asScala
       .filter(currentMirror.reflect(_).symbol.toType <:< needType)
       .filter(e => enabledExtensions.contains(e.extensionKey))
-      .toSeq
+      .map(e => e.extensionKey -> e)
+      .toMap
 
-    val missingExtensions = enabledExtensions.toSet.diff(foundExtensions.map(_.extensionKey).toSet)
+    val missingExtensions = enabledExtensions.toSet.diff(foundExtensions.keySet)
     if (missingExtensions.nonEmpty) throw new DataFlowException(s"The following extensions could not be found: [${missingExtensions.mkString(",")}]")
 
-    foundExtensions
+    enabledExtensions
+      .map(foundExtensions(_))
   }
 
   /**
