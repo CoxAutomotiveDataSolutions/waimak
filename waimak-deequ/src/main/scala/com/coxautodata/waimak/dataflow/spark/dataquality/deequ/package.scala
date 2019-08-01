@@ -51,16 +51,6 @@ package object deequ {
         .updateMetadataExtension[DeequMetadata](DeequDataFlowMetadataExtensionIdentifier, _ => Some(DeequMetadata(builder, appendDateTime)))
     }
 
-    //    def addDeequAnomalyCheck(label: String
-    //                      , check: Check
-    //                      , checks: Check*)
-    //                     (alertHandler: DataQualityAlertHandler,
-    //                      alertHandlers: DataQualityAlertHandler*): SparkDataFlow = {
-    //      val f = DeequCheck(v => (check +: checks).foldLeft(v)((z, c) => z.addCheck(c)))
-    //      sparkDataFlow
-    //        .addDataQualityCheck(label, f, alertHandler, alertHandlers: _*)
-    //    }
-
   }
 
 }
