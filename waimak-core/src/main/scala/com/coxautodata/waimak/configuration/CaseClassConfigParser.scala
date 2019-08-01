@@ -1,13 +1,17 @@
 package com.coxautodata.waimak.configuration
 
 import java.util.Properties
+import java.util.concurrent.TimeUnit
 
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.log.Logging
 import org.apache.spark.sql.RuntimeConfig
 
 import scala.annotation.StaticAnnotation
-import scala.util.Try
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+import scala.util.{Failure, Success, Try}
 
 object CaseClassConfigParser extends Logging {
 
@@ -34,6 +38,16 @@ object CaseClassConfigParser extends Logging {
     * Hadoop libraries and configuration must be present in the HadoopConfiguration on the SparkSession.
     */
   val CONFIG_PROPERTIES_FILE_URI: String = s"$configParamPrefix.propertiesFileURI"
+  /**
+    * Timeout in milliseconds used when requesting parameter values from property providers
+    */
+  val CONFIG_PROPERTY_PROVIDER_GET_TIMEOUTMS: String = s"$configParamPrefix.propertyProviderGetTimeoutMs"
+  val CONFIG_PROPERTY_PROVIDER_GET_TIMEOUTMS_DEFAULT: Long = 10000
+  /**
+    * Number of retries used when requesting parameter values from property providers
+    */
+  val CONFIG_PROPERTY_PROVIDER_GET_RETRIES: String = s"$configParamPrefix.propertyProviderGetRetries"
+  val CONFIG_PROPERTY_PROVIDER_GET_RETRIES_DEFAULT: Int = 3
 
   final case class separator(s: String) extends StaticAnnotation
 
@@ -89,10 +103,10 @@ object CaseClassConfigParser extends Logging {
     * @return String value of parameter
     */
   @throws(classOf[NoSuchElementException])
-  private def getValue(conf: Map[String, String], properties: Seq[PropertyProvider], prefix: String, param: String): String = {
+  private def getValue(conf: Map[String, String], properties: Seq[PropertyProvider], prefix: String, param: String, timeoutMs: Long, retries: Int): String = {
     val fullParam = prefix + param
     conf
-      .getOrElse(fullParam, properties.toStream.map(p => p.get(fullParam)).collectFirst { case Some(p) => p }.getOrElse {
+      .getOrElse(fullParam, properties.toStream.map(p => p.getWithRetry(fullParam, timeoutMs, retries)).collectFirst { case Some(p) => p }.getOrElse {
         throw new NoSuchElementException
       })
   }
@@ -110,31 +124,31 @@ object CaseClassConfigParser extends Logging {
   @throws(classOf[UnsupportedOperationException])
   @throws(classOf[NumberFormatException])
   @throws(classOf[IllegalArgumentException])
-  private def getParam(conf: Map[String, String], prefix: String, param: ru.Symbol, properties: Seq[PropertyProvider]): Any = {
+  private def getParam(conf: Map[String, String], prefix: String, param: ru.Symbol, properties: Seq[PropertyProvider], timeoutMs: Long, retries: Int): Any = {
     param.typeSignature match {
       // Option types cast as the inner type of Option
-      case t if t <:< typeOf[Option[_]] => Some(getValue(conf, properties, prefix, param.name.toString)).map { v =>
+      case t if t <:< typeOf[Option[_]] => Some(getValue(conf, properties, prefix, param.name.toString, timeoutMs, retries)).map { v =>
         castAs(v, param.typeSignature.typeArgs.head)
       }
       // Sequence types split by separator and cast to correct type
       case t if t <:< typeOf[Seq[_]] =>
         val sep = getSeparator(param)
-        val arr = getValue(conf, properties, prefix, param.name.toString).split(sep)
+        val arr = getValue(conf, properties, prefix, param.name.toString, timeoutMs, retries).split(sep)
+        // Important to match types as they become more generic
         val casted = {
-          // Important to match types as they become more generic
           t match {
             case l if l <:< typeOf[List[_]] => arr.toList
             case l if l <:< typeOf[Vector[_]] => arr.toVector
             case l if l <:< typeOf[Seq[_]] => arr.toSeq
             case e => throw new UnsupportedOperationException(s"Cannot handle collection type ${e.toString}")
           }
-        }
+          }
           .map { v =>
             castAs(v, param.typeSignature.typeArgs.head)
           }
         casted
       case x =>
-        val res = getValue(conf, properties, prefix, param.name.toString)
+        val res = getValue(conf, properties, prefix, param.name.toString, timeoutMs, retries)
         castAs(res, param.typeSignature)
     }
   }
@@ -180,11 +194,17 @@ object CaseClassConfigParser extends Logging {
   @throws(classOf[NumberFormatException])
   @throws(classOf[IllegalArgumentException])
   def apply[A: TypeTag](context: SparkFlowContext, prefix: String, additionalConf: Map[String, String] = Map.empty): A = {
+    val timeoutMs = context.getLong(CONFIG_PROPERTY_PROVIDER_GET_TIMEOUTMS, CONFIG_PROPERTY_PROVIDER_GET_TIMEOUTMS_DEFAULT)
+    val retries = context.getInt(CONFIG_PROPERTY_PROVIDER_GET_RETRIES, CONFIG_PROPERTY_PROVIDER_GET_RETRIES_DEFAULT)
     val fromSparkConf = getStrippedSparkProperties(context.spark.conf, context.getString(SPARK_CONF_PROPERTY_PREFIX, SPARK_CONF_PROPERTY_PREFIX_DEFAULT))
-    fromMap[A](additionalConf ++ fromSparkConf, prefix, getPropertyProviders(context))
+    fromMap[A](additionalConf ++ fromSparkConf, prefix, getPropertyProviders(context), timeoutMs, retries)
   }
 
-  def fromMap[A: TypeTag](conf: Map[String, String], prefix: String = "", properties: Seq[PropertyProvider] = Seq.empty): A = {
+  def fromMap[A: TypeTag](conf: Map[String, String],
+                          prefix: String = "",
+                          properties: Seq[PropertyProvider] = Seq.empty,
+                          timeoutMs: Long = CONFIG_PROPERTY_PROVIDER_GET_TIMEOUTMS_DEFAULT,
+                          retries: Int = CONFIG_PROPERTY_PROVIDER_GET_RETRIES_DEFAULT): A = {
     val tag = implicitly[TypeTag[A]]
     val runtimeClass = tag.mirror.runtimeClass(tag.tpe)
     val classSymbol = symbolOf[A].asClass
@@ -198,7 +218,7 @@ object CaseClassConfigParser extends Logging {
       case e => throw e
     }.get
     val args = constructorParams.zipWithIndex.map { case (p, i) =>
-      Try(getParam(conf, prefix, p, properties))
+      Try(getParam(conf, prefix, p, properties, timeoutMs, retries))
         .recover {
           case e: NoSuchElementException =>
             val defarg = companionSymbol.typeSignature.member(ru.TermName(s"apply$$default$$${i + 1}"))
@@ -238,6 +258,15 @@ trait PropertyProvider {
     * Should return [[None]] of the property does not exist.
     */
   def get(key: String): Option[String]
+
+  def getWithRetry(key: String, timeoutMs: Long, retries: Int): Option[String] = {
+    println("timeout: ", timeoutMs, " retries: ", retries)
+    Try(Await.result(Future(get(key)), Duration(timeoutMs, TimeUnit.MILLISECONDS))) match {
+      case Failure(_) if retries > 0 => getWithRetry(key, timeoutMs, retries - 1)
+      case Failure(e) => throw e
+      case Success(v) => v
+    }
+  }
 }
 
 /**
