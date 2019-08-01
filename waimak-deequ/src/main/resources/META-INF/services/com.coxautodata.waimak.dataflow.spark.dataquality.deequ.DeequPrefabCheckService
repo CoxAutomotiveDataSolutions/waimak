@@ -1,1 +1,2 @@
 com.coxautodata.waimak.dataflow.spark.dataquality.deequ.prefabchecks.CompletenessCheck
+com.coxautodata.waimak.dataflow.spark.dataquality.deequ.prefabchecks.UniquenessCheck

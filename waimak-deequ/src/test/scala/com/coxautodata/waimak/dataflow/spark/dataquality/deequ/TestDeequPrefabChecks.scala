@@ -89,4 +89,102 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
   }
 
+  describe("UniquenessCheck") {
+    def getFlow(_sparkSession: SparkSession): SparkDataFlow = {
+      val spark = _sparkSession
+
+      import spark.implicits._
+
+      spark.conf.set("spark.waimak.dataflow.extensions", "deequ")
+      spark.conf.set("spark.waimak.dataquality.alerters", "test,exception")
+      spark.conf.set("spark.waimak.dataquality.alerters.test.alertOn", "warning,critical")
+      spark.conf.set("spark.waimak.dataquality.alerters.test.uuid", UUID.randomUUID().toString)
+      spark.conf.set("spark.waimak.dataquality.alerters.exception.alertOn", "critical")
+      spark.conf.set("spark.waimak.dataquality.deequ.labelsToMonitor", "testOutput")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.checks", "uniquenessCheck")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.columns", "col1")
+
+      val ds = Seq(
+        TestDataForNullsCheck("01", "bla")
+        , TestDataForNullsCheck("02", "bla")
+        , TestDataForNullsCheck("03", "bla3")
+        , TestDataForNullsCheck("04", "bla4")
+        , TestDataForNullsCheck("05", "bla5")
+        , TestDataForNullsCheck("06", null)
+        , TestDataForNullsCheck("07", null)
+        , TestDataForNullsCheck("08", null)
+        , TestDataForNullsCheck("09", null)
+        , TestDataForNullsCheck("09", null)
+      ).toDS()
+
+      Waimak
+        .sparkFlow(spark, tmpDir.toString)
+        .addInput("testInput", Some(ds))
+        .transform("testInput")("testOutput")(identity)
+    }
+
+    it("should not trigger any alerts if the column is unique") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      getFlow(sparkSession)
+        .inPlaceTransform("testOutput")(_.filter('col1 =!= "09"))
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List()
+    }
+
+    it("should trigger a warning alert if the column is not unique") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      getFlow(sparkSession)
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
+        "Warning alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 100.0% unique."
+      )
+    }
+
+    it("should not trigger an alert if the column has uniqueness over the threshold") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.warningThreshold", "0.8")
+
+      getFlow(sparkSession)
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List()
+    }
+
+    it("should trigger an exception if the column has uniqueness under the critical threshold") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.warningThreshold", "0.95")
+
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.criticalThreshold", "0.9")
+
+      val cause = intercept[DataFlowException] {
+        getFlow(sparkSession)
+          .execute()
+      }.cause
+
+      cause shouldBe a[DataQualityAlertException]
+      cause.asInstanceOf[DataQualityAlertException].text should be(
+        "Critical: Critical alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 90.0% unique.")
+
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
+        "Critical alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 90.0% unique."
+        , "Warning alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 95.0% unique."
+      )
+    }
+  }
+
 }
