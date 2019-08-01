@@ -22,14 +22,14 @@ package object spark {
     */
   implicit class SparkDataFlowExtension(sparkDataFlow: SparkDataFlow) extends Logging {
 
-    def doSomething(input: String, f: Dataset[_] => Unit): SparkDataFlow = {
+    def unitTransform(input: String)(f: Dataset[_] => Unit, actionName: String = "unit transform"): SparkDataFlow = {
       def run(m: DataFlowEntities): ActionResult = {
         f(m.get[Dataset[_]](input))
         Nil
       }
 
       sparkDataFlow
-        .addAction(new SimpleAction(List(input), Nil, run, "not sure what to call this"))
+        .addAction(new SimpleAction(List(input), Nil, run, actionName))
     }
 
     def typedTransform[T](input: String)(output: String)(f: Dataset[_] => T): SparkDataFlow = {
@@ -38,6 +38,7 @@ package object spark {
       sparkDataFlow
         .addAction(new SimpleAction(List(input), List(output), run, "typed transform"))
     }
+
     /**
       * Transforms 1 input DataSet to 1 output DataSet using function f, which is a scala function.
       *
@@ -526,7 +527,7 @@ package object spark {
       * @param dfr   - dataframe writer function
       */
     def write(label: String, pre: Dataset[_] => Dataset[_], dfr: DataFrameWriter[_] => Unit): SparkDataFlow = {
-      writeBase(sparkDataFlow, label)(pre)(dfr)
+      unitTransform(label)(df => dfr(pre(df).write), "write")
     }
 
 

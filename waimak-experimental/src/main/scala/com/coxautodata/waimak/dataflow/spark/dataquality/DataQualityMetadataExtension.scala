@@ -27,7 +27,7 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
       .foldLeft(flow)((f, m) => {
         val (label, metaForLabel) = m
         f.cacheAsParquet(label)
-          .doSomething(label, ds =>
+          .unitTransform(label)(ds =>
             metaForLabel
               .foreach(
                 meta => meta.check.getAlerts(meta.label, ds)
