@@ -21,6 +21,11 @@
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-email</artifactId>
+            <version>1.5</version>
+        </dependency>
+        <dependency>
             <groupId>io.circe</groupId>
             <artifactId>circe-core_2.11</artifactId>
             <version>0.11.1</version>

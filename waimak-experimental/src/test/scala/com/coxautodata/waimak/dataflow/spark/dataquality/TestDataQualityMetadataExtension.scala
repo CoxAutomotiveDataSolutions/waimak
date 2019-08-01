@@ -2,11 +2,10 @@ package com.coxautodata.waimak.dataflow.spark.dataquality
 
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
+import com.coxautodata.waimak.dataflow.spark.dataquality.AlertImportance.{Critical, Warning}
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.IntegerType
-
-import scala.collection.mutable
 
 class TestDataQualityMetadataExtension extends SparkAndTmpDirSpec {
   override val appName: String = "TestDataQualityMetadataExtension"
@@ -32,11 +31,11 @@ class TestDataQualityMetadataExtension extends SparkAndTmpDirSpec {
       flow.addInput("testInput", Some(ds))
         .alias("testInput", "testOutput")
         .addDataQualityCheck("testOutput"
-        , DatasetChecks(Seq(NullValuesCheck("col1", 20, 40)))
-        , alerter)
+          , DatasetChecks(Seq(NullValuesCheck("col1", 20, 40)))
+          , alerter)
         .addDataQualityCheck("testOutput"
-        , DatasetChecks(Seq(NullValuesCheck("col2", 20, 40)))
-        , alerter)
+          , DatasetChecks(Seq(NullValuesCheck("col2", 20, 40)))
+          , alerter)
         .execute()
 
       alerter.alerts.map(_.alertMessage) should contain theSameElementsAs Seq(
@@ -70,13 +69,4 @@ case class NullValuesCheck(colName: String, percentageNullWarningThreshold: Int,
 
 
 case class TestDataForNullsCheck(col1: String, col2: String)
-
-class TestAlert extends DataQualityAlertHandler {
-
-  val alerts: mutable.ListBuffer[DataQualityAlert] = mutable.ListBuffer()
-
-  override def handleAlert(alert: DataQualityAlert): Unit = {
-    alerts.append(alert)
-  }
-}
 

@@ -2,6 +2,7 @@ package com.coxautodata.waimak.dataflow.spark.dataquality
 
 import java.util.Properties
 
+import com.coxautodata.waimak.dataflow.spark.dataquality.AlertImportance.Warning
 import javax.mail.Message.RecipientType._
 import javax.mail.Provider
 import org.jvnet.mock_javamail.{Mailbox, MockTransport}
@@ -24,6 +25,8 @@ class TestEmailQualityAlert extends FunSpec with Matchers {
         put("mail.transport.protocol.rfc822", "mocked")
       }
     }
+
+    override def alertOn: List[AlertImportance] = List.empty
   }
 
   it("should send an alert email") {

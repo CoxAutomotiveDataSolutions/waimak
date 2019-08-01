@@ -29,7 +29,11 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
         f.cacheAsParquet(label)
           .doSomething(label, ds =>
             metaForLabel
-              .foreach(meta => meta.check.getAlerts(meta.label, ds).foreach(a => meta.alertHandlers.foreach(_.handleAlert(a)))))
+              .foreach(
+                meta => meta.check.getAlerts(meta.label, ds)
+                  .foreach(a => meta.alertHandlers.filter(_.isHandledAlertImportance(a.importance)).foreach(_.handleAlert(a)))
+              )
+          )
       })
       .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](identifier, _ => None)
   }
