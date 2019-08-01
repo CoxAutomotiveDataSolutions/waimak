@@ -9,7 +9,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>waimak-deequ_2.11</artifactId>
+    <artifactId>waimak-dataquality_2.11</artifactId>
 
     <dependencies>
         <dependency>
@@ -19,14 +19,28 @@
         </dependency>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-dataquality_2.11</artifactId>
+            <artifactId>waimak-storage_2.11</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-dataquality_2.11</artifactId>
-            <version>${project.parent.version}</version>
-            <type>test-jar</type>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-email</artifactId>
+            <version>${apache.commons.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-core_2.11</artifactId>
+            <version>${circe.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.circe</groupId>
+            <artifactId>circe-generic_2.11</artifactId>
+            <version>${circe.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jvnet.mock-javamail</groupId>
+            <artifactId>mock-javamail</artifactId>
+            <version>${mock.javamail.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -36,16 +50,6 @@
             <type>test-jar</type>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-storage_2.11</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazon.deequ</groupId>
-            <artifactId>deequ</artifactId>
-            <version>${deequ.version}</version>
-            <scope>provided</scope>
-        </dependency>
     </dependencies>
+
 </project>

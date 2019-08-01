@@ -2,9 +2,9 @@ package com.coxautodata.waimak.dataflow.spark.dataquality
 
 import java.util.ServiceLoader
 
-import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfigurationExtension._
-import com.coxautodata.waimak.dataflow.spark.{SparkDataFlow, SparkFlowContext}
 import com.coxautodata.waimak.dataflow.{DataFlowConfigurationExtension, DataFlowException}
+import com.coxautodata.waimak.dataflow.spark.{SparkDataFlow, SparkFlowContext}
+import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfigurationExtension._
 
 import scala.collection.JavaConverters._
 
