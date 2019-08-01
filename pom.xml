@@ -71,7 +71,6 @@
         <module>waimak-rdbm-export</module>
         <module>waimak-impala</module>
         <module>waimak-storage</module>
-        <module>waimak-configuration</module>
         <module>waimak-azure-table</module>
         <module>waimak-rdbm-ingestion</module>
         <module>waimak-hive</module>
@@ -239,7 +238,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.sdk.version>1.8</java.sdk.version>
-        <scalatest.version>3.0.3</scalatest.version>
+        <scalatest.version>3.0.8</scalatest.version>
         <azure.storage.version>6.1.0</azure.storage.version>
         <jdbc.mssql.version>6.1.0.jre8</jdbc.mssql.version>
         <jdbc.postgres.version>42.2.2</jdbc.postgres.version>
