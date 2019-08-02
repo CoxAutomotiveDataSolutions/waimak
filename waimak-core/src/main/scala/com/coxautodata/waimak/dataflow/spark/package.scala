@@ -1,12 +1,8 @@
 package com.coxautodata.waimak.dataflow
 
-import java.util.UUID
-
 import com.coxautodata.waimak.dataflow.spark.SparkActionHelpers._
 import com.coxautodata.waimak.log.Logging
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.io.IOUtils
 import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Dataset}
 
 package object spark {
@@ -624,47 +620,11 @@ package object spark {
       sparkDataFlow.addAction(new SparkSimpleAction(labels.toList, List.empty, _ => Seq.empty, labels, actionName))
     }
 
-    def writeAndCopyLabel(label: String, writeBasePath: String, copyBasePath: String, numberOfFiles: Int, copyFilenamePrefix: String, format: String = "parquet"): SparkDataFlow = {
-      val uuid = UUID.randomUUID().toString
-      sparkDataFlow
-          .tag(uuid) {
-            _.write(label, _.repartition(numberOfFiles), _.format(format))
-          }
-        .tagDependency(uuid) {
-          _.addAction {
-            new SimpleAction(List.empty, List.empty, {
-              _ =>
-                val foundFiles = sparkDataFlow.flowContext.fileSystem.globStatus(new Path(writeBasePath, s"part-*.*$format*"))
-                if (numberOfFiles != foundFiles.length) throw new DataFlowException(s"Number of files found [${foundFiles.length}] did not match requested number of files [$numberOfFiles]")
-                foundFiles
-                  .zip{
-                    if (numberOfFiles == 1) Stream.continually("")
-                    else Stream.from(1).map(i => f".${i}%0${numberOfFiles.toString.length}d.")
-                  }
-                  .foreach {
-                    sourcePath =>
-                      val destPath = ???
-                  }
-                Seq.empty
-              }
-            )
-          }
-        }
-    }
-  }
+    def writeAsNamedFiles(label: String, basePath: String, numberOfFiles: Int, filenamePrefix: String, format: String = "parquet"): SparkDataFlow =
+      sparkDataFlow.addAction(
+        WriteAsNamedFilesAction(label, sparkDataFlow.tempFolder.getOrElse(throw new DataFlowException("Cannot writeAsNamedFiles, temporary folder was not specified")), new Path(basePath), numberOfFiles, filenamePrefix, format)
+      )
 
-  def getOutputExtension(path: Path): String = path.getName.dropWhile('.' !=)
-
-  def copyFile(source: Path, dest: Path, tempSuffix: String, conf: Configuration): Unit = {
-    val sFS = source.getFileSystem(conf)
-    val dFS = dest.getFileSystem(conf)
-    val tempDest = new Path(dest.getParent, dest.getName+tempSuffix)
-    val sourceIS = sFS.open(source)
-    val destOS = dFS.create(tempDest)
-    IOUtils.copyBytes(sourceIS, destOS, conf)
-    sourceIS.close()
-    destOS.close()
-    if (!dFS.rename(tempDest, dest)) throw new DataFlowException(s"Failed to rename file [$tempDest] to [$dest]")
   }
 
 
