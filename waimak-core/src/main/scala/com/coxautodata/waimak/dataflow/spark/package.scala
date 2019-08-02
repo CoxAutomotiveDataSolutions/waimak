@@ -619,6 +619,27 @@ package object spark {
       checkValidSqlLabels(sparkDataFlow.flowContext.spark, labels, actionName)
       sparkDataFlow.addAction(new SparkSimpleAction(labels.toList, List.empty, _ => Seq.empty, labels, actionName))
     }
+
+    /**
+      * Write a file or files with a specific filename to a folder.
+      * Allows you to control the final output filename without the Spark-generated part UUIDs.
+      * Filename will be `$filenamePrefix.extension` if number of files is 1, otherwise
+      * `$filenamePrefix.$fileNumber.extension` where file number is incremental and zero-padded.
+      *
+      * @param label          Label to write
+      * @param basePath       Base path to write to
+      * @param numberOfFiles  Number of files to generate
+      * @param filenamePrefix Prefix of name of the file up to the filenumber and extension
+      * @param format         Format to write (e.g. parquet, csv)
+      *                       Default: parquet
+      * @param options        Options to pass to the [[DataFrameWriter]]
+      *                       Default: Empty map
+      */
+    def writeAsNamedFiles(label: String, basePath: String, numberOfFiles: Int, filenamePrefix: String, format: String = "parquet", options: Map[String, String] = Map.empty): SparkDataFlow =
+      sparkDataFlow.addAction(
+        WriteAsNamedFilesAction(label, sparkDataFlow.tempFolder.getOrElse(throw new DataFlowException("Cannot writeAsNamedFiles as a temporary folder was not specified")), new Path(basePath), numberOfFiles, filenamePrefix, format, options)
+      )
+
   }
 
 
