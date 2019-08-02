@@ -4,9 +4,11 @@ import com.coxautodata.waimak.configuration.CaseClassConfigParser
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfigurationExtension.DATAQUALITY_ALERTERS
 
+import scala.util.{Failure, Try}
+
 case class ExceptionQualityAlert(alertOn: List[AlertImportance] = List.empty) extends DataQualityAlertHandler {
-  override def handleAlert(alert: DataQualityAlert): Unit = {
-    throw new DataQualityAlertException(s"${alert.importance.description}: ${alert.alertMessage}")
+  override def handleAlert(alert: DataQualityAlert): Try[Unit] = {
+    Failure(new DataQualityAlertException(s"${alert.importance.description}: ${alert.alertMessage}"))
   }
 }
 

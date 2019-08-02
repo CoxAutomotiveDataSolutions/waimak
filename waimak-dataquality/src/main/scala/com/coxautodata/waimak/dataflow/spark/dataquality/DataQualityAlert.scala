@@ -3,6 +3,8 @@ package com.coxautodata.waimak.dataflow.spark.dataquality
 import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 
+import scala.util.Try
+
 case class DataQualityAlert(alertMessage: String, importance: AlertImportance)
 
 sealed abstract class AlertImportance(val description: String)
@@ -33,7 +35,7 @@ trait DataQualityAlertHandler {
 
   def isHandledAlertImportance(alertImportance: AlertImportance): Boolean = alertOn.isEmpty || alertOn.contains(alertImportance)
 
-  def handleAlert(alert: DataQualityAlert): Unit
+  def handleAlert(alert: DataQualityAlert): Try[Unit]
 }
 
 trait DataQualityAlertHandlerService {

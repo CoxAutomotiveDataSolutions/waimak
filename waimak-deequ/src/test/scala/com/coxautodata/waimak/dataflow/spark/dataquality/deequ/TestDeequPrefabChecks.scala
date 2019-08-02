@@ -2,7 +2,7 @@ package com.coxautodata.waimak.dataflow.spark.dataquality.deequ
 
 import java.util.UUID
 
-import com.coxautodata.waimak.dataflow.spark.dataquality.{DataQualityAlertException, TestAlert, TestDataForNullsCheck}
+import com.coxautodata.waimak.dataflow.spark.dataquality.{DataQualityAlertException, TestAlert, TestDataForDataQualityCheck}
 import com.coxautodata.waimak.dataflow.spark.{SparkAndTmpDirSpec, SparkDataFlow}
 import com.coxautodata.waimak.dataflow.{DataFlowException, Waimak}
 import org.apache.spark.sql.SparkSession
@@ -29,16 +29,16 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
       spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.completenessCheck.criticalThreshold", "0.6")
 
       val ds = Seq(
-        TestDataForNullsCheck("01", "bla")
-        , TestDataForNullsCheck("02", "bla")
-        , TestDataForNullsCheck("03", "bla3")
-        , TestDataForNullsCheck("04", "bla4")
-        , TestDataForNullsCheck("05", "bla5")
-        , TestDataForNullsCheck("06", null)
-        , TestDataForNullsCheck("07", null)
-        , TestDataForNullsCheck("08", null)
-        , TestDataForNullsCheck("09", null)
-        , TestDataForNullsCheck("10", null)
+        TestDataForDataQualityCheck("01", "bla")
+        , TestDataForDataQualityCheck("02", "bla")
+        , TestDataForDataQualityCheck("03", "bla3")
+        , TestDataForDataQualityCheck("04", "bla4")
+        , TestDataForDataQualityCheck("05", "bla5")
+        , TestDataForDataQualityCheck("06", null)
+        , TestDataForDataQualityCheck("07", null)
+        , TestDataForDataQualityCheck("08", null)
+        , TestDataForDataQualityCheck("09", null)
+        , TestDataForDataQualityCheck("10", null)
       ).toDS()
 
       Waimak
@@ -105,16 +105,16 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
       spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.columns", "col1")
 
       val ds = Seq(
-        TestDataForNullsCheck("01", "bla")
-        , TestDataForNullsCheck("02", "bla")
-        , TestDataForNullsCheck("03", "bla3")
-        , TestDataForNullsCheck("04", "bla4")
-        , TestDataForNullsCheck("05", "bla5")
-        , TestDataForNullsCheck("06", null)
-        , TestDataForNullsCheck("07", null)
-        , TestDataForNullsCheck("08", null)
-        , TestDataForNullsCheck("09", null)
-        , TestDataForNullsCheck("09", null)
+        TestDataForDataQualityCheck("01", "bla")
+        , TestDataForDataQualityCheck("02", "bla")
+        , TestDataForDataQualityCheck("03", "bla3")
+        , TestDataForDataQualityCheck("04", "bla4")
+        , TestDataForDataQualityCheck("05", "bla5")
+        , TestDataForDataQualityCheck("06", null)
+        , TestDataForDataQualityCheck("07", null)
+        , TestDataForDataQualityCheck("08", null)
+        , TestDataForDataQualityCheck("09", null)
+        , TestDataForDataQualityCheck("09", null)
       ).toDS()
 
       Waimak
@@ -137,7 +137,6 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
     it("should trigger a warning alert if the column is not unique") {
       val spark = sparkSession
-      import spark.implicits._
 
       getFlow(sparkSession)
         .execute()
@@ -150,7 +149,6 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
     it("should not trigger an alert if the column has uniqueness over the threshold") {
       val spark = sparkSession
-      import spark.implicits._
 
       spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.warningThreshold", "0.8")
 
@@ -163,7 +161,6 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
     it("should trigger an exception if the column has uniqueness under the critical threshold") {
       val spark = sparkSession
-      import spark.implicits._
 
       spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.warningThreshold", "0.95")
 
@@ -185,6 +182,75 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
         , "Warning alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 95.0% unique."
       )
     }
+  }
+
+  describe("GenericSQLCheck") {
+    def getFlow(_sparkSession: SparkSession): SparkDataFlow = {
+      val spark = _sparkSession
+
+      import spark.implicits._
+
+      spark.conf.set("spark.waimak.dataflow.extensions", "deequ")
+      spark.conf.set("spark.waimak.dataquality.alerters", "test,exception")
+      spark.conf.set("spark.waimak.dataquality.alerters.test.alertOn", "warning,critical")
+      spark.conf.set("spark.waimak.dataquality.alerters.test.uuid", UUID.randomUUID().toString)
+      spark.conf.set("spark.waimak.dataquality.alerters.exception.alertOn", "critical")
+      spark.conf.set("spark.waimak.dataquality.deequ.labelsToMonitor", "testOutput")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.checks", "genericSQLCheck")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.genericSQLCheck.warningChecks", "col1 <= 08")
+
+      val ds = Seq(
+        TestDataForDataQualityCheck("01", "bla")
+        , TestDataForDataQualityCheck("02", "bla")
+        , TestDataForDataQualityCheck("03", "bla3")
+        , TestDataForDataQualityCheck("04", "bla4")
+        , TestDataForDataQualityCheck("05", "bla5")
+        , TestDataForDataQualityCheck("06", null)
+        , TestDataForDataQualityCheck("07", null)
+        , TestDataForDataQualityCheck("08", null)
+        , TestDataForDataQualityCheck("09", null)
+        , TestDataForDataQualityCheck("09", null)
+      ).toDS()
+
+      Waimak
+        .sparkFlow(spark, tmpDir.toString)
+        .addInput("testInput", Some(ds))
+        .transform("testInput")("testOutput")(identity)
+    }
+
+    it("should not trigger any alerts if the condition is satisfied") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      getFlow(sparkSession)
+        .inPlaceTransform("testOutput")(_.filter('col1 =!= "09"))
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List()
+    }
+
+    it("should trigger alerts if the condition is not satisfied") {
+      val spark = sparkSession
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.genericSQLCheck.criticalChecks", "length(col2)=4,col2 is not null")
+
+      val cause = intercept[DataFlowException] {
+        getFlow(sparkSession)
+          .execute()
+      }.cause
+
+      cause shouldBe a[DataQualityAlertException]
+
+      println(cause.asInstanceOf[DataQualityAlertException].text)
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs Seq(
+        "Warning alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col1 <= 08,None)) : Value: 0.8 does not meet the constraint requirement!"
+        , "Critical alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col2 is not null,None)) : Value: 0.5 does not meet the constraint requirement!"
+        , "Critical alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,length(col2)=4,None)) : Value: 0.3 does not meet the constraint requirement!"
+      )
+    }
+
   }
 
 }

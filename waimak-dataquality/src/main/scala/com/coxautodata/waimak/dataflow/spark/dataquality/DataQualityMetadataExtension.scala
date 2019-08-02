@@ -27,13 +27,15 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
       .foldLeft(flow)((f, m) => {
         val (label, metaForLabel) = m
         f.cacheAsParquet(label)
-          .unitTransform(label)(ds =>
+          .inPlaceTransform(label)(ds => {
             metaForLabel
               .foreach(
                 meta => meta.check.getAlerts(meta.label, ds)
-                  .foreach(a => meta.alertHandlers.filter(_.isHandledAlertImportance(a.importance)).foreach(_.handleAlert(a)))
+                  .flatMap(a => meta.alertHandlers.filter(_.isHandledAlertImportance(a.importance)).map(_.handleAlert(a)))
+                  .foreach(_.get)
               )
-          )
+            ds
+          })
       })
       .updateMetadataExtension[DataQualityMetadataExtension[CheckType]](identifier, _ => None)
   }

@@ -6,6 +6,8 @@ import com.coxautodata.waimak.configuration.CaseClassConfigParser
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfigurationExtension.DATAQUALITY_ALERTERS
 
+import scala.util.Try
+
 private object TestAlert {
   private var alerts: Map[String, List[DataQualityAlert]] = Map.empty
 
@@ -21,7 +23,7 @@ class TestAlert(val testUUID: UUID = UUID.randomUUID(), val alertOn: List[AlertI
 
   def alerts: List[DataQualityAlert] = TestAlert.getAlerts(testUUID)
 
-  override def handleAlert(alert: DataQualityAlert): Unit = {
+  override def handleAlert(alert: DataQualityAlert): Try[Unit] = Try {
     TestAlert.addAlert(testUUID, alert)
   }
 

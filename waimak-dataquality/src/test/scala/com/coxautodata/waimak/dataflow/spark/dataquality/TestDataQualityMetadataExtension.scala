@@ -16,16 +16,16 @@ class TestDataQualityMetadataExtension extends SparkAndTmpDirSpec {
       import spark.implicits._
       val alerter = new TestAlert
       val ds = Seq(
-        TestDataForNullsCheck(null, null)
-        , TestDataForNullsCheck(null, null)
-        , TestDataForNullsCheck(null, null)
-        , TestDataForNullsCheck(null, null)
-        , TestDataForNullsCheck("a", null)
-        , TestDataForNullsCheck("b", null)
-        , TestDataForNullsCheck("c", "bla7")
-        , TestDataForNullsCheck("d", "bla8")
-        , TestDataForNullsCheck("e", "bla9")
-        , TestDataForNullsCheck("f", "bla10")
+        TestDataForDataQualityCheck(null, null)
+        , TestDataForDataQualityCheck(null, null)
+        , TestDataForDataQualityCheck(null, null)
+        , TestDataForDataQualityCheck(null, null)
+        , TestDataForDataQualityCheck("a", null)
+        , TestDataForDataQualityCheck("b", null)
+        , TestDataForDataQualityCheck("c", "bla7")
+        , TestDataForDataQualityCheck("d", "bla8")
+        , TestDataForDataQualityCheck("e", "bla9")
+        , TestDataForDataQualityCheck("f", "bla10")
       ).toDS()
       val flow = Waimak.sparkFlow(spark, tmpDir.toString)
       flow.addInput("testInput", Some(ds))
@@ -68,5 +68,5 @@ case class NullValuesCheck(colName: String, percentageNullWarningThreshold: Int,
     })
 
 
-case class TestDataForNullsCheck(col1: String, col2: String)
+case class TestDataForDataQualityCheck(col1: String, col2: String)
 

@@ -7,7 +7,7 @@ import com.amazon.deequ.anomalydetection.RateOfChangeStrategy
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
-import com.coxautodata.waimak.dataflow.spark.dataquality.{TestAlert, TestDataForNullsCheck}
+import com.coxautodata.waimak.dataflow.spark.dataquality.{TestAlert, TestDataForDataQualityCheck}
 
 import scala.util.Failure
 
@@ -19,16 +19,16 @@ class TestDeequActions extends SparkAndTmpDirSpec {
       val spark = sparkSession
       import spark.implicits._
       val ds = Seq(
-        TestDataForNullsCheck(null, "bla")
-        , TestDataForNullsCheck(null, "bla")
-        , TestDataForNullsCheck(null, "bla3")
-        , TestDataForNullsCheck(null, "bla4")
-        , TestDataForNullsCheck("a", "bla5")
-        , TestDataForNullsCheck("b", "bla6")
-        , TestDataForNullsCheck("c", "bla7")
-        , TestDataForNullsCheck("d", "bla8")
-        , TestDataForNullsCheck("e", "bla9")
-        , TestDataForNullsCheck("f", "bla10")
+        TestDataForDataQualityCheck(null, "bla")
+        , TestDataForDataQualityCheck(null, "bla")
+        , TestDataForDataQualityCheck(null, "bla3")
+        , TestDataForDataQualityCheck(null, "bla4")
+        , TestDataForDataQualityCheck("a", "bla5")
+        , TestDataForDataQualityCheck("b", "bla6")
+        , TestDataForDataQualityCheck("c", "bla7")
+        , TestDataForDataQualityCheck("d", "bla8")
+        , TestDataForDataQualityCheck("e", "bla9")
+        , TestDataForDataQualityCheck("f", "bla10")
       ).toDS()
       val alerter = new TestAlert
       val flow = Waimak.sparkFlow(spark, tmpDir.toString)
@@ -58,10 +58,10 @@ class TestDeequActions extends SparkAndTmpDirSpec {
       val alerter = new TestAlert
       import spark.implicits._
       val ds1 = Seq(
-        TestDataForNullsCheck(null, "bla")
-        , TestDataForNullsCheck("d", "bla8")
-        , TestDataForNullsCheck("e", "bla9")
-        , TestDataForNullsCheck("f", "bla10")
+        TestDataForDataQualityCheck(null, "bla")
+        , TestDataForDataQualityCheck("d", "bla8")
+        , TestDataForDataQualityCheck("e", "bla9")
+        , TestDataForDataQualityCheck("f", "bla10")
       ).toDS()
       val flow = Waimak.sparkFlow(spark, tmpDir.toString)
 
@@ -76,10 +76,10 @@ class TestDeequActions extends SparkAndTmpDirSpec {
       alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!")
 
       val ds2 = Seq(
-        TestDataForNullsCheck("a", "bla")
-        , TestDataForNullsCheck("d", "bla8")
-        , TestDataForNullsCheck("e", "bla9")
-        , TestDataForNullsCheck("f", "bla10")
+        TestDataForDataQualityCheck("a", "bla")
+        , TestDataForDataQualityCheck("d", "bla8")
+        , TestDataForDataQualityCheck("e", "bla9")
+        , TestDataForDataQualityCheck("f", "bla10")
       ).toDS()
       flow.addInput("testInput", Some(ds2))
         .alias("testInput", "testOutput")
@@ -93,10 +93,10 @@ class TestDeequActions extends SparkAndTmpDirSpec {
 
 
       val ds3 = Seq(
-        TestDataForNullsCheck("a", "bla")
-        , TestDataForNullsCheck("d", "bla8")
-        , TestDataForNullsCheck(null, "bla9")
-        , TestDataForNullsCheck(null, "bla10")
+        TestDataForDataQualityCheck("a", "bla")
+        , TestDataForDataQualityCheck("d", "bla8")
+        , TestDataForDataQualityCheck(null, "bla9")
+        , TestDataForDataQualityCheck(null, "bla10")
       ).toDS()
       flow.addInput("testInput", Some(ds3))
         .alias("testInput", "testOutput")
@@ -118,10 +118,10 @@ class TestDeequActions extends SparkAndTmpDirSpec {
       val alerter = new TestAlert
       import spark.implicits._
       val ds1 = Seq(
-        TestDataForNullsCheck(null, "bla")
-        , TestDataForNullsCheck("d", "bla8")
-        , TestDataForNullsCheck("e", "bla9")
-        , TestDataForNullsCheck("f", "bla10")
+        TestDataForDataQualityCheck(null, "bla")
+        , TestDataForDataQualityCheck("d", "bla8")
+        , TestDataForDataQualityCheck("e", "bla9")
+        , TestDataForDataQualityCheck("f", "bla10")
       ).toDS()
       val flow = Waimak.sparkFlow(spark, tmpDir.toString)
 

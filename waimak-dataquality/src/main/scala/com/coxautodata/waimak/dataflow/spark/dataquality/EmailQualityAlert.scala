@@ -10,6 +10,8 @@ import javax.mail.Message.RecipientType._
 import javax.mail._
 import javax.mail.internet.{InternetAddress, MimeMessage}
 
+import scala.util.Try
+
 case class EmailQualityAlert(settings: EmailSettings, alertOn: List[AlertImportance] = List.empty) extends BaseEmailQualityAlert {
   override def provider: Option[Provider] = None
 
@@ -38,7 +40,7 @@ trait BaseEmailQualityAlert extends DataQualityAlertHandler {
 
   def settings: EmailSettings
 
-  def handleAlert(alert: DataQualityAlert): Unit = {
+  def handleAlert(alert: DataQualityAlert): Try[Unit] = Try {
     val message: Message = settings.getMessage(defaultProperties, provider)
     message.setSentDate(Date.from(Instant.now()))
     message.setSubject(s"Data Quality Alert: ${alert.importance.description}")

@@ -12,6 +12,8 @@ import org.apache.commons.httpclient.HttpClient
 import org.apache.commons.httpclient.methods.{PostMethod, StringRequestEntity}
 import org.apache.http.client.HttpResponseException
 
+import scala.util.Try
+
 case class SlackQualityAlert(token: String, alertOn: List[AlertImportance] = List.empty) extends DataQualityAlertHandler {
 
   private def toJson(alert: DataQualityAlert): String = {
@@ -26,7 +28,7 @@ case class SlackQualityAlert(token: String, alertOn: List[AlertImportance] = Lis
       .noSpaces
   }
 
-  override def handleAlert(alert: DataQualityAlert): Unit = {
+  override def handleAlert(alert: DataQualityAlert): Try[Unit] = Try {
     val json = toJson(alert)
     val post = new PostMethod(s"https://hooks.slack.com/services/$token")
     post.setRequestHeader("Content-type", "application/json")
