@@ -1,5 +1,7 @@
 package com.coxautodata.waimak.dataflow.spark.dataquality.deequ
 
+import java.sql.Timestamp
+import java.time.LocalDateTime
 import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.spark.dataquality.{DataQualityAlertException, TestAlert, TestDataForDataQualityCheck}
@@ -241,8 +243,6 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       cause shouldBe a[DataQualityAlertException]
 
-      println(cause.asInstanceOf[DataQualityAlertException].text)
-
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs Seq(
         "Warning alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col1 <= 08,None)) : Value: 0.8 does not meet the constraint requirement!"
@@ -253,4 +253,109 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
   }
 
+  describe("RecentTimestampCheck") {
+
+    val now = LocalDateTime.now()
+    val nowTimestamp = Timestamp.valueOf(now)
+    val twoHoursAgo = Timestamp.valueOf(now.minusHours(2))
+    val sixHoursAgo = Timestamp.valueOf(now.minusHours(6))
+    val sevenHoursAgo = Timestamp.valueOf(now.minusHours(7))
+
+    def getFlow(_sparkSession: SparkSession): SparkDataFlow = {
+      val spark = _sparkSession
+
+      import spark.implicits._
+
+      spark.conf.set("spark.waimak.dataflow.extensions", "deequ")
+      spark.conf.set("spark.waimak.dataquality.alerters", "test,exception")
+      spark.conf.set("spark.waimak.dataquality.alerters.test.alertOn", "warning,critical")
+      spark.conf.set("spark.waimak.dataquality.alerters.test.uuid", UUID.randomUUID().toString)
+      spark.conf.set("spark.waimak.dataquality.alerters.exception.alertOn", "critical")
+      spark.conf.set("spark.waimak.dataquality.deequ.labelsToMonitor", "testOutput")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.checks", "recentTimestampCheck")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.recentTimestampCheck.col", "ts")
+
+      val ds = Seq(
+        TestDataForTimestampDeequCheck(1, twoHoursAgo)
+        , TestDataForTimestampDeequCheck(2, sevenHoursAgo)
+      ).toDS()
+
+      Waimak
+        .sparkFlow(spark, tmpDir.toString)
+        .addInput("testInput", Some(ds))
+        .transform("testInput")("testOutput")(identity)
+    }
+
+    it("should not trigger any alerts if there is a recent timestamp") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      getFlow(sparkSession)
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List()
+    }
+
+    it("should trigger an alert if there is no recent timestamp") {
+      val spark = sparkSession
+      import spark.implicits._
+
+
+      //Force current timestamp for testing
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.recentTimestampCheck.nowOverride", nowTimestamp.toString)
+
+      getFlow(sparkSession)
+        .inPlaceTransform("testOutput")(_.filter('id =!= 1))
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
+        s"Warning alert for label testOutput\n SizeConstraint(Size(Some(ts >= '${sixHoursAgo}'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours."
+      )
+    }
+
+    it("should not trigger an alert if there is a timestamp within the configured interval") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.recentTimestampCheck.hoursToLookBack", "8")
+
+      getFlow(sparkSession)
+        .inPlaceTransform("testOutput")(_.filter('id =!= 1))
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List()
+    }
+
+    it("should throw an exception alert if configured") {
+      val spark = sparkSession
+      import spark.implicits._
+
+
+      //Force current timestamp for testing
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.recentTimestampCheck.nowOverride", nowTimestamp.toString)
+
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.recentTimestampCheck.alertLevel", "critical")
+
+      val cause =  intercept[DataFlowException] {
+        getFlow(sparkSession)
+          .inPlaceTransform("testOutput")(_.filter('id =!= 1))
+          .execute()
+      }.cause
+
+      cause shouldBe a[DataQualityAlertException]
+
+      cause.asInstanceOf[DataQualityAlertException].text should be(s"Critical: Critical alert for label testOutput\n SizeConstraint(Size(Some(ts >= '$sixHoursAgo'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours.")
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
+        s"Critical alert for label testOutput\n SizeConstraint(Size(Some(ts >= '$sixHoursAgo'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours."
+      )
+    }
+  }
+
 }
+
+case class TestDataForTimestampDeequCheck(id: Int, ts: Timestamp)

@@ -12,10 +12,7 @@ class GenericSQLCheck extends DeequPrefabCheck[GenericSQLCheckConfig] {
 
     val criticalChecks = conf
       .criticalChecks
-      .foldLeft(Check(CheckLevel.Error, "critical_checks"))(
-        (check, sqlCondition) =>
-          check.satisfies(sqlCondition, "generic sql constraint")
-      )
+      .foldLeft(Check(CheckLevel.Error, "critical_checks"))((check, sqlCondition) => check.satisfies(sqlCondition, "generic sql constraint"))
 
     Some(_.addChecks(Seq(warningChecks, criticalChecks)))
   }

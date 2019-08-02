@@ -1,3 +1,4 @@
 com.coxautodata.waimak.dataflow.spark.dataquality.deequ.prefabchecks.CompletenessCheck
 com.coxautodata.waimak.dataflow.spark.dataquality.deequ.prefabchecks.UniquenessCheck
 com.coxautodata.waimak.dataflow.spark.dataquality.deequ.prefabchecks.GenericSQLCheck
+com.coxautodata.waimak.dataflow.spark.dataquality.deequ.prefabchecks.RecentTimestampCheck
