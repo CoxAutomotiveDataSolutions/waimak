@@ -48,20 +48,46 @@ case class DataQualityMetadataExtension[CheckType <: DataQualityCheck[CheckType]
 
 case class DataQualityMetadataExtensionIdentifier[CheckType <: DataQualityCheck[CheckType]]() extends DataFlowMetadataExtensionIdentifier
 
+/**
+  * Defines a data quality check to be performed on a label, along with the alert handlers to be used
+  *
+  * @param label         the label of the dataset on which the check should be performed
+  * @param alertHandlers the alert handlers to be used
+  * @param check         the data quality check to be performed
+  * @tparam CheckType the type of the data quality check
+  */
 case class DataQualityMeta[CheckType <: DataQualityCheck[CheckType]](label: String
                                                                      , alertHandlers: Seq[DataQualityAlertHandler]
                                                                      , check: CheckType)
 
-trait DataQualityResult {
-  def alerts(label: String): Seq[DataQualityAlert]
-}
 
-
+/**
+  * Defines a data quality check
+  */
 trait DataQualityCheck[Self <: DataQualityCheck[Self]] {
 
+  /**
+    * Validates the check
+    *
+    * @return true if this is a valid check, false otherwise
+    */
   def validateCheck: Try[Unit] = Success()
 
+  /**
+    * Combine this check with another check to take advantage of potential optimisations
+    *
+    * @param other the check to be combined with this one
+    * @return the two checks combined into a new check
+    */
   def ++(other: Self): Self
 
+  /**
+    * Get any alerts for this check for a given label and Dataset. Normally, no alerts should be returned if the check
+    * passes, although alerting on a successful check could also be a valid use case.
+    *
+    * @param label the label which the check is being performed on
+    * @param data  the Dataset on which to perform the check
+    * @return the data quality alerts
+    */
   def getAlerts(label: String, data: Dataset[_]): Seq[DataQualityAlert]
 }

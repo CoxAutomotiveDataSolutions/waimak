@@ -14,6 +14,13 @@ import org.apache.http.client.HttpResponseException
 
 import scala.util.Try
 
+/**
+  * Sends alerts to a Slack channel
+  *
+  * @param token   the Slack token for the channel
+  * @param alertOn If specified, the list of alert importance levels to alert on. If unspecified or empty, every level
+  *                will be alerted on.
+  */
 case class SlackQualityAlert(token: String, alertOn: List[AlertImportance] = List.empty) extends DataQualityAlertHandler {
 
   private def toJson(alert: DataQualityAlert): String = {

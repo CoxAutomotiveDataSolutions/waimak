@@ -12,6 +12,13 @@ import javax.mail.internet.{InternetAddress, MimeMessage}
 
 import scala.util.Try
 
+/**
+  * Sends alerts via email
+  *
+  * @param settings the email settings to use
+  * @param alertOn  If specified, the list of alert importance levels to alert on. If unspecified or empty, every level
+  *                 will be alerted on.
+  */
 case class EmailQualityAlert(settings: EmailSettings, alertOn: List[AlertImportance] = List.empty) extends BaseEmailQualityAlert {
   override def provider: Option[Provider] = None
 

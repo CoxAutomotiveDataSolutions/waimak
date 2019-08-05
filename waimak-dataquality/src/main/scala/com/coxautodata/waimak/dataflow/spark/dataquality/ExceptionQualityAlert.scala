@@ -6,6 +6,12 @@ import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfiguratio
 
 import scala.util.{Failure, Try}
 
+/**
+  * Handles alerts by causing an exception to be thrown.
+  *
+  * @param alertOn If specified, the list of alert importance levels to alert on. If unspecified or empty, every level
+  *                will be alerted on.
+  */
 case class ExceptionQualityAlert(alertOn: List[AlertImportance] = List.empty) extends DataQualityAlertHandler {
   override def handleAlert(alert: DataQualityAlert): Try[Unit] = {
     Failure(new DataQualityAlertException(s"${alert.importance.description}: ${alert.alertMessage}"))
