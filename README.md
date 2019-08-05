@@ -94,8 +94,8 @@ Package Maintainer | Spark Version | Scala Version
 ------------------ | ------------- | -------------
 Apache Spark | [2.2.0](https://spark.apache.org/releases/spark-release-2-2-0.html) | 2.11
 Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.11
-Apache Spark | [2.4.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.11
-Apache Spark | [2.4.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.12 (experimental)
+Apache Spark | [2.4.0](https://spark.apache.org/releases/spark-release-2-4-0.html) | 2.11
+Apache Spark | [2.4.3](https://spark.apache.org/releases/spark-release-2-4-3.html) | 2.12
 Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html) | 2.11
 
 Other versions of Spark >= 2.2 are also likely to work and can be added to the list of tested versions if there is sufficient need.
