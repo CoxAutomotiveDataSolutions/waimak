@@ -51,7 +51,7 @@ package object deequ {
                                       , alertHandler: DataQualityAlertHandler,
                                       alertHandlers: DataQualityAlertHandler*): SparkDataFlow = {
       sparkDataFlow
-        .addDataQualityCheck(label, DeequCheck(anomalyChecks = Some(checksWithMetrics), maybeMetadata = getMeta), alertHandler, alertHandlers: _*)
+        .addDataQualityCheck(label, DeequCheck(metricsRepositoryChecks = Some(checksWithMetrics), maybeMetadata = getMeta), alertHandler, alertHandlers: _*)
     }
 
     /**

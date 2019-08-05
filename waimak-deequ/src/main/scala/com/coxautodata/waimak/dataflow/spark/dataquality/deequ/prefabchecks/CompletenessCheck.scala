@@ -4,6 +4,9 @@ import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.amazon.deequ.{VerificationRunBuilder, VerificationRunBuilderWithRepository}
 import com.coxautodata.waimak.dataflow.spark.dataquality.deequ.DeequPrefabCheck
 
+/**
+  * Checks the completeness of columns of a dataset against warning and critical thresholds
+  */
 class CompletenessCheck extends DeequPrefabCheck[CompletenessCheckConfig] {
   override protected def checks(conf: CompletenessCheckConfig): Option[VerificationRunBuilder => VerificationRunBuilder] = {
     val warningChecks = generateChecks(conf.warningThreshold, CheckLevel.Warning, conf.columns, "warning_checks")

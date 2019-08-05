@@ -7,6 +7,10 @@ import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.amazon.deequ.{VerificationRunBuilder, VerificationRunBuilderWithRepository}
 import com.coxautodata.waimak.dataflow.spark.dataquality.deequ.{DeequCheckException, DeequPrefabCheck}
 
+/**
+  * Checks that the most recent value in a timestamp column is within a configured number of hours to now (default is 6 hours).
+  * The purpose of this is to flag up when our data is unexpectedly stale.
+  */
 class RecentTimestampCheck extends DeequPrefabCheck[RecentTimestampCheckConfig] {
   override protected def checks(conf: RecentTimestampCheckConfig): Option[VerificationRunBuilder => VerificationRunBuilder] = {
     Some(_.addCheck(Check(conf.checkLevel, s"${conf.alertLevel}_checks")

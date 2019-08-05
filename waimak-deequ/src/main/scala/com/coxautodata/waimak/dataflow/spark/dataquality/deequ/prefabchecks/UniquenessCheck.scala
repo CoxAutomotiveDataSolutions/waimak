@@ -4,6 +4,11 @@ import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.amazon.deequ.{VerificationRunBuilder, VerificationRunBuilderWithRepository}
 import com.coxautodata.waimak.dataflow.spark.dataquality.deequ.DeequPrefabCheck
 
+
+/**
+  * Checks the uniqueness of columns of a dataset against warning and critical thresholds.
+  * If thresholds are not configured, by default it will generate a warning alert if a column is not fully unique.
+  */
 class UniquenessCheck extends DeequPrefabCheck[UniquenessCheckConfig] {
   override protected def checks(conf: UniquenessCheckConfig): Option[VerificationRunBuilder => VerificationRunBuilder] = {
     val warningChecks = generateChecks(conf.warningThreshold, CheckLevel.Warning, conf.columns, "warning_checks")

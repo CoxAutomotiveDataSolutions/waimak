@@ -10,6 +10,13 @@ import com.coxautodata.waimak.storage.{AuditTableInfo, Storage}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.Dataset
 
+/**
+  * An implementation of [[MetricsRepository]] which uses the storage layer
+  *
+  * @param storageBasePath  the base path for the storage layer
+  * @param metricsTableName the table name to use for storing metrics
+  * @param sparkFlowContext the flow context
+  */
 class StorageLayerMetricsRepository(storageBasePath: Path, metricsTableName: String, sparkFlowContext: SparkFlowContext) extends MetricsRepository {
 
   import sparkFlowContext.spark.implicits._
