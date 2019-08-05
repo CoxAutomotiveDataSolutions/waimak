@@ -4,6 +4,15 @@ package object dataquality {
 
   implicit class DataQualityActionImplicits(sparkDataFlow: SparkDataFlow) {
 
+    /**
+      * Add a data quality check for the given label
+      *
+      * @param label         the label to perform the check on
+      * @param check         the data quality check to perform
+      * @param alertHandler  the alert handler to use for handling alerts for this check
+      * @param alertHandlers additional alert handlers to use
+      * @tparam CheckType the type of the data quality check
+      */
     def addDataQualityCheck[CheckType <: DataQualityCheck[CheckType]](label: String
                                                                       , check: CheckType
                                                                       , alertHandler: DataQualityAlertHandler
