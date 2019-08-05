@@ -6,8 +6,9 @@ import com.coxautodata.waimak.dataflow.spark.dataquality.deequ.DeequPrefabCheck
 
 
 /**
-  * Checks the uniqueness of columns of a dataset against warning and critical thresholds.
-  * If thresholds are not configured, by default it will generate a warning alert if a column is not fully unique.
+  * Checks the uniqueness of a combination of columns of a dataset against warning and critical thresholds.
+  * If thresholds are not configured, by default it will generate a warning alert if the combination of columns is not fully unique.
+  * N.B doesn't seem to quite work as expected when nulls form part of the column combination
   */
 class UniquenessCheck extends DeequPrefabCheck[UniquenessCheckConfig] {
   override protected def checks(conf: UniquenessCheckConfig): Option[VerificationRunBuilder => VerificationRunBuilder] = {
@@ -17,13 +18,10 @@ class UniquenessCheck extends DeequPrefabCheck[UniquenessCheckConfig] {
   }
 
   private def generateChecks(maybeThreshold: Option[Double], level: CheckLevel.Value, columns: List[String], description: String): Seq[Check] = {
-    maybeThreshold.toSeq.flatMap {
+    maybeThreshold.toSeq.map {
       threshold =>
-        columns.map {
-          col =>
-            Check(level, description)
-              .hasUniqueness(col, (fraction: Double) => fraction >= threshold, Some(s"$col was not ${threshold * 100}% unique."))
-        }
+        Check(level, description)
+          .hasUniqueness(columns, (fraction: Double) => fraction >= threshold, Some(s"${columns.mkString(",")} was not ${threshold * 100}% unique."))
     }
   }
 

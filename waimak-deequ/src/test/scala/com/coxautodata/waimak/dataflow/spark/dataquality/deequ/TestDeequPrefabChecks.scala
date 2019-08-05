@@ -92,7 +92,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
   }
 
   describe("UniquenessCheck") {
-    def getFlow(_sparkSession: SparkSession): SparkDataFlow = {
+    def getFlow(_sparkSession: SparkSession, columns: Seq[String] = Seq("col1")): SparkDataFlow = {
       val spark = _sparkSession
 
       import spark.implicits._
@@ -104,7 +104,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
       spark.conf.set("spark.waimak.dataquality.alerters.exception.alertOn", "critical")
       spark.conf.set("spark.waimak.dataquality.deequ.labelsToMonitor", "testOutput")
       spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.checks", "uniquenessCheck")
-      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.columns", "col1")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.uniquenessCheck.columns", columns.mkString(","))
 
       val ds = Seq(
         TestDataForDataQualityCheck("01", "bla")
@@ -112,11 +112,11 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
         , TestDataForDataQualityCheck("03", "bla3")
         , TestDataForDataQualityCheck("04", "bla4")
         , TestDataForDataQualityCheck("05", "bla5")
-        , TestDataForDataQualityCheck("06", null)
-        , TestDataForDataQualityCheck("07", null)
-        , TestDataForDataQualityCheck("08", null)
-        , TestDataForDataQualityCheck("09", null)
-        , TestDataForDataQualityCheck("09", null)
+        , TestDataForDataQualityCheck("06", "bla5")
+        , TestDataForDataQualityCheck("07", "bla5")
+        , TestDataForDataQualityCheck("08", "bla5")
+        , TestDataForDataQualityCheck("09", "bla5")
+        , TestDataForDataQualityCheck("09", "bla5")
       ).toDS()
 
       Waimak
@@ -182,6 +182,18 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
         "Critical alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 90.0% unique."
         , "Warning alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 95.0% unique."
+      )
+    }
+
+    it("should work for a combination of columns") {
+      val spark = sparkSession
+
+      getFlow(sparkSession, Seq("col1", "col2"))
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
+        "Warning alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1, col2))) : Value: 0.8 does not meet the constraint requirement! col1,col2 was not 100.0% unique."
       )
     }
   }
@@ -273,7 +285,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
       spark.conf.set("spark.waimak.dataquality.alerters.exception.alertOn", "critical")
       spark.conf.set("spark.waimak.dataquality.deequ.labelsToMonitor", "testOutput")
       spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.checks", "recentTimestampCheck")
-      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.recentTimestampCheck.col", "ts")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.recentTimestampCheck.column", "ts")
 
       val ds = Seq(
         TestDataForTimestampDeequCheck(1, twoHoursAgo)
@@ -288,7 +300,6 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
     it("should not trigger any alerts if there is a recent timestamp") {
       val spark = sparkSession
-      import spark.implicits._
 
       getFlow(sparkSession)
         .execute()
@@ -339,7 +350,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.recentTimestampCheck.alertLevel", "critical")
 
-      val cause =  intercept[DataFlowException] {
+      val cause = intercept[DataFlowException] {
         getFlow(sparkSession)
           .inPlaceTransform("testOutput")(_.filter('id =!= 1))
           .execute()
