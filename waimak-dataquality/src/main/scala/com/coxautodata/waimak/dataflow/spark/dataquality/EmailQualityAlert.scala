@@ -56,6 +56,20 @@ trait BaseEmailQualityAlert extends DataQualityAlertHandler {
   }
 }
 
+/**
+  * Email settings used to configure an [[EmailQualityAlert]]
+  *
+  * @param to       (Optional) comma-separated list of 'to' destination addresses
+  * @param cc       (Optional) comma-separated list of 'cc' destination addresses
+  * @param bcc      (Optional) comma-separated list of 'bcc' destination addresses
+  * @param from     (Optional) from address in email message
+  * @param host     (Mandatory) hostname/address of email server
+  * @param port     (Optional) port of email server, default 25
+  * @param auth     (Optional) whether to use authentication to email server, default false
+  * @param starttls (Optional) whether to enable starttls when communicating with email server, default true
+  * @param user     (Optional) username to use if authentication enabled
+  * @param pass     (Optional) password to use if authentication enabled
+  */
 case class EmailSettings(to: List[String] = List.empty,
                          cc: List[String] = List.empty,
                          bcc: List[String] = List.empty,
