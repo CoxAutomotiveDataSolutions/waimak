@@ -27,8 +27,9 @@ case class DeequCheck(checks: VerificationRunBuilder => VerificationRunBuilder =
   override def validateCheck: Try[Unit] = {
     (metricsRepositoryChecks, maybeMetadata) match {
       case (Some(_), None) => Failure(
-        DeequCheckException("Anomaly checks were specified but no metrics repository was set. " +
-          "Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository"))
+        DeequCheckException("Anomaly checks were specified but no metrics repository was set, or metrics repository was set after anomaly checks were defined. " +
+          "Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository to set a repository and ensure you set the " +
+          "repository before calling any checks that need it."))
       case _ => Success()
     }
   }
