@@ -14,6 +14,10 @@ case class DeequMetadata(repoBuilder: DeequMetricsRepositoryBuilder, metricsDate
 }
 
 object DeequMetadata {
+  /**
+    * A type alias used when setting a metrics repository for Deequ through Waimak actions.
+    * Type goes from label to metrics repository.
+    */
   type DeequMetricsRepositoryBuilder = String => MetricsRepository
 }
 
