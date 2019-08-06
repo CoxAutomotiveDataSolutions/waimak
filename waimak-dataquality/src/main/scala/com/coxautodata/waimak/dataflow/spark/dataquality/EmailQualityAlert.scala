@@ -4,6 +4,7 @@ import java.time.Instant
 import java.util.{Date, Properties}
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
+import com.coxautodata.waimak.dataflow.DataFlowException
 import com.coxautodata.waimak.dataflow.spark.SparkFlowContext
 import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfigurationExtension.DATAQUALITY_ALERTERS
 import javax.mail.Message.RecipientType._
@@ -29,8 +30,8 @@ class EmailQualityAlertService extends DataQualityAlertHandlerService {
   override def handlerKey: String = "email"
 
   override def getAlertHandler(flowContext: SparkFlowContext): DataQualityAlertHandler = {
-    val importanceConf = CaseClassConfigParser[EmailAlertImportance](flowContext, s"${DATAQUALITY_ALERTERS}.email.")
-    val emailConf = CaseClassConfigParser[EmailSettings](flowContext, s"${DATAQUALITY_ALERTERS}.email.")
+    val importanceConf = CaseClassConfigParser[EmailAlertImportance](flowContext, s"$DATAQUALITY_ALERTERS.email.")
+    val emailConf = CaseClassConfigParser[EmailSettings](flowContext, s"$DATAQUALITY_ALERTERS.email.")
     EmailQualityAlert(emailConf, importanceConf.alertOnImportances)
   }
 }
@@ -86,13 +87,18 @@ case class EmailSettings(to: List[String] = List.empty,
     properties.setProperty("mail.smtp.port", port.toString)
     properties.setProperty("mail.smtp.auth", auth.toString)
     properties.setProperty("mail.smtp.starttls.enable", starttls.toString)
-    user.foreach(
-      properties.setProperty("mail.smtp.user", _)
-    )
-    pass.foreach(
-      properties.setProperty("mail.smtp.pass", _)
-    )
-    val session = Session.getDefaultInstance(properties)
+    val authenticator = (auth, user, pass) match {
+      case (false, _, _) => None
+      case (true, None, _) | (true, _, None) => throw new DataFlowException("Both user and pass must be specified when using auth=true")
+      case (true, Some(u), Some(p)) => Some {
+        new Authenticator() {
+          override protected def getPasswordAuthentication: PasswordAuthentication = {
+            new PasswordAuthentication(u, p)
+          }
+        }
+      }
+    }
+    val session = Session.getDefaultInstance(properties, authenticator.orNull)
     provider.foreach(session.setProvider)
     val message = new MimeMessage(session)
     (to.map((_, TO)) ++ cc.map((_, CC)) ++ bcc.map((_, BCC)))
