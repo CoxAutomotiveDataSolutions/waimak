@@ -67,7 +67,7 @@ case class DeequCheck(checks: VerificationRunBuilder => VerificationRunBuilder =
     maybeMetadata
       .map {
         m =>
-          val withRepository = withChecks.useRepository(m.repoBuilder(label)).saveOrAppendResult(ResultKey(m.metricsDateTime.toEpochSecond))
+          val withRepository = withChecks.useRepository(m.repoBuilder(label)).saveOrAppendResult(ResultKey(m.metricsDateTime.toInstant.toEpochMilli))
           metricsRepositoryChecks.map(_.apply(withRepository))
             .getOrElse(withRepository)
       }
