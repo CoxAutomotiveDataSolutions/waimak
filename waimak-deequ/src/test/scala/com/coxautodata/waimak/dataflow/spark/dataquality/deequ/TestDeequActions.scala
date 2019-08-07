@@ -146,9 +146,11 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         f.execute()
       }
 
-      ex.getMessage should be("Anomaly checks were specified but no metrics repository was set. Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository")
+      ex.getMessage should be("Anomaly checks were specified but no metrics repository was set, or metrics repository was set after anomaly checks were defined. " +
+        "Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository to set a repository and ensure you set the repository before calling any checks that need it.")
 
-      f.prepareForExecution() should be(Failure(DeequCheckException("Anomaly checks were specified but no metrics repository was set. Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository")))
+      f.prepareForExecution() should be(Failure(DeequCheckException("Anomaly checks were specified but no metrics repository was set, or metrics repository was set after anomaly checks were defined. " +
+        "Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository to set a repository and ensure you set the repository before calling any checks that need it.")))
     }
   }
 
