@@ -4,6 +4,7 @@ import com.coxautodata.waimak.dataflow.spark.SparkActionHelpers._
 import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{DataFrameReader, DataFrameWriter, Dataset}
+import org.apache.spark.storage.StorageLevel
 
 package object spark {
 
@@ -657,7 +658,15 @@ package object spark {
     def cacheAsParquet(labels: String*): SparkDataFlow = {
       if (labels.isEmpty) throw new DataFlowException(s"At least one label must be specified for cacheAsParquet")
 
-      labels.foldLeft(sparkDataFlow) { (flow, label) => CacheAsParquetMetadataExtension.addCacheAsParquet(flow, label, None, repartition = false) }
+      labels.foldLeft(sparkDataFlow) { (flow, label) => CacheMetadataExtension.addCacheAsParquet(flow, label, None, repartition = false) }
+    }
+
+    def sparkCacheSingle(label: String, partitions: Option[Int] = None, storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK): SparkDataFlow = {
+      CacheMetadataExtension.addSparkCache(sparkDataFlow, label, partitions, storageLevel)
+    }
+    
+    def sparkCache(label: String, labels: String*): SparkDataFlow = {
+      labels.foldLeft(sparkDataFlow) { (flow, label) => flow.sparkCacheSingle(label) }
     }
 
     /**
@@ -672,7 +681,7 @@ package object spark {
     def cacheAsPartitionedParquet(partitions: Seq[String], repartition: Boolean = true)(labels: String*): SparkDataFlow = {
       if (labels.isEmpty) throw new DataFlowException(s"At least one label must be specified for cacheAsParquet")
 
-      labels.foldLeft(sparkDataFlow) { (flow, label) => CacheAsParquetMetadataExtension.addCacheAsParquet(flow, label, Some(Left(partitions)), repartition) }
+      labels.foldLeft(sparkDataFlow) { (flow, label) => CacheMetadataExtension.addCacheAsParquet(flow, label, Some(Left(partitions)), repartition) }
     }
 
     /**
