@@ -664,9 +664,9 @@ package object spark {
     def sparkCacheSingle(label: String, partitions: Option[Int] = None, storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK): SparkDataFlow = {
       CacheMetadataExtension.addSparkCache(sparkDataFlow, label, partitions, storageLevel)
     }
-    
+
     def sparkCache(label: String, labels: String*): SparkDataFlow = {
-      labels.foldLeft(sparkDataFlow) { (flow, label) => flow.sparkCacheSingle(label) }
+      (label +: labels).foldLeft(sparkDataFlow) { (flow, l) => flow.sparkCacheSingle(l) }
     }
 
     /**
