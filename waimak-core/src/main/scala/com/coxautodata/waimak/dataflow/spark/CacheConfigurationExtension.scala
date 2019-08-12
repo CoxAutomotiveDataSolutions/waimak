@@ -23,7 +23,7 @@ class SparkCacheConfigurationExtension extends CacheConfigurationExtension {
 
   override def extensionKey: String = "sparkcache"
 
-  override def cacheLabels(flow: SparkDataFlow, labelsToCache: Seq[String]): SparkDataFlow = flow.sparkCache(labelsToCache.head, labelsToCache.tail: _*)
+  override def cacheLabels(flow: SparkDataFlow, labelsToCache: Seq[String]): SparkDataFlow = flow.sparkCache(labelsToCache: _*)
 }
 
 private[spark] case class CacheConfigurationExtensionConf(cacheAll: Boolean = false, cacheLabels: List[String] = List.empty)

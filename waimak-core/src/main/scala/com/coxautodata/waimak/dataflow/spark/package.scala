@@ -652,7 +652,7 @@ package object spark {
       *
       * It will not trigger for labels whose datasets are empty.
       *
-      * @param labels - list of labels to snapshot
+      * @param labels - list of labels to cache
       * @return
       */
     def cacheAsParquet(labels: String*): SparkDataFlow = {
@@ -661,12 +661,26 @@ package object spark {
       labels.foldLeft(sparkDataFlow) { (flow, label) => CacheMetadataExtension.addCacheAsParquet(flow, label, None, repartition = false) }
     }
 
+    /**
+      * Cache a single label using Spark's in-built caching mechanism
+      *
+      * @param label        the label to cache
+      * @param partitions   optionally, the number of partitions to partition the dataset by before caching (will invoke a `.repartition` call)
+      * @param storageLevel the `StorageLevel` to use
+      */
     def sparkCacheSingle(label: String, partitions: Option[Int] = None, storageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK): SparkDataFlow = {
       CacheMetadataExtension.addSparkCache(sparkDataFlow, label, partitions, storageLevel)
     }
 
-    def sparkCache(label: String, labels: String*): SparkDataFlow = {
-      (label +: labels).foldLeft(sparkDataFlow) { (flow, l) => flow.sparkCacheSingle(l) }
+    /**
+      * Cache multiple labels using using Spark's in-built caching mechanism
+      *
+      * @param labels - list of labels to cache
+      */
+    def sparkCache(labels: String*): SparkDataFlow = {
+      if (labels.isEmpty) throw new DataFlowException(s"At least one label must be specified for sparkCache")
+
+      labels.foldLeft(sparkDataFlow) { (flow, l) => flow.sparkCacheSingle(l) }
     }
 
     /**
