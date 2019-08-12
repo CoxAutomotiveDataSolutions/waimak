@@ -47,10 +47,8 @@ The following code snippet demonstrates a basic Waimak example taken from the un
 ```scala
 // Required imports
 import com.coxautodata.waimak.dataflow.Waimak
-import com.coxautodata.waimak.dataflow.spark.SparkActions._
 
 // Initialise basic Waimak objects
-val executor = Waimak.sparkExecutor()
 val emptyFlow = Waimak.sparkFlow(spark)
 
 // Add actions to the flow
@@ -61,7 +59,7 @@ val basicFlow = emptyFlow
     .writeParquet(baseDest)("items", "person")
 
 // Run the flow
-executor.execute(basicFlow)
+basicFlow.execute()
 ```
 
 This example is very small, but in practice flow definitions can become very large depending of the number of inputs and outputs in a job.
@@ -75,16 +73,16 @@ Waimak currently consists of the following modules:
 Artifact ID | Purpose | Maven Release
 ----------- | ------- | -------------
 `waimak-core` | Core Waimak functionality and generic actions | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-core*) 
-`waimak-azure-table` | Functionality to write outputs to Azure Tables | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-azure-table*)
 `waimak-configuration` | Non-flow functionality to simplify configuration | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration*)
 `waimak-configuration-databricks` | Databricks-specific configuration provider using secret scopes (Scala 2.11 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration-databricks*)
-`waimak-rdbm-export` | Functionality to write outputs to MSSQL databases | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-export*)
 `waimak-impala` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-impala*)
 `waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-hive*)
 `waimak-rdbm-ingestion` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-ingestion*)
 `waimak-storage` | Functionality for providing a hot/cold region-based ingestion storage layer | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-storage*)
 `waimak-app` | Functionality providing Waimak application templates and orchestration | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-app*)
 `waimak-experimental` | Experimental features currently under development | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-experimental*)
+`waimak-dataquality` | Functionality for monitoring and alerting on data quality | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-dataquality*)
+`waimak-deequ` | Amazon Deequ implementation of data quality monitoring (Scala 2.11 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-deequ*)
 
 ## What versions of Spark are supported?
 
