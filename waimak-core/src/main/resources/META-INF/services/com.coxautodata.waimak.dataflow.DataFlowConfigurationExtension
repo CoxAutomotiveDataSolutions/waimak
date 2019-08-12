@@ -1,1 +1,2 @@
 com.coxautodata.waimak.dataflow.spark.CacheAsParquetConfigurationExtension
+com.coxautodata.waimak.dataflow.spark.SparkCacheConfigurationExtension
