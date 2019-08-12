@@ -9,19 +9,5 @@
 
     <artifactId>waimak-experimental_2.11</artifactId>
 
-    <dependencies>
-        <dependency>
-            <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.11</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.11</artifactId>
-            <version>${project.parent.version}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
 
 </project>

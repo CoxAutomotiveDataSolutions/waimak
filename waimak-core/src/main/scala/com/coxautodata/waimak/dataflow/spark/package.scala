@@ -23,6 +23,39 @@ package object spark {
     */
   implicit class SparkDataFlowExtension(sparkDataFlow: SparkDataFlow) extends Logging {
 
+    /**
+      * Takes a dataset and performs a function with side effects (Unit return type)
+      *
+      * @param input      the input label
+      * @param f          the side-effecting function
+      * @param actionName the name of the action
+      * @return a new SparkDataFlow with the action added
+      */
+    def unitTransform(input: String)(f: Dataset[_] => Unit, actionName: String = "unit transform"): SparkDataFlow = {
+      def run(m: DataFlowEntities): ActionResult = {
+        f(m.get[Dataset[_]](input))
+        Nil
+      }
+
+      sparkDataFlow
+        .addAction(new SimpleAction(List(input), Nil, run, actionName))
+    }
+
+    /**
+      * Transforms an input dataset to an instance of type T
+      *
+      * @param input  the input label
+      * @param output the output label
+      * @param f      the transform function
+      * @tparam T the type of the output of the transform function
+      * @return a new SparkDataFlow with the action added
+      */
+    def typedTransform[T](input: String)(output: String)(f: Dataset[_] => T): SparkDataFlow = {
+      def run(m: DataFlowEntities): ActionResult = Seq(Option(f(m.get[Dataset[_]](input))))
+
+      sparkDataFlow
+        .addAction(new SimpleAction(List(input), List(output), run, "typed transform"))
+    }
 
     /**
       * Transforms 1 input DataSet to 1 output DataSet using function f, which is a scala function.
@@ -512,7 +545,7 @@ package object spark {
       * @param dfr   - dataframe writer function
       */
     def write(label: String, pre: Dataset[_] => Dataset[_], dfr: DataFrameWriter[_] => Unit): SparkDataFlow = {
-      writeBase(sparkDataFlow, label)(pre)(dfr)
+      unitTransform(label)(df => dfr(pre(df).write), "write")
     }
 
 

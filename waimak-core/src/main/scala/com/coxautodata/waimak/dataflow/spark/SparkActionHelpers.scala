@@ -7,25 +7,6 @@ import scala.util.Try
 
 object SparkActionHelpers {
 
-  /**
-    * Base function for all write operation, in most of the cases users should use more specialised one.
-    * This one is used by other builders.
-    *
-    * @param dataFlow - flow to which to add the write action
-    * @param label    - label whose data set will be written out
-    * @param pre      - dataset transformation function
-    * @param dfr      - dataframe writer function
-    * @return
-    */
-  def writeBase(dataFlow: SparkDataFlow, label: String)(pre: Dataset[_] => Dataset[_])(dfr: DataFrameWriter[_] => Unit): SparkDataFlow = {
-    def run(m: DataFlowEntities): ActionResult = {
-      dfr(pre(m.get[Dataset[_]](label)).write)
-      Seq.empty
-    }
-
-    dataFlow.addAction(new SimpleAction(List(label), List.empty, run, "write"))
-  }
-
   def applyWriterOptions(options: Map[String, String]): DataFrameWriter[_] => DataFrameWriter[_] = {
     writer => options.foldLeft(writer)((z, c) => z.option(c._1, c._2))
   }

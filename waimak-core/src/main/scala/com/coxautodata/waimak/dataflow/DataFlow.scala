@@ -362,6 +362,7 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
 
     enabledExtensions
       .map(foundExtensions(_))
+
   }
 
   /**
@@ -376,6 +377,7 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
     import DataFlow._
     val maxIters = flowContext.getInt(MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE, MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE_DEFAULT)
 
+    @scala.annotation.tailrec
     def loopUntilStable(flow: Self, itersLeft: Int): Self = {
       val newFlow = flow.metadataExtensions.foldLeft(flow)((z, ex) => ex.preExecutionManipulation(z))
       if (newFlow.metadataExtensions.nonEmpty && itersLeft <= 0)

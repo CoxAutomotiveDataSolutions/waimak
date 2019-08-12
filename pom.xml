@@ -16,7 +16,8 @@
     limitations under the License.
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.coxautodata</groupId>
@@ -25,7 +26,8 @@
     <version>2.7-SNAPSHOT</version>
 
     <name>Waimak</name>
-    <description>Waimak is an open-source framework that makes it easier to create complex data flows in Apache Spark. Copyright 2018 Cox Automotive UK
+    <description>Waimak is an open-source framework that makes it easier to create complex data flows in Apache Spark.
+        Copyright 2018 Cox Automotive UK
         Limited; Licensed under the Apache License, Version 2.0.
     </description>
     <url>https://github.com/CoxAutomotiveDataSolutions/waimak</url>
@@ -75,6 +77,8 @@
         <module>waimak-experimental</module>
         <module>waimak-configuration-databricks</module>
         <module>waimak-app</module>
+        <module>waimak-deequ</module>
+        <module>waimak-dataquality</module>
     </modules>
     <profiles>
         <!-- Spark profiles -->
@@ -212,7 +216,7 @@
                         <version>${scoverage.plugin.version}</version>
                         <configuration>
                             <scalaVersion>${scala.lang.version}</scalaVersion>
-                            <aggregate>true</aggregate>
+                            <aggregateOnly>true</aggregateOnly>
                             <!-- other parameters -->
                         </configuration>
                     </plugin>
@@ -236,8 +240,12 @@
         <maven.jar.plugin.version>3.0.2</maven.jar.plugin.version>
         <maven.source.plugin.version>3.0.1</maven.source.plugin.version>
         <jgitflow.maven.plugin.version>1.0-m5.1</jgitflow.maven.plugin.version>
-        <scoverage.plugin.version>1.3.0</scoverage.plugin.version>
+        <scoverage.plugin.version>1.4.0-RC1</scoverage.plugin.version>
         <databricks.dbutils.version>0.0.3</databricks.dbutils.version>
+        <circe.version>0.11.1</circe.version>
+        <mock.javamail.version>1.9</mock.javamail.version>
+        <apache.commons.version>1.5</apache.commons.version>
+        <deequ.version>1.0.1</deequ.version>
         <skipTests>false</skipTests>
         <skipUTs>${skipTests}</skipUTs>
         <skipITs>${skipTests}</skipITs>
