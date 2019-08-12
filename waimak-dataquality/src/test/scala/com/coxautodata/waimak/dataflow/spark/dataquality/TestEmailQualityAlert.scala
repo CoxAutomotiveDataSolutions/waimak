@@ -13,7 +13,7 @@ class TestEmailQualityAlert extends FunSpec with Matchers {
   val testAlerter: BaseEmailQualityAlert = new BaseEmailQualityAlert {
     override def provider: Option[Provider] = Some(new MockedSMTPProvider)
 
-    override def settings: EmailSettings = EmailSettings(
+    override def settings: EmailSettings = SMTPEmailSettings(
       host = "server@host.com",
       to = List("to@host.com"),
       cc = List("cc@host.com"),
