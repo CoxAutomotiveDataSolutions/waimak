@@ -1,7 +1,9 @@
 package com.coxautodata.waimak.dataflow.spark.dataquality.deequ
 
+import java.sql.Timestamp
 import java.time.{ZoneOffset, ZonedDateTime}
 
+import com.amazon.deequ.SerializableAnalysisResult
 import com.amazon.deequ.analyzers.Completeness
 import com.amazon.deequ.anomalydetection.RateOfChangeStrategy
 import com.amazon.deequ.checks.{Check, CheckLevel}
@@ -55,7 +57,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
 
     it("should alert when the percentage of nulls increase in a day") {
       val spark = sparkSession
-      val alerter = new TestAlert
+      val alerter1 = new TestAlert
       import spark.implicits._
       val ds1 = Seq(
         TestDataForDataQualityCheck(null, "bla")
@@ -70,11 +72,13 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 26, 12, 20, 11, 0, ZoneOffset.UTC))
         .addDeequValidationWithMetrics("testOutput",
           _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
-          , alerter
+          , alerter1
         ).execute()
 
-      alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!")
+      alerter1.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!")
 
+      val alerter2 = new TestAlert
+      spark.read.parquet(testingBaseDirName + "/metrics/testOutput").show(false)
       val ds2 = Seq(
         TestDataForDataQualityCheck("a", "bla")
         , TestDataForDataQualityCheck("d", "bla8")
@@ -86,12 +90,13 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 27, 12, 20, 11, 0, ZoneOffset.UTC))
         .addDeequValidationWithMetrics("testOutput",
           _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
-          , alerter
+          , alerter2
         ).execute()
+      spark.read.parquet(testingBaseDirName + "/metrics/testOutput").show(false)
 
-      alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!")
+      alerter2.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List()
 
-
+      val alerter3 = new TestAlert
       val ds3 = Seq(
         TestDataForDataQualityCheck("a", "bla")
         , TestDataForDataQualityCheck("d", "bla8")
@@ -103,12 +108,17 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 28, 12, 20, 11, 0, ZoneOffset.UTC))
         .addDeequValidationWithMetrics("testOutput",
           _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.4)), Completeness("col1"))
-          , alerter
+          , alerter3
         ).execute()
 
-      alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List(
-        "Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!",
+      alerter3.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List(
         "Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Value: 0.5 does not meet the constraint requirement!"
+      )
+
+     spark.read.parquet(s"$testingBaseDirName/metrics").as[SerializableAnalysisResult].collect().toList should contain theSameElementsAs Seq(
+        SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-26 12:20:11.0"), "[\n  {\n    \"resultKey\": {\n      \"dataSetDate\": 1553602811000,\n      \"tags\": {}\n    },\n    \"analyzerContext\": {\n      \"metricMap\": [\n        {\n          \"analyzer\": {\n            \"analyzerName\": \"Completeness\",\n            \"column\": \"col1\"\n          },\n          \"metric\": {\n            \"metricName\": \"DoubleMetric\",\n            \"entity\": \"Column\",\n            \"instance\": \"col1\",\n            \"name\": \"Completeness\",\n            \"value\": 0.75\n          }\n        }\n      ]\n    }\n  }\n]")
+     , SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-27 12:20:11.0"), "[\n  {\n    \"resultKey\": {\n      \"dataSetDate\": 1553689211000,\n      \"tags\": {}\n    },\n    \"analyzerContext\": {\n      \"metricMap\": [\n        {\n          \"analyzer\": {\n            \"analyzerName\": \"Completeness\",\n            \"column\": \"col1\"\n          },\n          \"metric\": {\n            \"metricName\": \"DoubleMetric\",\n            \"entity\": \"Column\",\n            \"instance\": \"col1\",\n            \"name\": \"Completeness\",\n            \"value\": 1.0\n          }\n        }\n      ]\n    }\n  }\n]")
+     , SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-28 12:20:11.0"), "[\n  {\n    \"resultKey\": {\n      \"dataSetDate\": 1553775611000,\n      \"tags\": {}\n    },\n    \"analyzerContext\": {\n      \"metricMap\": [\n        {\n          \"analyzer\": {\n            \"analyzerName\": \"Completeness\",\n            \"column\": \"col1\"\n          },\n          \"metric\": {\n            \"metricName\": \"DoubleMetric\",\n            \"entity\": \"Column\",\n            \"instance\": \"col1\",\n            \"name\": \"Completeness\",\n            \"value\": 0.5\n          }\n        }\n      ]\n    }\n  }\n]")
       )
 
     }
@@ -136,9 +146,11 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         f.execute()
       }
 
-      ex.getMessage should be("Anomaly checks were specified but no metrics repository was set. Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository")
+      ex.getMessage should be("Anomaly checks were specified but no metrics repository was set, or metrics repository was set after anomaly checks were defined. " +
+        "Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository to set a repository and ensure you set the repository before calling any checks that need it.")
 
-      f.prepareForExecution() should be(Failure(DeequCheckException("Anomaly checks were specified but no metrics repository was set. Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository")))
+      f.prepareForExecution() should be(Failure(DeequCheckException("Anomaly checks were specified but no metrics repository was set, or metrics repository was set after anomaly checks were defined. " +
+        "Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository to set a repository and ensure you set the repository before calling any checks that need it.")))
     }
   }
 
