@@ -1,5 +1,25 @@
 # Changelog
 
+## 2.7 - 2019-08-12
+
+### Added
+- Metadata and configuration extension functionality
+- `sparkCache` actions
+- `cacheasparquet` and `sparkcache` configuration extensions
+- `writeAsNamedFile`
+- Data quality monitoring with Amazon Deequ
+
+### Changed
+- Using F-bounded types on `DataFlow`
+- High-level storage layer API exposed outside of actions (in addition to existing actions)
+- Spark 2.4.3 now used for Scala 2.12 build (no longer experimnental)
+
+### Removed
+- waimak-rdbm-export and waimak-azure-table modules 
+
+### Fixed
+- Introduced retry mechanism for `PropertyProvider`
+
 ## 2.6 - 2019-06-06
 
 ### Fixed

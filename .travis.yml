@@ -3,7 +3,7 @@ sudo: required
 language: java
 
 jdk:
-  - oraclejdk8
+  - openjdk8
 
 services:
   - docker
@@ -17,7 +17,7 @@ matrix:
     - env: MAVEN_PROFILE="apache-2.2.0_2.11" DEPLOY_PROFILE="true" COVERAGE_PROFILE="true" SCALA_VERSION="2.11"
     - env: MAVEN_PROFILE="apache-2.3.0_2.11" SCALA_VERSION="2.11"
     - env: MAVEN_PROFILE="apache-2.4.0_2.11" SCALA_VERSION="2.11"
-    - env: MAVEN_PROFILE="apache-2.4.0_2.12" DEPLOY_PROFILE="true" SCALA_VERSION="2.12" EXTRA_MAVEN_OPTIONS='-pl !waimak-configuration-databricks'
+    - env: MAVEN_PROFILE="apache-2.4.3_2.12" DEPLOY_PROFILE="true" SCALA_VERSION="2.12" EXTRA_MAVEN_OPTIONS='-pl !waimak-configuration-databricks,!waimak-deequ'
     - env: MAVEN_PROFILE="cloudera-2.2.0.cloudera1_2.11" SCALA_VERSION="2.11"
 
 before_install:

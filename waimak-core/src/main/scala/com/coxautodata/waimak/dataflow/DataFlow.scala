@@ -1,11 +1,14 @@
 package com.coxautodata.waimak.dataflow
 
-import java.util.UUID
+import java.util.ServiceLoader
 
+import com.coxautodata.waimak.dataflow.DataFlow._
 import com.coxautodata.waimak.log.Logging
 
-import scala.annotation.tailrec
-import scala.util.{Failure, Success, Try}
+import scala.collection.JavaConverters._
+import scala.reflect.ClassTag
+import scala.reflect.runtime.universe.TypeTag
+import scala.util.{Success, Try}
 
 /**
   * Defines a state of the data flow. State is defined by the inputs that are ready to be consumed and actions that need
@@ -18,37 +21,56 @@ import scala.util.{Failure, Success, Try}
   * Also inputs are useful for unit testing, as they give access to all intermediate outputs of actions.
   *
   */
-trait DataFlow extends Logging {
-
-  import DataFlow._
+abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
+  this: Self =>
 
   def flowContext: FlowContext
 
   def schedulingMeta: SchedulingMeta
 
-  def schedulingMeta(sc: SchedulingMeta): this.type
+  def schedulingMeta(sc: SchedulingMeta): Self
 
-  def commitMeta: CommitMeta
+  def setMetadataExtensions(extensions: Set[DataFlowMetadataExtension[Self]]): Self
 
-  def commitMeta(cm: CommitMeta): this.type
+  def metadataExtensions: Set[DataFlowMetadataExtension[Self]]
+
+  /**
+    * Add, update or remove a metadata extension from the flow using the `identifier` argument to find an existing extension.
+    *
+    * @param identifier    Identifier of extension to update or remove
+    * @param combineStates Function that manipulates the extension on the flow. Input will be None if no existing extension with matching identifier
+    *                      exists on the flow. Return None to remove an existing extension with matching identifier from the flow.
+    * @tparam S Type of the DataFlowMetadataExtension
+    */
+  def updateMetadataExtension[S <: DataFlowMetadataExtension[Self] : ClassTag](identifier: DataFlowMetadataExtensionIdentifier, combineStates: Option[S] => Option[S]): Self = {
+
+    val existingExtension = metadataExtensions.collectFirst { case e: S if e.identifier == identifier => e }
+    val newExtension = combineStates(existingExtension)
+
+    val newExtensions = metadataExtensions.filterNot(_.identifier == identifier)
+    setMetadataExtensions(newExtensions ++ newExtension.toSet)
+
+  }
 
   /**
     * Current [[DataFlowExecutor]] associated with this flow
+    *
     * @return
     */
   def executor: DataFlowExecutor
 
   /**
     * Add a new executor to this flow, replacing the existing one
+    *
     * @param executor [[DataFlowExecutor]] to add to this flow
     */
-  def withExecutor(executor: DataFlowExecutor): this.type
+  def withExecutor(executor: DataFlowExecutor): Self
 
   /**
     * Execute this flow using the current [[executor]] on the flow.
     * See [[DataFlowExecutor.execute()]] for more information.
     */
-  def execute(errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], DataFlow) = executor.execute(this, errorOnUnexecutedActions)
+  def execute(errorOnUnexecutedActions: Boolean = true): (Seq[DataFlowAction], Self) = executor.execute(this, errorOnUnexecutedActions)
 
   /**
     * Inputs that were explicitly set or produced by previous actions, these are inputs for all following actions.
@@ -59,7 +81,7 @@ trait DataFlow extends Logging {
     */
   def inputs: DataFlowEntities
 
-  def inputs(inp: DataFlowEntities): this.type
+  def inputs(inp: DataFlowEntities): Self
 
   /**
     * Actions to execute, these will be scheduled when inputs become available. Executed actions must be removed from
@@ -69,11 +91,11 @@ trait DataFlow extends Logging {
     */
   def actions: Seq[DataFlowAction]
 
-  def actions(acs: Seq[DataFlowAction]): this.type
+  def actions(acs: Seq[DataFlowAction]): Self
 
   def tagState: DataFlowTagState
 
-  def tagState(ts: DataFlowTagState): this.type
+  def tagState(ts: DataFlowTagState): Self
 
   /**
     * Creates new state of the dataflow by adding an action to it.
@@ -84,7 +106,7 @@ trait DataFlow extends Logging {
     *                            1) at least one of the input labels is not present in the inputs
     *                            2) at least one of the input labels is not present in the outputs of existing actions
     */
-  def addAction[A <: DataFlowAction](action: A): this.type = {
+  def addAction[A <: DataFlowAction](action: A): Self = {
 
     action.outputLabels.foreach(l => if (labelIsInputOrProduced(l)) {
       throw new DataFlowException(s"Output label [${l}] is already in the inputs or is produced by another action.")
@@ -103,7 +125,7 @@ trait DataFlow extends Logging {
     * @param f A function that transforms a dataflow object
     * @return New dataflow
     */
-  def map[R >: this.type](f: this.type => R): R = f(this)
+  def map[R >: Self](f: Self => R): R = f(this)
 
   /**
     * Optionally transform a dataflow depending on the output of the
@@ -113,7 +135,7 @@ trait DataFlow extends Logging {
     * @param f A function that returns an Option[DataFlow]
     * @return DataFlow object that may have been transformed
     */
-  def mapOption[R >: this.type](f: this.type => Option[R]): R = f(this).getOrElse(this)
+  def mapOption[R >: Self](f: Self => Option[R]): R = f(this).getOrElse(this)
 
   /**
     * Fold left over a collection, where the current DataFlow is the zero value.
@@ -123,7 +145,7 @@ trait DataFlow extends Logging {
     * @param f        Function to apply during the flow
     * @return A DataFlow produced after repeated applications of f for each element in the collection
     */
-  def foldLeftOver[A, S >: this.type <: DataFlow](foldOver: Iterable[A])(f: (S, A) => S): S = {
+  def foldLeftOver[A, S >: Self](foldOver: Iterable[A])(f: (S, A) => S): S = {
     foldOver.foldLeft[S](this)(f)
   }
 
@@ -135,7 +157,7 @@ trait DataFlow extends Logging {
     * @param value - values of the input
     * @return - new state with the input
     */
-  def addInput(label: String, value: Option[Any]): this.type = {
+  def addInput(label: String, value: Option[Any]): Self = {
     if (inputs.labels.contains(label)) throw new DataFlowException(s"Input label [$label] already exists")
     inputs(inputs + (label -> value))
   }
@@ -149,7 +171,7 @@ trait DataFlow extends Logging {
     * @param interceptor
     * @return
     */
-  def addInterceptor(interceptor: InterceptorAction, guidToIntercept: String): this.type = {
+  def addInterceptor(interceptor: InterceptorAction, guidToIntercept: String): Self = {
     val newActions = actions.foldLeft(Seq.empty[DataFlowAction]) { (res, action) =>
       if (action.guid == guidToIntercept) res :+ interceptor else res :+ action
     }
@@ -174,7 +196,7 @@ trait DataFlow extends Logging {
     * @param taggedFlow An intermediate flow that actions can be added to that will be be marked with the tag
     * @return
     */
-  def tag[S <: DataFlow](tags: String*)(taggedFlow: this.type => S): this.type = {
+  def tag(tags: String*)(taggedFlow: Self => Self): Self = {
     val (alreadyActiveTags, newTags) = tags.toSet.partition(tagState.activeTags.contains)
 
     alreadyActiveTags
@@ -184,7 +206,7 @@ trait DataFlow extends Logging {
     val newTagState = tagState.copy(activeTags = tagState.activeTags union newTags)
     val intermediateFlow = taggedFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeTags = intermediateFlow.tagState.activeTags diff newTags)
-    intermediateFlow.tagState(finalTagState).asInstanceOf[this.type]
+    intermediateFlow.tagState(finalTagState)
   }
 
   /**
@@ -195,7 +217,7 @@ trait DataFlow extends Logging {
     * @param tagDependentFlow An intermediate flow that actions can be added to that will depended on tagged actions to have completed before running
     * @return
     */
-  def tagDependency[S <: DataFlow](depTags: String*)(tagDependentFlow: this.type => S): this.type = {
+  def tagDependency(depTags: String*)(tagDependentFlow: Self => Self): Self = {
     val (alreadyActiveDeps, newDeps) = depTags.toSet.partition(tagState.activeDependentOnTags.contains)
 
     alreadyActiveDeps
@@ -205,7 +227,7 @@ trait DataFlow extends Logging {
     val newTagState = tagState.copy(activeDependentOnTags = tagState.activeDependentOnTags union newDeps)
     val intermediateFlow = tagDependentFlow(tagState(newTagState))
     val finalTagState = intermediateFlow.tagState.copy(activeDependentOnTags = intermediateFlow.tagState.activeDependentOnTags diff newDeps)
-    intermediateFlow.tagState(finalTagState).asInstanceOf[this.type]
+    intermediateFlow.tagState(finalTagState)
   }
 
   /**
@@ -226,20 +248,18 @@ trait DataFlow extends Logging {
     *
     * @param executionPoolName pool name to assign to all actions inside of it, but it can be overwritten by the nested execution pools.
     * @param nestedFlow
-    * @tparam S
     * @return
     */
-  def executionPool(executionPoolName: String)(nestedFlow: this.type => this.type): this.type = schedulingMeta(_.setExecutionPoolName(executionPoolName))(nestedFlow)
+  def executionPool(executionPoolName: String)(nestedFlow: Self => Self): Self = schedulingMeta(_.setExecutionPoolName(executionPoolName))(nestedFlow)
 
   /**
     * Generic method that can be used to add context and state to all actions inside the block.
     *
     * @param mutateState function that adds attributes to the state
     * @param nestedFlow  all actions inside of this flow will be associated with the mutated state
-    * @tparam S
     * @return
     */
-  def schedulingMeta(mutateState: SchedulingMetaState => SchedulingMetaState)(nestedFlow: this.type => this.type): this.type = {
+  def schedulingMeta(mutateState: SchedulingMetaState => SchedulingMetaState)(nestedFlow: Self => Self): Self = {
     val previousState = schedulingMeta.state
     val nestedMeta = schedulingMeta.setState(mutateState(previousState))
     val intermediateFlow = nestedFlow(schedulingMeta(nestedMeta))
@@ -274,7 +294,7 @@ trait DataFlow extends Logging {
     * @return - next stage data flow without the executed action, but with its outpus as inputs
     * @throws DataFlowException if number of provided outputs is not equal to the number of output labels of the action
     */
-  def executed(executed: DataFlowAction, outputs: Seq[Option[Any]]): this.type = {
+  def executed(executed: DataFlowAction, outputs: Seq[Option[Any]]): Self = {
     if (outputs.size != executed.outputLabels.size) throw new DataFlowException(s"Action produced different number of results. Expected ${executed.outputLabels.size}, but was ${outputs.size}. ${executed.logLabel}")
     val newActions = actions.filter(_.guid != executed.guid)
     val newInputs = executed.outputLabels.zip(outputs).foldLeft(inputs)((resInput, value) => resInput + value)
@@ -305,99 +325,6 @@ trait DataFlow extends Logging {
     withInputs
   }
 
-  /**
-    * Groups labels to commit under a commit name.
-    * Can be called multiple times with same same commit name, thus adding labels to it.
-    * There can be multiple commit names defined in a single data flow.
-    *
-    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
-    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
-    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
-    *
-    * @param commitName  name of the commit, which will be used to define its push implementation
-    * @param partitions  list of partition columns for the labels specified in this commit invocation. It will not
-    *                    impact labels from previous or following invocations of the commit with same commit name.
-    * @param repartition to repartition the data
-    * @param labels      labels added to the commit name with partitions config
-    * @return
-    */
-  def commit(commitName: String, partitions: Seq[String], repartition: Boolean = true)(labels: String*): this.type = {
-    commit(commitName, Some(Left(partitions)), repartition = partitions.nonEmpty && repartition)(labels: _*)
-  }
-
-  /**
-    * Groups labels to commit under a commit name.
-    * Can be called multiple times with same same commit name, thus adding labels to it.
-    * There can be multiple commit names defined in a single data flow.
-    *
-    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
-    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
-    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
-    *
-    * @param commitName  name of the commit, which will be used to define its push implementation
-    * @param repartition how many partitions to repartition the data by
-    * @param labels      labels added to the commit name with partitions config
-    * @return
-    */
-  def commit(commitName: String, repartition: Int)(labels: String*): this.type = {
-    commit(commitName, Some(Right(repartition)), repartition = true)(labels: _*)
-  }
-
-  /**
-    * Groups labels to commit under a commit name.
-    * Can be called multiple times with same same commit name, thus adding labels to it.
-    * There can be multiple commit names defined in a single data flow.
-    *
-    * By default, the committer is requested to cache the underlying labels on the flow before writing them out
-    * if caching is supported by the data committer. If caching is not supported this parameter is ignored.
-    * This behavior can be disabled by setting the [[CACHE_REUSED_COMMITTED_LABELS]] parameter.
-    *
-    * @param commitName name of the commit, which will be used to define its push implementation
-    * @param labels     labels added to the commit name with partitions config
-    * @return
-    */
-  def commit(commitName: String)(labels: String*): this.type = {
-    commit(commitName, None, repartition = false)(labels: _*)
-  }
-
-  private def commit(commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean)(labels: String*): this.type = {
-    val cacheLabels = flowContext.getBoolean(CACHE_REUSED_COMMITTED_LABELS, CACHE_REUSED_COMMITTED_LABELS_DEFAULT)
-    commitMeta(commitMeta.addCommits(commitName, labels, partitions, repartition, cacheLabels))
-  }
-
-  /**
-    * Associates commit name with an implementation of a data committer. There must be only one data committer per one commit name.
-    *
-    * @param commitName
-    * @param committer
-    * @return
-    */
-  def push(commitName: String)(committer: DataCommitter): this.type = commitMeta(commitMeta.addPush(commitName, committer))
-
-  /**
-    * During data flow preparation for execution stage, it interacts with data committer to add actions that implement
-    * stages of the data committer.
-    *
-    * This build uses tags to separate the stages of the data committer: cache, move, finish.
-    *
-    * @return
-    */
-  protected[dataflow] def buildCommits(): this.type = commitMeta.pushes.foldLeft(this) { (resFlow, pushCommitter: (String, Seq[DataCommitter])) =>
-    val commitName = pushCommitter._1
-    val commitUUID = UUID.randomUUID()
-    val committer = pushCommitter._2.head
-    val labels = commitMeta.commits(commitName)
-    resFlow.tag(commitName) {
-      committer.stageToTempFlow(commitName, commitUUID, labels, _)
-    }.tagDependency(commitName) {
-      _.tag(commitName + "_AFTER_COMMIT") {
-        committer.moveToPermanentStorageFlow(commitName, commitUUID, labels, _)
-      }
-    }.tagDependency(commitName + "_AFTER_COMMIT") {
-      committer.finish(commitName, commitUUID, labels, _)
-    }
-  }.asInstanceOf[this.type]
-
   private def actionHasNoTagDependencies(action: DataFlowAction): Boolean = {
     // All tags that this action depends on
     val actionTagDeps = tagState.taggedActions.get(action.guid).map(_.dependentOnTags).getOrElse(Set.empty)
@@ -414,18 +341,58 @@ trait DataFlow extends Logging {
     allLabels.diff(allLabels.distinct).toSet
   }
 
+  private[dataflow] def getEnabledConfigurationExtensions: Seq[DataFlowConfigurationExtension[Self]] = {
+    import scala.reflect.runtime.currentMirror
+    import scala.reflect.runtime.universe.typeOf
+
+    val enabledExtensions = flowContext.getStringList(EXTENSIONS_PREFIX, List.empty)
+
+    val needType = typeOf[DataFlowConfigurationExtension[Self]]
+
+    val foundExtensions = ServiceLoader
+      .load(classOf[DataFlowConfigurationExtension[Self]])
+      .asScala
+      .filter(currentMirror.reflect(_).symbol.toType <:< needType)
+      .filter(e => enabledExtensions.contains(e.extensionKey))
+      .map(e => e.extensionKey -> e)
+      .toMap
+
+    val missingExtensions = enabledExtensions.toSet.diff(foundExtensions.keySet)
+    if (missingExtensions.nonEmpty) throw new DataFlowException(s"The following extensions could not be found: [${missingExtensions.mkString(",")}]")
+
+    enabledExtensions
+      .map(foundExtensions(_))
+
+  }
+
   /**
     * A function called just before the flow is executed.
-    * By default, this function has just checks the tagging state of the flow, and could be overloaded to have implementation specific
+    * This function keeps calling any extension preparation steps first, then
+    * checks the tagging state of the flow, and could be overloaded to have implementation specific
     * preparation steps. An overloaded function should call this function first.
     * It would be responsible for preparing an execution environment such as cleaning temporary directories.
     *
     */
-  def prepareForExecution(): Try[this.type] = {
-    commitMeta.validate(this, inputs.keySet ++ actions.flatMap(_.outputLabels).toSet, actions.flatMap(_.inputLabels).toSet)
-      .map(_ => buildCommits())
+  def prepareForExecution(): Try[Self] = {
+    import DataFlow._
+    val maxIters = flowContext.getInt(MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE, MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE_DEFAULT)
+
+    @scala.annotation.tailrec
+    def loopUntilStable(flow: Self, itersLeft: Int): Self = {
+      val newFlow = flow.metadataExtensions.foldLeft(flow)((z, ex) => ex.preExecutionManipulation(z))
+      if (newFlow.metadataExtensions.nonEmpty && itersLeft <= 0)
+        throw new DataFlowException(s"Maximum number of iterations [$maxIters] reached before extension manipulations stabilised. " +
+          s"You can increase this limit using the flag [$MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE].")
+      else if (newFlow.metadataExtensions.nonEmpty)
+        loopUntilStable(newFlow, itersLeft - 1)
+      else newFlow
+    }
+
+    Try {
+      getEnabledConfigurationExtensions.foldLeft(this)((z, e) => e.preExecutionManipulation(z))
+    }
+      .map(loopUntilStable(_, maxIters))
       .flatMap(_.isValidFlowDAG)
-      .asInstanceOf[Try[this.type]]
   }
 
   /**
@@ -435,7 +402,7 @@ trait DataFlow extends Logging {
     * the temporary directory
     *
     */
-  def finaliseExecution(): Try[this.type] = Success(this)
+  def finaliseExecution(): Try[Self] = Success(this)
 
   /**
     * Flow DAG is valid iff:
@@ -449,7 +416,7 @@ trait DataFlow extends Logging {
     *
     * @return
     */
-  def isValidFlowDAG: Try[this.type] = {
+  def isValidFlowDAG: Try[Self] = {
 
     Try {
       // Condition 1
@@ -548,11 +515,13 @@ object DataFlow {
   val dataFlowParamPrefix: String = "spark.waimak.dataflow"
 
   /**
-    * Whether to cache labels before they are committed if they are reused
-    * elsewhere in the flow.
+    * Maximum number of iterations to pass through all extension manipulations before
+    * all are stabilised.
     */
-  val CACHE_REUSED_COMMITTED_LABELS: String = s"$dataFlowParamPrefix.cacheReusedCommittedLabels"
-  val CACHE_REUSED_COMMITTED_LABELS_DEFAULT: Boolean = true
+  val MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE: String = s"$dataFlowParamPrefix.maxIterationsForExtensionManipulationsToStabalise"
+  val MAX_ITERATIONS_FOR_EXTENSION_MANIPULATIONS_TO_STABILISE_DEFAULT: Int = 10
+
+  val EXTENSIONS_PREFIX: String = s"${dataFlowParamPrefix}.extensions"
 }
 
 /**
@@ -580,7 +549,6 @@ case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[
   *
   * @param state       describes a current state of schedulingMeta
   * @param actionState Map[DataFlowAction.schedulingGuid, Execution Pool Name] - association between actions and execution pool names
-  * @tparam C
   */
 case class SchedulingMeta(state: SchedulingMetaState, actionState: Map[String, SchedulingMetaState]) {
 
@@ -640,77 +608,54 @@ case class SchedulingMetaState(executionPoolName: String, context: Option[Any] =
 }
 
 /**
-  * Contains configurations for commits and pushes, while configs are added, there are no modifications to the
-  * dataflow, as it waits for a validation before execution.
+  * Trait used to define a DataFlow Metadata extension.
+  * This type of extension adds custom metadata to a flow and is keyed by the
+  * extension instance.
   *
-  * @param commits Map[ COMMIT_NAME, Seq[CommitEntry] ]
-  * @param pushes  Map[ COMMIT_NAME, Seq[DataCommitter] - there should be one committer per commit name, but due to
-  *                lazy definitions of the data flows, validation will have to catch it.
   */
-case class CommitMeta(commits: Map[String, Seq[CommitEntry]], pushes: Map[String, Seq[DataCommitter]]) {
-
-  def addCommits(commitName: String, labels: Seq[String], partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cacheLabels: Boolean): CommitMeta = {
-    val nextCommits = commits.getOrElse(commitName, Seq.empty) ++ labels.map(CommitEntry(_, commitName, partitions, repartition, cacheLabels))
-    this.copy(commits = commits + (commitName -> nextCommits))
-  }
-
-  def labelsUsedInMultipleCommits(): Option[Map[String, Seq[String]]] = {
-    val labelCommits: Map[String, Seq[String]] = commits.toSeq.flatMap(kv => kv._2.map(c => (c.label, c.commitName))).groupBy(_._1).filter(_._2.size > 1).mapValues(_.map(_._2))
-    Option(labelCommits).filter(_.nonEmpty)
-  }
-
-  def addPush(commitName: String, committer: DataCommitter): CommitMeta = {
-    val nextPushes = pushes.getOrElse(commitName, Seq.empty) :+ committer
-    this.copy(pushes = pushes + (commitName -> nextPushes))
-  }
-
-  def pushesWithoutCommits(): Set[String] = pushes.keySet.diff(commits.keySet)
-
-  def commitsWithoutPushes(): Set[String] = commits.keySet.diff(pushes.keySet)
-
-  def validateCommitters(dataFlow: DataFlow): Try[Unit] = {
-
-    @tailrec
-    def loopTest(pushesToValidate: Set[String], result: Try[Unit]): Try[Unit] = {
-      if (pushesToValidate.isEmpty || result.isFailure) result
-      else {
-        val commit = pushesToValidate.head
-        val committers = pushes(commit)
-        if (committers.size != 1) Failure(new DataFlowException(s"Commit with name [${commit}] has ${committers.size} instead of 1"))
-        else loopTest(pushesToValidate.tail, committers.head.validate(dataFlow, commit, commits(commit)))
-      }
-    }
-
-    loopTest(pushes.keySet.intersect(commits.keySet), Success())
-  }
+trait DataFlowMetadataExtension[S <: DataFlow[S]] {
 
   /**
-    * Checks if commits refer to labels that are not produced in the flow.
-    *
-    * @param presentLabels labels that are produced in the data flow
-    * @return Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
+    * Used to identify an extension instance on the flow
     */
-  def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty)
+  def identifier: DataFlowMetadataExtensionIdentifier
 
-  def validate(dataFlow: DataFlow, outputLabels: Set[String], inputLabels: Set[String]): Try[Unit] = {
-    Try {
-      val c = commitsWithoutPushes().toArray
-      if (c.nonEmpty) throw new DataFlowException(s"There are no push definitions for commits: ${c.sorted.mkString("[", ", ", "]")}")
-
-      val pushes = pushesWithoutCommits().toArray
-      if (pushes.nonEmpty) throw new DataFlowException(s"There are no commits definitions for pushes: ${pushes.sorted.mkString("[", ", ", "]")}")
-
-      val notPresent = phantomLabels(outputLabels).mapValues(_.mkString("{", ", ", "}"))
-      if (notPresent.nonEmpty) throw new DataFlowException(s"Commit definitions with labels that are not produced by any action: ${notPresent.mkString("[", ", ", "]")}")
-
-    }.flatMap(_ => validateCommitters(dataFlow))
-  }
-}
-
-object CommitMeta {
-
-  def empty: CommitMeta = new CommitMeta(Map.empty, Map.empty)
+  /**
+    * Function that is called just before a flow is executed.
+    * This function can be used to:
+    * * Validate a flow (using the metadata state)
+    * * Change the flow in some way (using the metadata state)
+    *
+    * This function can be called multiple times until all invocations stabilise.
+    * Ensure you remove the extension from the flow to prevent the extension being called again.
+    */
+  def preExecutionManipulation(flow: S): S
 
 }
 
-case class CommitEntry(label: String, commitName: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean, cache: Boolean)
+/**
+  * Trait used as an identifier for an instance of an extension.
+  */
+trait DataFlowMetadataExtensionIdentifier
+
+/**
+  * Trait used to define a DataFlow Configuration extension.
+  * This type of extension adds a pre-execution hook when an extension is enabled
+  * by setting `spark.waimak.dataflow.extensions=${extensionKey},otherextension`.
+  *
+  * Instances of this trait must be registered services in the `META-INF/services`
+  * file as they are loaded using [[ServiceLoader]].
+  */
+trait DataFlowConfigurationExtension[S <: DataFlow[S]] {
+
+  /**
+    * Key of this extension (must not contain ',')
+    */
+  def extensionKey: String
+
+  /**
+    * Manipulation function that is invoked once before an flow is executed
+    */
+  def preExecutionManipulation(flow: S): S
+
+}

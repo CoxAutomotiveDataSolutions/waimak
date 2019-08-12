@@ -91,15 +91,6 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
 
     describe("failures") {
 
-      it("wrong type of the data flow") {
-        val baseDest = testingBaseDir + "/dest"
-        val emptyFlow = MockDataFlow.empty
-        val committer = ParquetDataCommitter(baseDest)
-        val res = committer.validate(emptyFlow, "f1", Seq.empty)
-        res shouldBe a[Failure[_]]
-        res.failed.get.getMessage should be(s"""ParquetDataCommitter [f1] can only work with data flows derived from ${classOf[SparkDataFlow].getName}""")
-      }
-
       it("no temp folder") {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)
@@ -140,6 +131,8 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
     }
 
     describe("success") {
+
+      import CommitMetadataExtension._
 
       it("bare minimum") {
         val baseDest = testingBaseDir + "/dest"

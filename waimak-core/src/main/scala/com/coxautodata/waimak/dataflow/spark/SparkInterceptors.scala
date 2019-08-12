@@ -5,6 +5,7 @@ import com.coxautodata.waimak.log.Logging
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{DataFrameWriter, Dataset, SaveMode}
 import com.coxautodata.waimak.dataflow.spark.SparkActionHelpers._
+import org.apache.spark.storage.StorageLevel
 /**
   * Defines builder functions that add various interceptors to a [[SparkDataFlow]]
   *
@@ -27,6 +28,23 @@ object SparkInterceptors extends Logging {
     sparkFlow.addInterceptor(interceptor, toIntercept.guid)
   }
 
+  def addSparkCache(sparkFlow: SparkDataFlow, outputLabel: String, storageLevel: StorageLevel, dfFunc: Dataset[_] => Dataset[_]): SparkDataFlow = {
+    def post(data: Option[Any]): Option[Dataset[_]] = {
+      logInfo(s"About to cache the $outputLabel. Dataset is defined: ${data.isDefined}")
+      data
+        .map(checkIfDataset(_, outputLabel, "sparkCache"))
+        .map(dfFunc)
+        .map { ds =>
+          val cached = ds.persist(storageLevel)
+          //force cache to happen here by calling inexpensive action
+          cached.rdd.isEmpty()
+          cached
+        }
+    }
+
+    addPostAction(sparkFlow, outputLabel, CachePostAction(post, outputLabel))
+  }
+
   def addPostCacheAsParquet(sparkFlow: SparkDataFlow, outputLabel: String)
                            (dfFunc: Dataset[_] => Dataset[_])
                            (dfwFunc: DataFrameWriter[_] => DataFrameWriter[_]): SparkDataFlow = {
@@ -44,11 +62,6 @@ object SparkInterceptors extends Logging {
     }
 
     addPostAction(sparkFlow, outputLabel, CachePostAction(post, outputLabel))
-  }
-
-  def addCacheAsParquet(sparkFlow: SparkDataFlow, outputLabel: String, partitions: Option[Either[Seq[String], Int]], repartition: Boolean): SparkDataFlow = {
-    val (df, dfw) = applyRepartitionAndPartitionBy(partitions, repartition)
-    addPostCacheAsParquet(sparkFlow, outputLabel)(df)(dfw)
   }
 
   def addPostTransform(sparkFlow: SparkDataFlow, outputLabel: String)(transform: Dataset[_] => Dataset[_]): SparkDataFlow = {
