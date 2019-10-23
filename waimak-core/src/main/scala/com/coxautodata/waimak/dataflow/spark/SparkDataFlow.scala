@@ -1,11 +1,8 @@
 package com.coxautodata.waimak.dataflow.spark
 
-import java.io.FileNotFoundException
-
 import com.coxautodata.waimak.dataflow._
 import com.coxautodata.waimak.log.Logging
-import com.coxautodata.waimak.metastore.HadoopDBConnector
-import org.apache.hadoop.fs.{FileAlreadyExistsException, Path, PathOperationException}
+import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{Dataset, SparkSession}
 
 import scala.util.Try
@@ -124,67 +121,12 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
   override def setMetadataExtensions(extensions: Set[DataFlowMetadataExtension[SparkDataFlow]]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = extensions))
 }
 
-case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
-
-private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefinition], tempPath: Path) extends SparkDataFlowAction with Logging {
-  val inputLabels: List[String] = List.empty
-  val outputLabels: List[String] = List.empty
-
-  override val requiresAllInputs = false
-
-  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
-
-    // Create path objects
-    val srcDestMap: Map[String, (Path, Path)] = commitLabels.map {
-      e =>
-        val tableName = e._1
-        val destDef = e._2
-        val srcPath = new Path(tempPath, tableName)
-        val destPathBase = new Path(s"${destDef.basePath}/$tableName")
-        val destPath = destDef.timestampFolder.map(new Path(destPathBase, _)).getOrElse(destPathBase)
-        if (!flowContext.fileSystem.exists(srcPath)) throw new FileNotFoundException(s"Cannot commit table $tableName as " +
-          s"the source path does not exist: ${srcPath.toUri.getPath}")
-        if (flowContext.fileSystem.exists(destPath)) throw new FileAlreadyExistsException(s"Cannot commit table $tableName as " +
-          s"the destination path already exists: ${destPath.toUri.getPath}")
-        tableName -> (srcPath, destPath)
-    }
-
-    // Directory moving
-    srcDestMap.foreach {
-      e =>
-        val label = e._1
-        val srcPath = e._2._1
-        val destPath = e._2._2
-        if (!flowContext.fileSystem.exists(destPath.getParent)) {
-          logInfo(s"Creating parent folder ${destPath.getParent.toUri.getPath} for label $label")
-          val res = flowContext.fileSystem.mkdirs(destPath.getParent)
-          if (!res) throw new PathOperationException(s"Could not create parent directory: ${destPath.getParent.toUri.getPath} for label $label")
-        }
-        val res = flowContext.fileSystem.rename(srcPath, destPath)
-        if (!res) throw new PathOperationException(s"Could not move path ${srcPath.toUri.getPath} to ${destPath.toUri.getPath} for label $label")
-    }
-
-    // Table Commits
-    commitLabels.filter(_._2.connection.isDefined)
-      .groupBy(_._2.connection.get)
-      .mapValues(_.map {
-        case (label, commitDefinition) =>
-          commitDefinition.connection.get.updateTableParquetLocationDDLs(label, srcDestMap(label)._2.toUri.getPath, commitDefinition.partitions)
-      }).foreach {
-      case (connection, ddls) => connection.submitAtomicResultlessQueries(ddls.flatten.toSeq)
-    }
-
-    List.empty
-  }
-}
-
 case class SparkDataFlowInfo(spark: SparkSession,
                              inputs: DataFlowEntities,
                              actions: Seq[DataFlowAction],
                              sqlTables: Set[String],
                              tempFolder: Option[Path],
                              schedulingMeta: SchedulingMeta,
-                             commitLabels: Map[String, LabelCommitDefinition] = Map.empty,
                              tagState: DataFlowTagState = DataFlowTagState(Set.empty, Set.empty, Map.empty),
                              extensionMetadata: Set[DataFlowMetadataExtension[SparkDataFlow]] = Set.empty,
                              executor: DataFlowExecutor = Waimak.sparkExecutor())
@@ -209,9 +151,4 @@ object SparkDataFlow {
   def apply(spark: SparkSession, stagingFolder: Path, inputs: DataFlowEntities, actions: Seq[DataFlowAction]): SparkDataFlow = new SparkDataFlow(SparkDataFlowInfo(spark, inputs, actions, Set.empty, Some(stagingFolder), new SchedulingMeta()))
 
   def apply(spark: SparkSession, stagingFolder: Option[Path], inputs: DataFlowEntities, actions: Seq[DataFlowAction], sqlTables: Set[String]): SparkDataFlow = new SparkDataFlow(SparkDataFlowInfo(spark, inputs, actions, sqlTables, stagingFolder, new SchedulingMeta()))
-
-  def apply(spark: SparkSession, stagingFolder: Option[Path], inputs: DataFlowEntities, actions: Seq[DataFlowAction], sqlTables: Set[String], commitLabels: Map[String, LabelCommitDefinition]): SparkDataFlow = new SparkDataFlow(SparkDataFlowInfo(spark, inputs, actions, sqlTables, stagingFolder, new SchedulingMeta(), commitLabels))
-
-  def apply(spark: SparkSession, stagingFolder: Option[Path], inputs: DataFlowEntities, actions: Seq[DataFlowAction], sqlTables: Set[String], commitLabels: Map[String, LabelCommitDefinition], tagState: DataFlowTagState): SparkDataFlow = new SparkDataFlow(SparkDataFlowInfo(spark, inputs, actions, sqlTables, stagingFolder, new SchedulingMeta(), commitLabels, tagState))
-
 }

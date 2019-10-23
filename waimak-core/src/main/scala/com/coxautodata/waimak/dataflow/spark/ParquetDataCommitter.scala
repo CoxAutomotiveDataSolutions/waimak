@@ -1,12 +1,13 @@
 package com.coxautodata.waimak.dataflow.spark
 
+import java.io.FileNotFoundException
 import java.util.UUID
 
 import com.coxautodata.waimak.dataflow.{ActionResult, _}
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.metastore.HadoopDBConnector
 import org.apache.hadoop.fs.permission.FsAction
-import org.apache.hadoop.fs.{FileStatus, Path}
+import org.apache.hadoop.fs.{FileAlreadyExistsException, FileStatus, Path, PathOperationException}
 
 import scala.util.Try
 
@@ -80,8 +81,8 @@ case class ParquetDataCommitter(outputBaseFolder: String,
   override protected[dataflow] def moveToPermanentStorageFlow(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: SparkDataFlow): SparkDataFlow = {
     val sparkFlow = flow.asInstanceOf[SparkDataFlow]
     val commitTempBase = commitTempPath(commitName, commitUUID, sparkFlow.tempFolder)
-    val commitLabels = labels.map(ce => (ce.label, LabelCommitDefinition(outputBaseFolder, snapshotFolder, ce.partitions.flatMap(_.left.toOption).getOrElse(Seq.empty), hadoopDBConnector))).toMap
-    sparkFlow.addAction(CommitAction(commitLabels, commitTempBase))
+    val commitLabels = labels.map(ce => (ce.label, ParquetLabelCommitDefinition(outputBaseFolder, snapshotFolder, ce.partitions.flatMap(_.left.toOption).getOrElse(Seq.empty), hadoopDBConnector))).toMap
+    sparkFlow.addAction(ParquetCommitAction(commitLabels, commitTempBase))
   }
 
   override protected[dataflow] def finish(commitName: String, commitUUID: UUID, labels: Seq[CommitEntry], flow: SparkDataFlow): SparkDataFlow = cleanupStrategy.fold(flow) { strategy =>
@@ -215,4 +216,59 @@ case class FSCleanUp(baseFolder: String
     */
   override val outputLabels: List[String] = List.empty
   override val inputLabels: List[String] = List.empty
+}
+
+
+case class ParquetLabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
+
+private[spark] case class ParquetCommitAction(commitLabels: Map[String, ParquetLabelCommitDefinition], tempPath: Path) extends SparkDataFlowAction with Logging {
+  val inputLabels: List[String] = List.empty
+  val outputLabels: List[String] = List.empty
+
+  override val requiresAllInputs = false
+
+  override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
+
+    // Create path objects
+    val srcDestMap: Map[String, (Path, Path)] = commitLabels.map {
+      e =>
+        val tableName = e._1
+        val destDef = e._2
+        val srcPath = new Path(tempPath, tableName)
+        val destPathBase = new Path(s"${destDef.basePath}/$tableName")
+        val destPath = destDef.timestampFolder.map(new Path(destPathBase, _)).getOrElse(destPathBase)
+        if (!flowContext.fileSystem.exists(srcPath)) throw new FileNotFoundException(s"Cannot commit table $tableName as " +
+          s"the source path does not exist: ${srcPath.toUri.getPath}")
+        if (flowContext.fileSystem.exists(destPath)) throw new FileAlreadyExistsException(s"Cannot commit table $tableName as " +
+          s"the destination path already exists: ${destPath.toUri.getPath}")
+        tableName -> (srcPath, destPath)
+    }
+
+    // Directory moving
+    srcDestMap.foreach {
+      e =>
+        val label = e._1
+        val srcPath = e._2._1
+        val destPath = e._2._2
+        if (!flowContext.fileSystem.exists(destPath.getParent)) {
+          logInfo(s"Creating parent folder ${destPath.getParent.toUri.getPath} for label $label")
+          val res = flowContext.fileSystem.mkdirs(destPath.getParent)
+          if (!res) throw new PathOperationException(s"Could not create parent directory: ${destPath.getParent.toUri.getPath} for label $label")
+        }
+        val res = flowContext.fileSystem.rename(srcPath, destPath)
+        if (!res) throw new PathOperationException(s"Could not move path ${srcPath.toUri.getPath} to ${destPath.toUri.getPath} for label $label")
+    }
+
+    // Table Commits
+    commitLabels.filter(_._2.connection.isDefined)
+      .groupBy(_._2.connection.get)
+      .mapValues(_.map {
+        case (label, commitDefinition) =>
+          commitDefinition.connection.get.updateTableParquetLocationDDLs(label, srcDestMap(label)._2.toUri.getPath, commitDefinition.partitions)
+      }).foreach {
+      case (connection, ddls) => connection.submitAtomicResultlessQueries(ddls.flatten.toSeq)
+    }
+
+    List.empty
+  }
 }

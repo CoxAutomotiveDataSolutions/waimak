@@ -1,6 +1,5 @@
 package com.coxautodata.waimak.spark.app
 
-import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.SparkDataFlow
 
 class TestMultiAppRunner extends AppRunnerSpec {
