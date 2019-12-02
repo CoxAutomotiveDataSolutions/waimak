@@ -39,6 +39,7 @@ case class WriteAsNamedFilesAction(label: String, tempBasePath: Path, destBasePa
       }
       .foreach {
         case (sourceFile, number) =>
+          flowContext.fileSystem.mkdirs(destBasePath)
           val destPath = new Path(destBasePath, s"${filenamePrefix}${number}${getOutputExtension(sourceFile.getPath)}")
           if (!flowContext.fileSystem.rename(sourceFile.getPath, destPath)) throw new DataFlowException(s"Failed to move file [${sourceFile.getPath}] to [$destPath]")
       }
