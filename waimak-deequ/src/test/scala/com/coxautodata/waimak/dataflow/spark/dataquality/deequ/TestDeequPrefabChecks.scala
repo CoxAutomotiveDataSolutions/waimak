@@ -199,7 +199,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
   }
 
   describe("GenericSQLCheck") {
-    def getFlow(_sparkSession: SparkSession): SparkDataFlow = {
+    def getFlow(_sparkSession: SparkSession, warningCheck: String = "col1 <= 08"): SparkDataFlow = {
       val spark = _sparkSession
 
       import spark.implicits._
@@ -211,7 +211,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
       spark.conf.set("spark.waimak.dataquality.alerters.exception.alertOn", "critical")
       spark.conf.set("spark.waimak.dataquality.deequ.labelsToMonitor", "testOutput")
       spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.checks", "genericSQLCheck")
-      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.genericSQLCheck.warningChecks", "col1 <= 08")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.genericSQLCheck.warningChecks", warningCheck)
 
       val ds = Seq(
         TestDataForDataQualityCheck("01", "bla")
@@ -246,7 +246,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
     it("should trigger alerts if the condition is not satisfied") {
       val spark = sparkSession
-      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.genericSQLCheck.criticalChecks", "length(col2)=4,col2 is not null")
+      spark.conf.set("spark.waimak.dataquality.deequ.labels.testOutput.genericSQLCheck.criticalChecks", "length(col2)=4;col2 is not null")
 
       val cause = intercept[DataFlowException] {
         getFlow(sparkSession)
@@ -260,6 +260,17 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
         "Warning alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col1 <= 08,None)) : Value: 0.8 does not meet the constraint requirement!"
         , "Critical alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col2 is not null,None)) : Value: 0.5 does not meet the constraint requirement!"
         , "Critical alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,length(col2)=4,None)) : Value: 0.3 does not meet the constraint requirement!"
+      )
+    }
+
+    it("should work with checks which have commas in them") {
+      val spark = sparkSession
+      getFlow(sparkSession, warningCheck = "col1 in ('01', '02')")
+        .execute()
+
+      val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
+      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs Seq(
+        "Warning alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col1 in ('01', '02'),None)) : Value: 0.2 does not meet the constraint requirement!"
       )
     }
 
