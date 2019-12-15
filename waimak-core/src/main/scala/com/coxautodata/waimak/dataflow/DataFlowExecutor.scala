@@ -77,24 +77,18 @@ trait DataFlowExecutor extends Logging {
 
   @tailrec
   private def loopExecution[A <: DataFlow[A]](currentFlow: A
-                            , actionScheduler: ActionScheduler
-                            , successfulActions: Seq[DataFlowAction]
-                           ): (ActionScheduler, Try[(Seq[DataFlowAction], A)]) = {
-    toSchedule(currentFlow, actionScheduler) match {
+                                              , actionScheduler: ActionScheduler
+                                              , successfulActions: Seq[DataFlowAction]
+                                             ): (ActionScheduler, Try[(Seq[DataFlowAction], A)]) = {
+    nextActionToSchedule(currentFlow, actionScheduler) match {
       case None if !actionScheduler.hasRunningActions => //No more actions to schedule and none are running => finish data flow execution
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
         (actionScheduler, Success((successfulActions, currentFlow)))
-      case None => {
-        actionScheduler.waitToFinish(currentFlow.flowContext, flowReporter) match { // nothing to schedule, in order to continue need to wait for some running actions to finish to unlock other actions
-          case Success((newScheduler, actionResults)) => {
-            processActionResults(actionResults, currentFlow, successfulActions) match {
-              case Success((newFlow, newSuccessfulActions)) => loopExecution(newFlow, newScheduler, newSuccessfulActions)
-              case Failure(e) => (actionScheduler, Failure(e))
-            }
-          }
+      case None =>
+        waitForAnActionToFinish(currentFlow, actionScheduler, successfulActions) match {
+          case Success((newFlow, newScheduler, newSuccessfulActions)) => loopExecution(newFlow, newScheduler, newSuccessfulActions)
           case Failure(e) => (actionScheduler, Failure(e))
         }
-      }
       case Some((executionPoolName, action)) => {
         //submit action for execution aka to schedule
         val inputEntities: DataFlowEntities = {
@@ -103,6 +97,26 @@ trait DataFlowExecutor extends Logging {
         loopExecution(currentFlow, actionScheduler.schedule(executionPoolName, action, inputEntities, currentFlow.flowContext, flowReporter), successfulActions)
       }
     }
+  }
+
+  def waitForAnActionToFinish[A <: DataFlow[A]](currentFlow: A
+                                                , actionScheduler: ActionScheduler
+                                                , successfulActions: Seq[DataFlowAction]
+                                                , cascade: Boolean = false): Try[(A, ActionScheduler, Seq[DataFlowAction])] = {
+    val (newScheduler, actionResults) = actionScheduler.waitToFinish(currentFlow.flowContext, flowReporter)
+    processActionResults(actionResults, currentFlow, successfulActions)
+      .flatMap {
+        case (newFlow, newSuccessfulActions) if newScheduler.hasRunningActions && cascade => waitForAnActionToFinish(newFlow, newScheduler, newSuccessfulActions, true)
+        case (newFlow, newSuccessfulActions) => Success(newFlow, newScheduler, newSuccessfulActions)
+      }
+      .recoverWith {
+        case e: Throwable =>
+          if (newScheduler.hasRunningActions) {
+            //Allow currently running actions to finish
+            waitForAnActionToFinish(currentFlow, newScheduler, successfulActions, true)
+          }
+          Failure(e)
+      }
   }
 
   /**
@@ -116,14 +130,13 @@ trait DataFlowExecutor extends Logging {
     * @param actionScheduler
     * @return (Pool into which to schedule, Action to schedule)
     */
-  protected[dataflow] def toSchedule[A <: DataFlow[A]](currentFlow: A, actionScheduler: ActionScheduler): Option[(String, DataFlowAction)] = {
-    val toSchedule: Option[(String, DataFlowAction)] = actionScheduler
-      .availableExecutionPools()
-      .flatMap(executionPoolNames => priorityStrategy(actionScheduler.dropRunning(executionPoolNames, currentFlow.nextRunnable(executionPoolNames)))
-        .headOption.map(actionToSchedule => (currentFlow.schedulingMeta.executionPoolName(actionToSchedule), actionToSchedule))
-      )
-    toSchedule
-  }
+  protected[dataflow] def nextActionToSchedule[A <: DataFlow[A]](currentFlow: A, actionScheduler: ActionScheduler): Option[(String, DataFlowAction)] =
+    for {
+      availablePools <- actionScheduler.availableExecutionPools
+      runnableActions = currentFlow.nextRunnable(availablePools)
+      nextAction <- priorityStrategy(actionScheduler.dropRunning(availablePools, runnableActions)).headOption
+    } yield (currentFlow.schedulingMeta.executionPoolName(nextAction), nextAction)
+
 
   /**
     * Marks actions as processed in the data flow and if all were successful return new state of the data flow.
@@ -135,8 +148,8 @@ trait DataFlowExecutor extends Logging {
     *         if at least one action in the actionResults has failed
     */
   private[dataflow] def processActionResults[A <: DataFlow[A]](actionResults: Seq[(DataFlowAction, Try[ActionResult])]
-                                             , currentFlow: A
-                                             , successfulActionsUntilNow: Seq[DataFlowAction]): Try[(A, Seq[DataFlowAction])] = {
+                                                               , currentFlow: A
+                                                               , successfulActionsUntilNow: Seq[DataFlowAction]): Try[(A, Seq[DataFlowAction])] = {
     val (success, failed) = actionResults.partition(_._2.isSuccess)
     val res = success.foldLeft((currentFlow, successfulActionsUntilNow)) { (res, actionRes) =>
       val action = actionRes._1

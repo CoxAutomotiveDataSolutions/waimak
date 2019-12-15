@@ -10,12 +10,11 @@ import scala.util.{Failure, Success, Try}
   * Created by Alexei Perelighin on 2018/07/06
   *
   * @param toRun  scheduled action. If None, than nothing is scheduled
-  * @tparam C
   */
 class SequentialScheduler(val toRun: Option[(DataFlowAction, DataFlowEntities, FlowContext)])
   extends ActionScheduler with Logging {
 
-  override def availableExecutionPools(): Option[Set[String]] = {
+  override def availableExecutionPools: Option[Set[String]] = {
     logDebug("canSchedule " + toRun)
     if (toRun.isDefined) None else Some(Set(DEFAULT_POOL_NAME))
   }
@@ -24,16 +23,16 @@ class SequentialScheduler(val toRun: Option[(DataFlowAction, DataFlowEntities, F
 
   override def hasRunningActions: Boolean = toRun.isDefined
 
-  override def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): Try[(ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])])] = {
+  override def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): (ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])]) = {
     logInfo("waitToFinish " + toRun.fold("None")(e => e._1.logLabel))
     toRun match {
       case Some((action, entities, context)) => {
         flowReporter.reportActionStarted(action, flowContext)
         val actionRes = Seq((action, Try(action.performAction(entities, context)).flatten))
         flowReporter.reportActionFinished(action, flowContext)
-        Success((new SequentialScheduler(None), actionRes))
+        (new SequentialScheduler(None), actionRes)
       }
-      case None => Failure(new RuntimeException("Error while waiting to finish"))
+      case None => throw new RuntimeException("Called waitToFinish when there is nothing to run")
     }
   }
 
