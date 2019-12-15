@@ -65,34 +65,34 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
 
   override def hasRunningActions: Boolean = pools.exists(kv => kv._2.running.nonEmpty)
 
-  @tailrec
-  final def waitToFinishRec(finished: Option[Seq[futureResult]]): (ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])]) = {
-    finished match {
-      case None =>
-        val runningActionsCount = pools.map(_._2.running.size).sum
-        logInfo(s"Waiting for an action to finish to continue. Running actions: $runningActionsCount")
-        waitToFinishRec(Option(actionFinishedNotificationQueue.poll(1, TimeUnit.MINUTES))
-          .map { oneAction =>
-            //optimistic attempt to get results for more actions without blocking
-            val bucket = new util.LinkedList[futureResult]()
-            actionFinishedNotificationQueue.drainTo(bucket, 1000)
-            bucket.asScala :+ oneAction
-          }
-        )
-      case Some(rSet) =>
-        val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet)
-        poolActionGuids.foreach(kv => logDebug("waitToFinish finished: " + kv._1 + " " + kv._2.mkString("[", ",", "]")))
-        val newPools = poolActionGuids.foldLeft(pools) { (newPools, kv) =>
-          val newPoolDesc = newPools(kv._1).removeActionGUIDS(kv._2)
-          newPools + (kv._1 -> newPoolDesc)
-        }
-        (new ParallelActionScheduler(newPools, actionFinishedNotificationQueue), rSet.map(r => (r._2, r._3)))
-    }
-  }
-
 
   override def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): (ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])]) = {
-    waitToFinishRec(None)
+    @tailrec
+    def loop(finished: Option[Seq[futureResult]]): (ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])]) = {
+      finished match {
+        case None =>
+          val runningActionsCount = pools.map(_._2.running.size).sum
+          logInfo(s"Waiting for an action to finish to continue. Running actions: $runningActionsCount")
+          loop(Option(actionFinishedNotificationQueue.poll(1, TimeUnit.MINUTES))
+            .map { oneAction =>
+              //optimistic attempt to get results for more actions without blocking
+              val bucket = new util.LinkedList[futureResult]()
+              actionFinishedNotificationQueue.drainTo(bucket, 1000)
+              bucket.asScala :+ oneAction
+            }
+          )
+        case Some(rSet) =>
+          val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet)
+          poolActionGuids.foreach(kv => logDebug("waitToFinish finished: " + kv._1 + " " + kv._2.mkString("[", ",", "]")))
+          val newPools = poolActionGuids.foldLeft(pools) { (newPools, kv) =>
+            val newPoolDesc = newPools(kv._1).removeActionGUIDS(kv._2)
+            newPools + (kv._1 -> newPoolDesc)
+          }
+          (new ParallelActionScheduler(newPools, actionFinishedNotificationQueue), rSet.map(r => (r._2, r._3)))
+      }
+    }
+    
+    loop(None)
   }
 
   override def schedule(poolName: String, action: DataFlowAction, entities: DataFlowEntities, flowContext: FlowContext, flowReporter: FlowReporter): ActionScheduler = {
