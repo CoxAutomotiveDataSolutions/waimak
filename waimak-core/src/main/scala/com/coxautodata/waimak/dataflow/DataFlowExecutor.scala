@@ -84,18 +84,17 @@ trait DataFlowExecutor extends Logging {
       case None if !actionScheduler.hasRunningActions => //No more actions to schedule and none are running => finish data flow execution
         logInfo(s"Flow exit successfulActions: ${successfulActions.mkString("[", "", "]")} remaining: ${currentFlow.actions.mkString("[", ",", "]")}")
         (actionScheduler, Success((successfulActions, currentFlow)))
-      case None =>
+      case None => //nothing to schedule, in order to continue need to wait for some running actions to finish to unlock other actions
         waitForAnActionToFinish(currentFlow, actionScheduler, successfulActions) match {
           case Success((newFlow, newScheduler, newSuccessfulActions)) => loopExecution(newFlow, newScheduler, newSuccessfulActions)
           case Failure(e) => (actionScheduler, Failure(e))
         }
-      case Some((executionPoolName, action)) => {
-        //submit action for execution aka to schedule
+      case Some((executionPoolName, action)) => //submit action for execution aka to schedule
         val inputEntities: DataFlowEntities = {
           currentFlow.inputs.filterLabels(action.inputLabels)
         }
         loopExecution(currentFlow, actionScheduler.schedule(executionPoolName, action, inputEntities, currentFlow.flowContext, flowReporter), successfulActions)
-      }
+
     }
   }
 

@@ -91,7 +91,7 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
           (new ParallelActionScheduler(newPools, actionFinishedNotificationQueue), rSet.map(r => (r._2, r._3)))
       }
     }
-    
+
     loop(None)
   }
 
