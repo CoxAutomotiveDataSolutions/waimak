@@ -73,7 +73,6 @@ Waimak currently consists of the following modules:
 Artifact ID | Purpose | Maven Release
 ----------- | ------- | -------------
 `waimak-core` | Core Waimak functionality and generic actions | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-core*) 
-`waimak-configuration` | Non-flow functionality to simplify configuration | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration*)
 `waimak-configuration-databricks` | Databricks-specific configuration provider using secret scopes (Scala 2.11 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration-databricks*)
 `waimak-impala` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-impala*)
 `waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-hive*)

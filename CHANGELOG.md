@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.8 - 2019-12-18
+
+### Changed
+- Delimiter for the Deequ `genericSQLCheck` changed from a comma to a semi-colon to allow for checks which have commas in them
+- `writeAsNamedFiles` now creates the destination directory before performing the write
+- Refactored internal scheduler code to make it more functional
+
 ## 2.7 - 2019-08-12
 
 ### Added
@@ -12,7 +19,7 @@
 ### Changed
 - Using F-bounded types on `DataFlow`
 - High-level storage layer API exposed outside of actions (in addition to existing actions)
-- Spark 2.4.3 now used for Scala 2.12 build (no longer experimnental)
+- Spark 2.4.3 now used for Scala 2.12 build (no longer experimental)
 
 ### Removed
 - waimak-rdbm-export and waimak-azure-table modules 
