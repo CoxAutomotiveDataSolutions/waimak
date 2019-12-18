@@ -35,11 +35,11 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
     describe("availableExecutionPool") {
 
       it("nothing is running") {
-        emptySchedulerOneThread.availableExecutionPools() should be (Some(Set(DEFAULT_POOL_NAME)))
+        emptySchedulerOneThread.availableExecutionPools should be (Some(Set(DEFAULT_POOL_NAME)))
       }
 
       it("action already running") {
-        dummyBusySchedulerOneThread.availableExecutionPools() should be (None)
+        dummyBusySchedulerOneThread.availableExecutionPools should be (None)
       }
 
     }
@@ -88,9 +88,9 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
       it("an input only one action is running") {
         val withAction = emptySchedulerOneThread.schedule(DEFAULT_POOL_NAME, action1, DataFlowEntities.empty, flowContext, reporter)
         val res = withAction.waitToFinish(flowContext, reporter)
-        val scheduler = res.get._1.asInstanceOf[ParallelActionScheduler]
+        val scheduler = res._1.asInstanceOf[ParallelActionScheduler]
         scheduler.pools.get(DEFAULT_POOL_NAME).map(_.running.isEmpty) should be(Some(true))
-        res.get._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
+        res._2 should be(Seq((action1, Success(List(Some("v1"), Some("v2"))))))
       }
 
       it("wait for failed action") {
@@ -108,7 +108,7 @@ class TestParallelActionScheduler extends FunSpec with Matchers {
         nextScheduler.pools.size should be(1)
         nextScheduler.pools.get(DEFAULT_POOL_NAME).map(_.running) should be(Some(Set(action1.guid)))
         nextScheduler.hasRunningActions should be(true)
-        nextScheduler.availableExecutionPools() should be(None)
+        nextScheduler.availableExecutionPools should be(None)
       }
 
       //TODO: figure out a way to test when no slots are available in the Executor
