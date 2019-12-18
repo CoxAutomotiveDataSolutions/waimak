@@ -16,7 +16,7 @@ trait ActionScheduler {
     * @return None if none of the pools are available for scheduling and Some(Set[AVAILABLE POOL NAME]) - all pools
     *         that are available for scheduling
     */
-  def availableExecutionPools(): Option[Set[String]]
+  def availableExecutionPools: Option[Set[String]]
 
   /**
     * Removes actions that are already running in the specified set pools.
@@ -42,7 +42,7 @@ trait ActionScheduler {
     * @param flowReporter  object that is used to signal start and end of the action execution
     * @return
     */
-  def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): Try[(ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])])]
+  def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): (ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])])
 
   /**
     * Submits action into the specified execution pool.

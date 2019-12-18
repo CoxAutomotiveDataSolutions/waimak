@@ -5,6 +5,7 @@ import java.util.concurrent.{BlockingQueue, Executors, LinkedBlockingQueue, Time
 
 import com.coxautodata.waimak.log.Logging
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future}
 import scala.util.control.NonFatal
@@ -64,33 +65,34 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
 
   override def hasRunningActions: Boolean = pools.exists(kv => kv._2.running.nonEmpty)
 
-  override def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): Try[(ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])])] = {
-    Try {
-      var finished: Option[Seq[futureResult]] = None
-      do {
-        val runningActionsCount = pools.map(_._2.running.size).sum
-        logInfo(s"Waiting for an action to finish to continue. Running actions: $runningActionsCount")
-        finished = Option(actionFinishedNotificationQueue.poll(1, TimeUnit.MINUTES))
-          .map { oneAction =>
-            //optimistic attempt to get results for more actions without blocking
-            val bucket = new util.LinkedList[futureResult]()
-            actionFinishedNotificationQueue.drainTo(bucket, 1000)
-            bucket.asScala :+ oneAction
+
+  override def waitToFinish(flowContext: FlowContext, flowReporter: FlowReporter): (ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])]) = {
+    @tailrec
+    def loop(finished: Option[Seq[futureResult]]): (ActionScheduler, Seq[(DataFlowAction, Try[ActionResult])]) = {
+      finished match {
+        case None =>
+          val runningActionsCount = pools.map(_._2.running.size).sum
+          logInfo(s"Waiting for an action to finish to continue. Running actions: $runningActionsCount")
+          loop(Option(actionFinishedNotificationQueue.poll(1, TimeUnit.MINUTES))
+            .map { oneAction =>
+              //optimistic attempt to get results for more actions without blocking
+              val bucket = new util.LinkedList[futureResult]()
+              actionFinishedNotificationQueue.drainTo(bucket, 1000)
+              bucket.asScala :+ oneAction
+            }
+          )
+        case Some(rSet) =>
+          val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet)
+          poolActionGuids.foreach(kv => logDebug("waitToFinish finished: " + kv._1 + " " + kv._2.mkString("[", ",", "]")))
+          val newPools = poolActionGuids.foldLeft(pools) { (newPools, kv) =>
+            val newPoolDesc = newPools(kv._1).removeActionGUIDS(kv._2)
+            newPools + (kv._1 -> newPoolDesc)
           }
-      } while (finished.isEmpty)
-      finished.map { rSet =>
-        val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet)
-        poolActionGuids.foreach(kv => logDebug("waitToFinish finished: " + kv._1 + " " + kv._2.mkString("[", ",", "]")))
-        val newPools = poolActionGuids.foldLeft(pools) { (newPools, kv) =>
-          val newPoolDesc = newPools(kv._1).removeActionGUIDS(kv._2)
-          newPools + (kv._1 -> newPoolDesc)
-        }
-        (new ParallelActionScheduler(newPools, actionFinishedNotificationQueue), rSet.map(r => (r._2, r._3)))
+          (new ParallelActionScheduler(newPools, actionFinishedNotificationQueue), rSet.map(r => (r._2, r._3)))
       }
-    }.flatMap {
-      case Some(r) => Success(r)
-      case _ => Failure(new DataFlowException(s"Something went wrong!!! Not sure what happened."))
     }
+
+    loop(None)
   }
 
   override def schedule(poolName: String, action: DataFlowAction, entities: DataFlowEntities, flowContext: FlowContext, flowReporter: FlowReporter): ActionScheduler = {
@@ -107,8 +109,8 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
           action.performAction(entities, flowContext)
         } catch {
           case NonFatal(e) => throw e
-            //Wrap fatal exceptions in non-fatal exception
-          case e: Throwable => throw new DataFlowException("Fatal exception performing action" , e)
+          //Wrap fatal exceptions in non-fatal exception
+          case e: Throwable => throw new DataFlowException("Fatal exception performing action", e)
         }
       }
       (poolName, action, actionResult)
@@ -126,7 +128,7 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
     new ParallelActionScheduler(pools + (poolName -> newPoolDesc), actionFinishedNotificationQueue)
   }
 
-  override def availableExecutionPools(): Option[Set[String]] = {
+  override def availableExecutionPools: Option[Set[String]] = {
     val res = Option(pools.filter(kv => kv._2.running.size < kv._2.maxJobs).keySet).filter(_.nonEmpty)
     logInfo("availableExecutionPools: " + res.map(_.mkString("[", ",", "]")))
     res
