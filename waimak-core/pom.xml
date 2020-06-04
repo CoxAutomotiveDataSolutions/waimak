@@ -33,6 +33,11 @@
             <version>${scala.lang.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>com.beachape</groupId>
+            <artifactId>enumeratum_2.11</artifactId>
+            <version>1.5.15</version>
+        </dependency>
     </dependencies>
 
 </project>

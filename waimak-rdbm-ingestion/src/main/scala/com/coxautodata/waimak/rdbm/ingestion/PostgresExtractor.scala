@@ -75,7 +75,7 @@ class PostgresExtractor(override val sparkSession: SparkSession
       case (Some(userPKs), None) => Success(TableExtractionMetadata(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
       case (_, Some(pksFromDB)) => Success(TableExtractionMetadata(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
       case _ => Failure(PKsNotFoundOrProvidedException)
-    }).map(meta => AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString), retainStorageHistory(meta.lastUpdatedColumn)))
+    }).map(meta => AuditTableInfo(meta.tableName, meta.pks, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString), retainStorageHistory(meta.lastUpdatedColumn)))
   }
 
 

@@ -26,6 +26,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
 
   override def beforeAll(): Unit = {
+    cleanupTables() // Just for now
     setupTables()
   }
 
@@ -78,7 +79,11 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
 
   def cleanupTables(): Unit = {
     executeSQl(Seq(
-      "alter table TestTemporal set (SYSTEM_VERSIONING = OFF)"
+      """if exists (SELECT * FROM INFORMATION_SCHEMA.TABLES
+        |           WHERE TABLE_NAME = N'TestTemporal')
+        |begin
+        |    alter table TestTemporal set (SYSTEM_VERSIONING = OFF)
+        |end""".stripMargin
       , "drop table if exists TestTemporal"
       , "drop table if exists TestTemporalHistory"
       , "drop table if exists TestNonTemporal"

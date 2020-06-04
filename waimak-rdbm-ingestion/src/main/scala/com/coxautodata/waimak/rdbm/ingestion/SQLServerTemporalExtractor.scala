@@ -12,16 +12,27 @@ import scala.util.{Failure, Success, Try}
 
 
 /**
-  * A mechanism for generating Waimak actions to extract data from a SQL Server instance containing temporal tables
-  * Tables can be a mixture of temporal and non-temporal - both will be handled appropriately
-  *
-  * @param sparkSession              the SparkSession
-  * @param extraConnectionProperties jdbc properties to use (In addition to username and password)
-  */
+ * A mechanism for generating Waimak actions to extract data from a SQL Server instance containing temporal tables
+ * Tables can be a mixture of temporal and non-temporal - both will be handled appropriately
+ *
+ * @param sparkSession              the SparkSession
+ * @param extraConnectionProperties jdbc properties to use (In addition to username and password)
+ */
 class SQLServerTemporalExtractor(override val sparkSession: SparkSession
                                  , sqlServerConnectionDetails: SQLServerConnectionDetails
                                  , extraConnectionProperties: Properties = new Properties()) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
 
+  lazy val allTableMetadata: Map[String, SQLServerTemporalTableMetadata] = {
+    import sparkSession.implicits._
+    RDBMIngestionUtils.lowerCaseAll(
+      sparkSession.read
+        .option("driver", driverClass)
+        .jdbc(connectionDetails.jdbcString, metadataQuery, connectionProperties)
+    )
+      .as[SQLServerTemporalTableMetadata]
+      .collect()
+      .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata).toMap
+  }
   val metadataQuery: String =
     s"""(
        | SELECT SCHEMA_NAME(main.schema_id) as schemaName,
@@ -55,18 +66,6 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
        |  main.temporal_type
   ) m""".stripMargin
 
-  lazy val allTableMetadata: Map[String, SQLServerTemporalTableMetadata] = {
-    import sparkSession.implicits._
-    RDBMIngestionUtils.lowerCaseAll(
-      sparkSession.read
-        .option("driver", driverClass)
-        .jdbc(connectionDetails.jdbcString, metadataQuery, connectionProperties)
-    )
-      .as[SQLServerTemporalTableMetadata]
-      .collect()
-      .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata).toMap
-  }
-
   override def getTableMetadata(dbSchemaName: String
                                 , tableName: String
                                 , primaryKeys: Option[Seq[String]]
@@ -92,11 +91,13 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
                            , lastUpdated: Option[Timestamp]
                            , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
     val sqlServerTableMetadata: SQLServerTemporalTableMetadata = CaseClassConfigParser.fromMap[SQLServerTemporalTableMetadata](meta)
+
     val explicitColumnSelects = (for {
       startCol <- sqlServerTableMetadata.startColName
       endCol <- sqlServerTableMetadata.endColName
     } yield Seq(startCol, endCol).map(col => s"CAST($col AS DATETIME2(7)) AS $col"))
       .foldRight(Seq("0 as source_type"))((cols, dateCols) => cols ++ dateCols)
+
     val mainTable = sparkLoad(sqlServerTableMetadata.mainTableMetadata, lastUpdated, maxRowsPerPartition, explicitColumnSelects)
       .toDF
     val fullTable = sqlServerTableMetadata.historyTableMetadata.foldLeft(mainTable)((df, historyMetadata) => {
@@ -108,25 +109,9 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
     (fullTable, resolveLastUpdatedColumn(sqlServerTableMetadata.mainTableMetadata, sparkSession))
   }
 
-}
+  override def fromQueryPart(tableMetadata: ExtractionMetadata, lastUpdated: Option[Timestamp]): String = {
+    logInfo(s"table meta: ${tableMetadata} lastUpdated: ${lastUpdated}")
+    super.fromQueryPart(tableMetadata, lastUpdated)
+  }
 
-
-case class SQLServerTemporalTableMetadata(schemaName: String
-                                          , tableName: String
-                                          , historyTableSchema: Option[String] = None
-                                          , historyTableName: Option[String] = None
-                                          , startColName: Option[String] = None
-                                          , endColName: Option[String] = None
-                                          , primaryKeys: String) {
-
-  def pkCols: Seq[String] = primaryKeys.split(";").toSeq
-
-  def mainTableMetadata: TableExtractionMetadata = TableExtractionMetadata(schemaName, tableName, pkCols, startColName)
-
-  def historyTableMetadata: Option[TableExtractionMetadata] = for {
-    schema <- historyTableSchema
-    table <- historyTableName
-  } yield TableExtractionMetadata(schema, table, pkCols, endColName)
-
-  def isTemporal: Boolean = historyTableMetadata.isDefined
 }

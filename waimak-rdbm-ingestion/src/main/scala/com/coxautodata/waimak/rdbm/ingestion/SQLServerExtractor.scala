@@ -85,7 +85,7 @@ class SQLServerExtractor(override val sparkSession: SparkSession
       case (_, Some(pksFromDB)) => Success(TableExtractionMetadata(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
       case _ => Failure(PKsNotFoundOrProvidedException)
     }).map(meta => AuditTableInfo(meta.tableName
-      , meta.primaryKeys
+      , meta.pks
       , RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString)
       , retainStorageHistory(meta.lastUpdatedColumn)
     ))

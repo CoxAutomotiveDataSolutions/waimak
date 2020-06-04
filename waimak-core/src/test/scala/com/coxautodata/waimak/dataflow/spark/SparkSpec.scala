@@ -3,6 +3,7 @@ package com.coxautodata.waimak.dataflow.spark
 import java.nio.file.Files
 
 import org.apache.commons.io.FileUtils
+import org.apache.commons.lang3.SystemUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
 import org.scalatest.{BeforeAndAfterEach, FunSpec, Matchers}
@@ -16,7 +17,19 @@ trait SparkSpec extends FunSpec with Matchers with BeforeAndAfterEach {
   val master = "local[2]"
   val appName: String
 
-  def builderOptions: SparkSession.Builder => SparkSession.Builder = identity
+  /**
+   * Allows configuring spark session options. Override this in your own tests to set any
+   * config options you might wish to add. This default implementation also detects if you are
+   * running the tests on windows, and sets the bindAddress option to make the tests work.
+   *
+   * @see com.coxautodata.waimak.metastore.TestHiveDBConnector for an example
+   *
+   * @return a spark session
+   */
+  def builderOptions: SparkSession.Builder => SparkSession.Builder = { sparkSession =>
+    if (SystemUtils.IS_OS_WINDOWS) sparkSession.config("spark.driver.bindAddress", "localhost")
+    else sparkSession
+  }
 
   override def beforeEach(): Unit = {
     val preBuilder = SparkSession
