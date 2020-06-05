@@ -4,6 +4,7 @@ import java.sql.Timestamp
 import java.util.Properties
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
+import com.coxautodata.waimak.log.Level._
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.storage.AuditTableInfo
 import org.apache.spark.sql.{Column, Dataset, SparkSession}
@@ -109,9 +110,22 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
     (fullTable, resolveLastUpdatedColumn(sqlServerTableMetadata.mainTableMetadata, sparkSession))
   }
 
-  override def fromQueryPart(tableMetadata: ExtractionMetadata, lastUpdated: Option[Timestamp]): String = {
-    logInfo(s"table meta: ${tableMetadata} lastUpdated: ${lastUpdated}")
-    super.fromQueryPart(tableMetadata, lastUpdated)
+  override def selectQuery(tableMetadata: ExtractionMetadata, lastUpdated: Option[Timestamp], explicitColumnSelects: Seq[String]): String = {
+    val extraSelectCols = (explicitColumnSelects :+ s"$sourceDBSystemTimestampFunction as $systemTimestampColumnName").mkString(",")
+    logAndReturn(
+      s"""(select *, $extraSelectCols ${fromQueryPart(tableMetadata, lastUpdated)}) s""",
+      (query: String) => s"Query: $query for metadata ${tableMetadata.toString} for lastUpdated ${lastUpdated}",
+      Info
+    )
   }
 
+  override def fromQueryPart(tableMetadata: ExtractionMetadata, lastUpdated: Option[Timestamp]): String = {
+    logInfo(s"table meta: ${tableMetadata} lastUpdated: ${lastUpdated}")
+
+    (tableMetadata.lastUpdatedColumn, lastUpdated) match {
+      case (Some(lastUpdatedCol), Some(ts)) =>
+        s"from ${tableMetadata.qualifiedTableName(escapeKeyword)} where ${escapeKeyword(lastUpdatedCol)} > '$ts'"
+      case _ => s"from ${tableMetadata.qualifiedTableName(escapeKeyword)}"
+    }
+  }
 }
