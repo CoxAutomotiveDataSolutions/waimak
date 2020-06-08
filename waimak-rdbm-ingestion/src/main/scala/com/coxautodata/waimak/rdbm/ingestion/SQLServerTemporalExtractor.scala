@@ -88,7 +88,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
       })
   }
 
-  override def loadDataset(meta: Map[String, String]
+  override def loadDataset[A <: ExtractionMetadata](meta: Map[String, String]
                            , lastUpdated: Option[Timestamp]
                            , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
     val sqlServerTableMetadata: SQLServerTemporalTableMetadata = CaseClassConfigParser.fromMap[SQLServerTemporalTableMetadata](meta)

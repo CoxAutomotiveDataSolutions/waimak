@@ -21,7 +21,7 @@ class TestSQLServerViewExtractor extends SparkSpec {
         , None) should be(Success(AuditTableInfo("testTable", Seq("key1", "key2"), Map(
         "schemaName" -> "testSchema"
         , "tableName" -> "testTable"
-        , "pks" -> "key1,key2"
+        , "primaryKeys" -> "key1,key2"
         , "lastUpdatedColumn" -> "lastUpdated")
         , true
       )))
@@ -36,7 +36,7 @@ class TestSQLServerViewExtractor extends SparkSpec {
         , Some(false)) should be(Success(AuditTableInfo("testTable", Seq("key1", "key2"), Map(
         "schemaName" -> "testSchema"
         , "tableName" -> "testTable"
-        , "pks" -> "key1,key2"
+        , "primaryKeys" -> "key1,key2"
         , "lastUpdatedColumn" -> "lastUpdated")
         , false
       )))
@@ -48,7 +48,7 @@ class TestSQLServerViewExtractor extends SparkSpec {
         , Some(true)) should be(Success(AuditTableInfo("testTable", Seq("key1", "key2"), Map(
         "schemaName" -> "testSchema"
         , "tableName" -> "testTable"
-        , "pks" -> "key1,key2")
+        , "primaryKeys" -> "key1,key2")
         , true
       )))
     }

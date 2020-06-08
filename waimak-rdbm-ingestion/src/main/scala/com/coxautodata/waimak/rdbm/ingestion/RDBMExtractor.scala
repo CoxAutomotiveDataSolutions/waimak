@@ -129,7 +129,7 @@ trait RDBMExtractor extends Logging {
 
   /**
     * Creates a Dataset for the given table containing data which was updated after or on the provided timestamp
-    * Override this if required
+    * Override this if required, or if you wish to use a different metadata class than TableExtractionMetadata
     *
     * @param meta                the table metadata
     * @param lastUpdated         the last updated timestamp from which we wish to read data (if None, then we read everything)
@@ -142,10 +142,10 @@ trait RDBMExtractor extends Logging {
     *                            of jdbc connections to open by limiting the number of executors for your application.
     * @return (Dataset for the given table, Column to use as the last updated)
     */
-  protected def loadDataset(meta: Map[String, String]
+  protected def loadDataset[A <: ExtractionMetadata](meta: Map[String, String]
                             , lastUpdated: Option[Timestamp]
                             , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
-    val tableMetadata = CaseClassConfigParser.fromMap[ExtractionMetadata](meta)
+    val tableMetadata = CaseClassConfigParser.fromMap[TableExtractionMetadata](meta)
     (sparkLoad(tableMetadata, lastUpdated, maxRowsPerPartition), resolveLastUpdatedColumn(tableMetadata, sparkSession))
   }
 
@@ -252,8 +252,8 @@ trait RDBMExtractor extends Logging {
   }
 
   private[rdbm] def splitPointCol(tableMetadata: ExtractionMetadata) =
-    logAndReturn((if (tableMetadata.pks.tail.nonEmpty) s"CONCAT(${tableMetadata.pks.map(escapeKeyword).mkString(",'-',")})"
-    else escapeKeyword(tableMetadata.pks.head)),
+    logAndReturn((if (tableMetadata.pkCols.tail.nonEmpty) s"CONCAT(${tableMetadata.pkCols.map(escapeKeyword).mkString(",'-',")})"
+    else escapeKeyword(tableMetadata.pkCols.head)),
       (col: String) => s"Split point col: $col",
       Level.Info)
 
@@ -263,7 +263,7 @@ trait RDBMExtractor extends Logging {
                                      , maxRowsPerPartition: Int): String = {
     s"""(
        |select split_point from (
-       |select ${splitPointCol(tableMetadata)} as split_point, row_number() over (order by ${tableMetadata.pks.map(escapeKeyword).mkString(",")}) as _row_num
+       |select ${splitPointCol(tableMetadata)} as split_point, row_number() over (order by ${tableMetadata.pkCols.map(escapeKeyword).mkString(",")}) as _row_num
        |${fromQueryPart(tableMetadata, lastUpdated)}
        |) ids where _row_num % $maxRowsPerPartition = 0) s""".stripMargin
   }
