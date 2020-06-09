@@ -125,8 +125,8 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
     (tableMetadata.lastUpdatedColumn, tableMetadata.historyTableName, tableMetadata.startColName, tableMetadata.endColName, lastUpdated) match {
       case (Some(lastUpdatedCol), Some(_), Some(startCol), Some(endCol), Some(ts)) =>
         s"""from ${tableMetadata.qualifiedTableName(escapeKeyword)}
-           |for SYSTEM_TIME from '$ts' to '9999-12-31'
-           |where ${escapeKeyword(endCol)} < '9999-12-31 23:59:59' or ${escapeKeyword(startCol)} >= '$ts'""".stripMargin
+           |for SYSTEM_TIME from '$ts' to '$upperDateBound'
+           |where ${escapeKeyword(endCol)} < '$upperDateTimeBound' or ${escapeKeyword(startCol)} >= '$ts'""".stripMargin
       // All we care about here is that we are in a history table, this is the case where we want all the history unified
       case (Some(_), Some(_), Some(_), Some(_), None) =>
         s"""from ${tableMetadata.qualifiedTableName(escapeKeyword)}
@@ -146,7 +146,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
   private def sourceType(endColName: String): String = {
     s"""source_type =
        |  case
-       |    when $endColName = '$upperDateTimeBound' then 0
+       |    when ${escapeKeyword(endColName)} = '$upperDateTimeBound' then 0
        |    else 1
        |  end
        |""".stripMargin
