@@ -172,7 +172,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
 
       val res1 = executor.execute(writeFlow)
       res1._2.inputs.get[Dataset[_]]("testtemporal").sort("source_type", "testtemporalid")
-        .as[TestTemporal].collect() should be(Seq(
+        .as[TestTemporal].collect() should contain theSameElementsAs (Seq(
         TestTemporal(1, "New Value 1", 0)
         , TestTemporal(2, "Value2", 0)
         , TestTemporal(3, "Value3", 0)
@@ -184,7 +184,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
       ))
 
       res1._2.inputs.get[Dataset[_]]("testnontemporal").sort("testnontemporalid1", "testnontemporalid2")
-        .as[TestNonTemporal].collect() should be(Seq(
+        .as[TestNonTemporal].collect() should contain theSameElementsAs (Seq(
         TestNonTemporal(1, 1, "V1")
         , TestNonTemporal(2, 1, "V2")
         , TestNonTemporal(2, 2, "V3")
@@ -195,7 +195,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
       val readFlow = flow.loadFromStorage(s"$testingBaseDir/output")("testtemporal")
       val res2 = executor.execute(readFlow)
       res2._2.inputs.get[Dataset[_]]("testtemporal").sort("source_type", "testtemporalid")
-        .as[TestTemporal].collect() should be(Seq(
+        .as[TestTemporal].collect() should contain theSameElementsAs (Seq(
         TestTemporal(1, "New Value 1", 0)
         , TestTemporal(2, "Value2", 0)
         , TestTemporal(3, "Value3", 0)
@@ -302,7 +302,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
     val res = executor.execute(deltaWriteFlow)
 
     val testTemporal = res._2.inputs.get[Dataset[_]]("testtemporal")
-
+    testTemporal.sort("TestTemporalID").show()
     testTemporal.sort("source_type", "testtemporalid")
       .as[TestTemporal].collect()
       //For some reason, sometimes (not consistently) > seems to act like >= on these datetime2 fields so we need to filter
