@@ -60,6 +60,12 @@
             <version>${jdbc.mssql.version}</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>io.monix</groupId>
+            <artifactId>monix_2.11</artifactId>
+            <version>3.2.2</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

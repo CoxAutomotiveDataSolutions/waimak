@@ -17,85 +17,26 @@ import scala.util.Success
 /**
   * Created by Vicky Avison on 19/04/18.
   */
-class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll {
+class SQLServerTemporalExtractorIntegrationTest
+  extends SparkAndTmpDirSpec
+    with BeforeAndAfterAll
+    with SQLServerTemporalExtractorBase {
+
+  import SQLServerTemporalExtractorBase._
 
   override val appName: String = "SQLServerTemporalConnectorIntegrationTest"
 
-  val sqlServerConnectionDetails: SQLServerConnectionDetails = SQLServerConnectionDetails("localhost", 1401, "master", "SA", "SQLServer123!")
-  val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
-  val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
-
   override def beforeAll(): Unit = {
-    cleanupTables() // Just for now
+    super.beforeAll()
+    cleanupTables()
     setupTables()
+    addTemporalTestData()
+    addNonTemporalTestData()
   }
 
   override def afterAll(): Unit = {
-    cleanupTables()
-  }
-
-  def setupTables(): Unit = {
-    val testTemporalTableCreate =
-      """CREATE TABLE TestTemporal
-        |(
-        |     TestTemporalID int NOT NULL PRIMARY KEY CLUSTERED
-        |   , SysStartTime datetime2 GENERATED ALWAYS AS ROW START HIDDEN NOT NULL
-        |   , SysEndTime datetime2 GENERATED ALWAYS AS ROW END HIDDEN NOT NULL
-        |   , TestTemporalValue varchar(50) NOT NULL
-        |   , PERIOD FOR SYSTEM_TIME (SysStartTime, SysEndTime)
-        |)
-        |WITH
-        |   (
-        |      SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.TestTemporalHistory)
-        |   )
-        |;
-        |        insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (1, 'Value1');
-        |        insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (2, 'Value2');
-        |        insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (3, 'Value3');
-        |        insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (4, 'Value4');
-        |        insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (5, 'Value5');
-        |        insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (6, 'Value6');
-        |        insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (7, 'Value7');
-        |        update TestTemporal set TestTemporalValue = 'New Value 1' where TestTemporalID = 1""".stripMargin
-
-    val testNonTemporalTableCreate =
-      """CREATE TABLE TestNonTemporal
-        |(
-        |     TestNonTemporalID1 int NOT NULL
-        |   , TestNonTemporalID2 int NOT NULL
-        |   , TestNonTemporalValue varchar(50) NOT NULL
-        |   PRIMARY KEY CLUSTERED(TestNonTemporalID1, TestNonTemporalID2)
-        |)
-        |;
-        |
-        |   insert into TestNonTemporal (TestNonTemporalID1, TestNonTemporalID2, TestNonTemporalValue) VALUES (1, 1, 'V1');
-        |   insert into TestNonTemporal (TestNonTemporalID1, TestNonTemporalID2, TestNonTemporalValue) VALUES (2, 1, 'V2');
-        |   insert into TestNonTemporal (TestNonTemporalID1, TestNonTemporalID2, TestNonTemporalValue) VALUES (2, 2, 'V3');
-        |   insert into TestNonTemporal (TestNonTemporalID1, TestNonTemporalID2, TestNonTemporalValue) VALUES (4, 3, 'V4');
-        |   insert into TestNonTemporal (TestNonTemporalID1, TestNonTemporalID2, TestNonTemporalValue) VALUES (5, 3, 'V5');""".stripMargin
-
-    executeSQl(Seq(testTemporalTableCreate, testNonTemporalTableCreate))
-  }
-
-  def cleanupTables(): Unit = {
-    executeSQl(Seq(
-      """if exists (SELECT * FROM INFORMATION_SCHEMA.TABLES
-        |           WHERE TABLE_NAME = N'TestTemporal')
-        |begin
-        |    alter table TestTemporal set (SYSTEM_VERSIONING = OFF)
-        |end""".stripMargin
-      , "drop table if exists TestTemporal"
-      , "drop table if exists TestTemporalHistory"
-      , "drop table if exists TestNonTemporal"
-    ))
-  }
-
-  def executeSQl(sqls: Seq[String]): Unit = {
-    Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
-    val connection = DriverManager.getConnection(sqlServerConnectionDetails.jdbcString, sqlServerConnectionDetails.user, sqlServerConnectionDetails.password)
-    val statement = connection.createStatement
-    sqls.foreach(statement.execute)
-    statement.closeOnCompletion()
+    super.beforeAll()
+//    cleanupTables()
   }
 
   describe("getTableMetadata") {
@@ -281,8 +222,10 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
     val deletes = "delete from TestTemporal where TestTemporalId = 2;"
     val inserts =
       s"""
+         |SET IDENTITY_INSERT TestTemporal ON;
          |insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (8, 'Value8');
          |insert into TestTemporal (TestTemporalID, TestTemporalValue) VALUES (9, 'Value9');
+         |SET IDENTITY_INSERT TestTemporal OFF;
          |""".stripMargin
     val updates =
       s"""
@@ -307,7 +250,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
       .as[TestTemporal].collect()
       //For some reason, sometimes (not consistently) > seems to act like >= on these datetime2 fields so we need to filter
       //out the records which could mess up our test
-      .filterNot(_.testtemporalid == 1) should be(Seq(
+      .filterNot(_.testtemporalid.contains(1)) should contain theSameElementsAs (Seq(
       TestTemporal(5, "New Value 5", 0)
       , TestTemporal(6, "New Value 6", 0)
       , TestTemporal(7, "New Value 7", 0)
@@ -329,7 +272,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
     val testTemporalSnapshot = snapshotRes._2.inputs.get[Dataset[_]]("testtemporal")
 
     testTemporalSnapshot.sort("testtemporalid")
-      .as[TestTemporal].collect() should be(Seq(
+      .as[TestTemporal].collect() should contain theSameElementsAs (Seq(
       TestTemporal(1, "New Value 1", 0)
       , TestTemporal(3, "Value3", 0)
       , TestTemporal(4, "Value4", 0)
@@ -342,7 +285,3 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
 
   }
 }
-
-case class TestTemporal(testtemporalid: Int, testtemporalvalue: String, source_type: Int)
-
-case class TestNonTemporal(testnontemporalid1: Int, testnontemporalid2: Int, testnontemporalvalue: String)
