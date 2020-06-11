@@ -26,6 +26,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
 
   override def beforeAll(): Unit = {
+//    cleanupTables()
     setupTables()
   }
 

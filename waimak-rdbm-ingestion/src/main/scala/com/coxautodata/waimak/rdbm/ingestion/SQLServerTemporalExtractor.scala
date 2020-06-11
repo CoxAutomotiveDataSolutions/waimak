@@ -1,6 +1,7 @@
 package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.Timestamp
+import java.time.LocalDateTime
 import java.util.Properties
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
@@ -88,6 +89,16 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
       })
   }
 
+  def timeT[R](message: String, block: => R): R = {
+    case class Time(nano: Long, dt: LocalDateTime)
+    val t0 = Time(System.nanoTime(), LocalDateTime.now())
+    val result = block    // call-by-name
+    val t1 = Time(System.nanoTime(), LocalDateTime.now())
+    logInfo(s"$message took elapsed time: ${(t1.nano - t0.nano)} ns, starting at ${t0.dt.toString} and ending at ${t1.dt.toString}")
+    result
+  }
+
+
   override def loadDataset(meta: Map[String, String]
                            , lastUpdated: Option[Timestamp]
                            , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
@@ -97,13 +108,17 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
       endCol <- sqlServerTableMetadata.endColName
     } yield Seq(startCol, endCol).map(col => s"CAST($col AS DATETIME2(7)) AS $col"))
       .foldRight(Seq("0 as source_type"))((cols, dateCols) => cols ++ dateCols)
-    val mainTable = sparkLoad(sqlServerTableMetadata.mainTableMetadata, lastUpdated, maxRowsPerPartition, explicitColumnSelects)
-      .toDF
-    val fullTable = sqlServerTableMetadata.historyTableMetadata.foldLeft(mainTable)((df, historyMetadata) => {
-      val historyTable = sparkLoad(historyMetadata, lastUpdated, maxRowsPerPartition, Seq("1 as source_type"))
-        .toDF
 
-      df union historyTable.select(df.schema.fieldNames.map(historyTable(_)): _*)
+    val mainTable = time("main table",
+      sparkLoad(sqlServerTableMetadata.mainTableMetadata, lastUpdated, maxRowsPerPartition, explicitColumnSelects)
+      .toDF
+    )
+
+    val fullTable = sqlServerTableMetadata.historyTableMetadata.foldLeft(mainTable)((df, historyMetadata) => {
+      val historyTable = time("history table", sparkLoad(historyMetadata, lastUpdated, maxRowsPerPartition, Seq("1 as source_type"))
+        .toDF)
+
+      time("table union", df union historyTable.select(df.schema.fieldNames.map(historyTable(_)): _*))
     })
     (fullTable, resolveLastUpdatedColumn(sqlServerTableMetadata.mainTableMetadata, sparkSession))
   }

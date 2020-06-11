@@ -1,9 +1,11 @@
 package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.Timestamp
+import java.time.LocalDateTime
 import java.util.Properties
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
+import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.storage.AuditTableInfo
 import org.apache.spark.sql.{Column, Dataset, SparkSession}
 
@@ -12,7 +14,7 @@ import scala.util.Try
 /**
   * Waimak RDBM connection mechanism
   */
-trait RDBMExtractor {
+trait RDBMExtractor extends Logging {
 
   def connectionDetails: RDBMConnectionDetails
 
@@ -197,6 +199,15 @@ trait RDBMExtractor {
     }
   }
 
+
+  def time[R](message: String, block: => R): R = {
+    case class Time(nano: Long, dt: LocalDateTime)
+    val t0 = Time(System.nanoTime(), LocalDateTime.now())
+    val result = block    // call-by-name
+    val t1 = Time(System.nanoTime(), LocalDateTime.now())
+    logInfo(s"$message took elapsed time: ${(t1.nano - t0.nano)} ns, starting at ${t0.dt.toString} and ending at ${t1.dt.toString}")
+    result
+  }
   /**
     * Creates a Spark Dataset for the table
     *
@@ -210,13 +221,15 @@ trait RDBMExtractor {
     val select = selectQuery(actualTableMetadata, lastUpdated, explicitColumnSelects)
     maxRowsPerPartition.flatMap(maxRows => generateSplitPredicates(actualTableMetadata, lastUpdated, maxRows))
       .map(predicates => {
+        time(s"load ${tableMetadata.tableName}",
         sparkSession.read
           .option("driver", driverClass)
-          .jdbc(connectionDetails.jdbcString, select, predicates, connectionProperties)
+          .jdbc(connectionDetails.jdbcString, select, predicates, connectionProperties))
       }).getOrElse(
+      time(s"load ${tableMetadata.tableName}",
       sparkSession.read
         .option("driver", driverClass)
-        .jdbc(connectionDetails.jdbcString, select, connectionProperties)
+        .jdbc(connectionDetails.jdbcString, select, connectionProperties))
     )
   }
 
