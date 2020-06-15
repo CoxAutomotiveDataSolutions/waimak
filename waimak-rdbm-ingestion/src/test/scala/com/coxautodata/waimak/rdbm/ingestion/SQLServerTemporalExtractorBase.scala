@@ -99,9 +99,9 @@ trait SQLServerTemporalExtractorBase {
 object SQLServerTemporalExtractorBase {
 
   sealed trait Action[+A]
-  case class Add(row: Row) extends Action[Row]
-  case class Delete(row: Row) extends Action[Row]
-  case class Modify(row: ModifiedRow[Row]) extends Action[ModifiedRow[Row]]
+  case class Add(row: TestTemporal) extends Action[Row]
+  case class Delete(row: TestTemporal) extends Action[Row]
+  case class Modify(row: ModifiedRow[TestTemporal]) extends Action[ModifiedRow[Row]]
 
   case class AppliedAction(action: Action[DBData], ts: Instant = Instant.now())
 

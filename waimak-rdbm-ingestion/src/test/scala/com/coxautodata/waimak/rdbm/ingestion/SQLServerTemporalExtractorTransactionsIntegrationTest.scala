@@ -6,12 +6,12 @@ import java.time.Instant
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
-import com.coxautodata.waimak.storage.AuditTableInfo
-import com.coxautodata.waimak.storage.StorageActions._
+import monix.eval.Task
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.functions.max
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
+import scala.collection.immutable
 import scala.collection.mutable.MutableList
 
 /**
@@ -22,27 +22,50 @@ import scala.collection.mutable.MutableList
 class SQLServerTemporalExtractorTransactionsIntegrationTest
   extends SparkAndTmpDirSpec
     with BeforeAndAfterEach
+    with BeforeAndAfterAll
     with SQLServerTemporalExtractorBase {
+
   import SQLServerTemporalExtractorBase._
 
-  override def beforeEach(): Unit = {
+  override val appName: String = "SQLServerTemporalConnectorTransactionsIntegrationTest"
+
+  override def beforeAll(): Unit = {
     super.beforeEach()
     cleanupTables()
     setupTables()
   }
 
-  override def afterEach(): Unit = {
+  override def beforeEach(): Unit = {
+    super.beforeEach()
+
+    executeSQl(Seq("""if exists (select * from information_schema.tables where table_name = N'TestTemporal')
+                     |begin
+                     |    alter table TestTemporal set (SYSTEM_VERSIONING = OFF)
+                     |    truncate table TestTemporal
+                     |    truncate table TestTemporalHistory
+                     |    alter table TestTemporal set (SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.TestTemporalHistory))
+                     |end""".stripMargin))
+  }
+
+  override def afterAll(): Unit = {
     super.afterEach()
 //    cleanupTables()
   }
 
-  override val appName: String = "SQLServerTemporalConnectorTransactionsIntegrationTest"
-
-  describe("SQLServerTemporalExtractor"){
+  describe("SQLServerTemporalExtractor") {
     it("should do basic inserts and deletes with DSL") {
+      import ActionInterpreter._
+      import monix.execution.Scheduler.Implicits.global
       val actions = MutableList[AppliedAction]()
 
-      val inserts = Seq(Add(TestTemporal(1, "test", 0)))
+//      val inserts: Seq[Add] = Seq(
+//        Add(TestTemporal(1, "test", 0)),
+//        Add(TestTemporal(None, "hi", 0))
+//      )
+
+      val inserts: Seq[Add] = (1 to 10).map(id => Add(TestTemporal(id, s"test${id}", 0))).toSeq
+//
+      actions ++= runActions(inserts).runSyncUnsafe()
     }
 
     it("should handle start/stop delta logic for the temporal tables") {
@@ -136,11 +159,59 @@ class SQLServerTemporalExtractorTransactionsIntegrationTest
 }
 
 object ActionInterpreter extends SQLServerTemporalExtractorBase {
-  import SQLServerTemporalExtractorBase._
 
-  def runActions(actions: Seq[Action[DBData]]) = {
-    actions.foreach {
-      case Add(row) => ???
+  import SQLServerTemporalExtractorBase._
+  import monix.execution.Scheduler.Implicits.global
+  import scalikejdbc._
+  import cats.data.OptionT
+  import cats.implicits._
+
+  Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
+  ConnectionPool.singleton(sqlServerConnectionDetails.jdbcString, sqlServerConnectionDetails.user, sqlServerConnectionDetails.password)
+
+  implicit def TaskTxBoundary[A]: TxBoundary[Task[A]] = new TxBoundary[Task[A]] {
+    override def finishTx(result: Task[A], tx: Tx): Task[A] =
+      result.attempt.flatMap {
+        case Right(_) => Task(tx.commit()).flatMap(_ => result)
+        case Left(_) => Task(tx.rollback()).flatMap(_ => result)
+      }
+
+    override def closeConnection(result: Task[A], doClose: () => Unit): Task[A] = {
+      for {
+        x <- result
+        _ <- Task(doClose).map(_.apply())
+      } yield x
     }
   }
+
+  def runActions(actions: Seq[Action[Row]]) = {
+    Task.parSequenceN(1)(actions.map {
+      case Add(row) => addRow(row)
+    })
+  }
+
+  private def addRow(row: TestTemporal): Task[AppliedAction] = {
+    val insertValue = row.testtemporalvalue
+    DB.localTx(implicit session => {
+      val ins: OptionT[Task, Inserted] = OptionT.fromOption[Task](
+        sql"""insert into TestTemporal (TestTemporalValue)
+              output inserted.TestTemporalID as id, inserted.SysEndTime as time
+              values ($insertValue)"""
+          .map(rs => Inserted(rs.string("id").toInt, Timestamp.valueOf(rs.string("time")).toInstant))
+          .single().apply()
+      )
+
+      (for {
+        row <- ins
+        appliedAction <- OptionT.pure[Task](AppliedAction(
+          Add(TestTemporal(row.id, insertValue, 0)),
+          row.timestamp
+        ))
+      } yield appliedAction).value.map(_.get)
+    }
+    )(boundary = TaskTxBoundary)
+  }
+
+  case class Inserted(id: Int, timestamp: Instant)
+
 }
