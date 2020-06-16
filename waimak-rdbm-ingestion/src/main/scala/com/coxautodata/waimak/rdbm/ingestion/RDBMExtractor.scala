@@ -142,7 +142,7 @@ trait RDBMExtractor extends Logging {
     *                            of jdbc connections to open by limiting the number of executors for your application.
     * @return (Dataset for the given table, Column to use as the last updated)
     */
-  protected def loadDataset[A <: ExtractionMetadata](meta: Map[String, String]
+  protected def loadDataset(meta: Map[String, String]
                             , lastUpdated: Option[Timestamp]
                             , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
     val tableMetadata = CaseClassConfigParser.fromMap[TableExtractionMetadata](meta)

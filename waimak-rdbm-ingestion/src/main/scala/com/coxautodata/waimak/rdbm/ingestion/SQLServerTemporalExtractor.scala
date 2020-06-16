@@ -92,7 +92,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
       })
   }
 
-  override def loadDataset[A <: ExtractionMetadata](meta: Map[String, String]
+  override def loadDataset(meta: Map[String, String]
                                                     , lastUpdated: Option[Timestamp]
                                                     , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
     val sqlServerTableMetadata: SQLServerTemporalTableMetadata = CaseClassConfigParser.fromMap[SQLServerTemporalTableMetadata](meta)
@@ -104,8 +104,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
       .foldRight(Seq[String]())((cols, dateCols) => cols ++ dateCols)
 
     val table = sparkLoad(sqlServerTableMetadata, lastUpdated, maxRowsPerPartition, explicitColumnSelects)
-    logInfo("Loaded sql server temporal dataset")
-    table.show(10)
+    logInfo(s"Loaded sql server temporal dataset from ${sqlServerTableMetadata.tableName}")
     (table, resolveLastUpdatedColumn(sqlServerTableMetadata.mainTableMetadata, sparkSession))
   }
 
@@ -115,12 +114,12 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
     logAndReturn(
       s"""(select *, $extraSelectCols ${fromQueryPart(tableMetadata, lastUpdated)}) s""",
       (query: String) => s"Query: $query for metadata ${tableMetadata.toString} for lastUpdated ${lastUpdated}",
-      Info
+      Debug
     )
   }
 
   override def fromQueryPart(tableMetadata: ExtractionMetadata, lastUpdated: Option[Timestamp]): String = {
-    logInfo(s"table meta: ${tableMetadata} lastUpdated: ${lastUpdated}")
+    logDebug(s"table meta: ${tableMetadata} lastUpdated: ${lastUpdated}")
 
     (tableMetadata.lastUpdatedColumn, tableMetadata.historyTableName, tableMetadata.startColName, tableMetadata.endColName, lastUpdated) match {
       case (Some(lastUpdatedCol), Some(_), Some(startCol), Some(endCol), Some(ts)) =>

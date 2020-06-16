@@ -86,8 +86,8 @@ class PostgresExtractor(override val sparkSession: SparkSession
     allTablePKs.get(s"$dbSchemaName.$tableName").map(_.split(";").toSeq)
   }
 
-  override def loadDataset[A <: ExtractionMetadata](meta: Map[String, String], lastUpdated: Option[Timestamp], maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
-    super.loadDataset[TableExtractionMetadata](meta, lastUpdated, maxRowsPerPartition)
+  override def loadDataset(meta: Map[String, String], lastUpdated: Option[Timestamp], maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
+    super.loadDataset(meta, lastUpdated, maxRowsPerPartition)
   }
 
 }
