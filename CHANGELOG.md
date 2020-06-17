@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.1 - 2020-06-17
+
+### Fixed
+- Fixed a bug in the sql server temporal extractor, which caused extractions to not be isolated within a transaction
+
 ## 2.8 - 2019-12-18
 
 ### Changed

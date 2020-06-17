@@ -1,9 +1,11 @@
 package com.coxautodata.waimak.rdbm.ingestion
 
+import java.sql.Timestamp
 import java.util.Properties
 
+import com.coxautodata.waimak.configuration.CaseClassConfigParser
 import com.coxautodata.waimak.storage.AuditTableInfo
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{Column, Dataset, SparkSession}
 
 import scala.util.{Failure, Success, Try}
 
@@ -72,16 +74,20 @@ class PostgresExtractor(override val sparkSession: SparkSession
     ((primaryKeys, getTablePKs(dbSchemaName, transformTableNameForRead(tableName))) match {
       case (Some(userPKs), Some(pksFromDB)) if userPKs.sorted != pksFromDB.sorted =>
         Failure(IncorrectUserPKException(userPKs, pksFromDB))
-      case (Some(userPKs), None) => Success(TableExtractionMetadata(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
-      case (_, Some(pksFromDB)) => Success(TableExtractionMetadata(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
+      case (Some(userPKs), None) => Success(TableExtractionMetadata.fromPkSeq(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
+      case (_, Some(pksFromDB)) => Success(TableExtractionMetadata.fromPkSeq(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
       case _ => Failure(PKsNotFoundOrProvidedException)
-    }).map(meta => AuditTableInfo(meta.tableName, meta.primaryKeys, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString), retainStorageHistory(meta.lastUpdatedColumn)))
+    }).map(meta => AuditTableInfo(meta.tableName, meta.primaryKeysSeq, RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString), retainStorageHistory(meta.lastUpdatedColumn)))
   }
 
 
   def getTablePKs(dbSchemaName: String
                   , tableName: String): Option[Seq[String]] = {
     allTablePKs.get(s"$dbSchemaName.$tableName").map(_.split(";").toSeq)
+  }
+
+  override def loadDataset(meta: Map[String, String], lastUpdated: Option[Timestamp], maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
+    super.loadDataset(meta, lastUpdated, maxRowsPerPartition)
   }
 
 }

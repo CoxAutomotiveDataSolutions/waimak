@@ -12,9 +12,11 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchDatabaseException
 class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
   override def builderOptions: SparkSession.Builder => SparkSession.Builder = {
-    _.enableHiveSupport()
+    val build = (sparkSession: SparkSession.Builder) => sparkSession.enableHiveSupport()
       .config("spark.sql.warehouse.dir", s"$basePath/hive")
       .config("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:;databaseName=$basePath/derby;create=true")
+
+    super.builderOptions andThen build
   }
 
   override val appName: String = "Metastore Utils"

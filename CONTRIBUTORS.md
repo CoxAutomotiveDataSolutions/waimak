@@ -7,3 +7,5 @@ Project Creators
 
 Contributors
 ----------
+
+* James Fielder
