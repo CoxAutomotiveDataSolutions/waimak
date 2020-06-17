@@ -4,15 +4,17 @@ import java.sql.Timestamp
 import java.util.Properties
 
 import com.coxautodata.waimak.configuration.CaseClassConfigParser
+import com.coxautodata.waimak.log.Level.{Debug, Info}
+import com.coxautodata.waimak.log.{Level, Logging}
 import com.coxautodata.waimak.storage.AuditTableInfo
-import org.apache.spark.sql.{Column, Dataset, SparkSession}
+import org.apache.spark.sql.{Column, DataFrame, Dataset, SparkSession}
 
 import scala.util.Try
 
 /**
   * Waimak RDBM connection mechanism
   */
-trait RDBMExtractor {
+trait RDBMExtractor extends Logging {
 
   def connectionDetails: RDBMConnectionDetails
 
@@ -108,7 +110,7 @@ trait RDBMExtractor {
                                  , lastUpdatedColumn: Option[String]
                                  , retainStorageHistory: Option[String] => Boolean): Try[AuditTableInfo]
 
-  def resolveLastUpdatedColumn(tableMetadata: TableExtractionMetadata, sparkSession: SparkSession): Column = {
+  def resolveLastUpdatedColumn(tableMetadata: ExtractionMetadata, sparkSession: SparkSession): Column = {
     import sparkSession.implicits._
     $"${tableMetadata.lastUpdatedColumn.getOrElse(systemTimestampColumnName)}"
   }
@@ -127,7 +129,7 @@ trait RDBMExtractor {
 
   /**
     * Creates a Dataset for the given table containing data which was updated after or on the provided timestamp
-    * Override this if required
+    * Override this if required, or if you wish to use a different metadata class than TableExtractionMetadata
     *
     * @param meta                the table metadata
     * @param lastUpdated         the last updated timestamp from which we wish to read data (if None, then we read everything)
@@ -180,15 +182,18 @@ trait RDBMExtractor {
     *                              select *) e.g. HIDDEN fields
     * @return a query which selects from the given table
     */
-  def selectQuery(tableMetadata: TableExtractionMetadata
+  def selectQuery(tableMetadata: ExtractionMetadata
                   , lastUpdated: Option[Timestamp]
                   , explicitColumnSelects: Seq[String]): String = {
     val extraSelectCols = (explicitColumnSelects :+ s"$sourceDBSystemTimestampFunction as $systemTimestampColumnName").mkString(",")
-    s"""(select *, $extraSelectCols ${fromQueryPart(tableMetadata, lastUpdated)}) s"""
+    logAndReturn(
+      s"""(select *, $extraSelectCols ${fromQueryPart(tableMetadata, lastUpdated)}) s""",
+      (query: String) => s"Query: $query for metadata ${tableMetadata.toString} for lastUpdated ${lastUpdated}",
+      Info
+    )
   }
 
-
-  protected def fromQueryPart(tableMetadata: TableExtractionMetadata
+  protected def fromQueryPart(tableMetadata: ExtractionMetadata
                               , lastUpdated: Option[Timestamp]): String = {
     (tableMetadata.lastUpdatedColumn, lastUpdated) match {
       case (Some(lastUpdatedCol), Some(ts)) =>
@@ -202,11 +207,11 @@ trait RDBMExtractor {
     *
     * @return a Spark Dataset for the table
     */
-  def sparkLoad(tableMetadata: TableExtractionMetadata
+  def sparkLoad(tableMetadata: ExtractionMetadata
                 , lastUpdated: Option[Timestamp]
                 , maxRowsPerPartition: Option[Int]
                 , explicitColumnSelects: Seq[String] = Seq.empty): Dataset[_] = {
-    val actualTableMetadata = tableMetadata.copy(tableName = transformTableNameForRead(tableMetadata.tableName))
+    val actualTableMetadata: ExtractionMetadata = tableMetadata.transformTableName(transformTableNameForRead)
     val select = selectQuery(actualTableMetadata, lastUpdated, explicitColumnSelects)
     maxRowsPerPartition.flatMap(maxRows => generateSplitPredicates(actualTableMetadata, lastUpdated, maxRows))
       .map(predicates => {
@@ -231,7 +236,7 @@ trait RDBMExtractor {
     * @return If the Dataset will have fewer rows than maxRowsPerParition then None, otherwise predicates to use
     *         in order to create the partitions e.g. "id >= 5 and id < 7"
     */
-  def generateSplitPredicates(tableMetadata: TableExtractionMetadata
+  def generateSplitPredicates(tableMetadata: ExtractionMetadata
                               , lastUpdated: Option[Timestamp]
                               , maxRowsPerPartition: Int): Option[Array[String]] = {
     val spark = sparkSession
@@ -246,23 +251,25 @@ trait RDBMExtractor {
     splitPointsToPredicates(splitPoints, tableMetadata)
   }
 
-  private[rdbm] def splitPointCol(tableMetadata: TableExtractionMetadata) =
-    if (tableMetadata.primaryKeys.tail.nonEmpty) s"CONCAT(${tableMetadata.primaryKeys.map(escapeKeyword).mkString(",'-',")})"
-    else escapeKeyword(tableMetadata.primaryKeys.head)
+  private[rdbm] def splitPointCol(tableMetadata: ExtractionMetadata) =
+    logAndReturn((if (tableMetadata.pkCols.tail.nonEmpty) s"CONCAT(${tableMetadata.pkCols.map(escapeKeyword).mkString(",'-',")})"
+    else escapeKeyword(tableMetadata.pkCols.head)),
+      (col: String) => s"Split point col: $col",
+      Level.Info)
 
   //TODO: Need to look into ordering of primary keys as clustered index could have different ordering
-  private[rdbm] def splitPointsQuery(tableMetadata: TableExtractionMetadata
+  private[rdbm] def splitPointsQuery(tableMetadata: ExtractionMetadata
                                      , lastUpdated: Option[Timestamp]
                                      , maxRowsPerPartition: Int): String = {
     s"""(
        |select split_point from (
-       |select ${splitPointCol(tableMetadata)} as split_point, row_number() over (order by ${tableMetadata.primaryKeys.map(escapeKeyword).mkString(",")}) as _row_num
+       |select ${splitPointCol(tableMetadata)} as split_point, row_number() over (order by ${tableMetadata.pkCols.map(escapeKeyword).mkString(",")}) as _row_num
        |${fromQueryPart(tableMetadata, lastUpdated)}
        |) ids where _row_num % $maxRowsPerPartition = 0) s""".stripMargin
   }
 
   //TODO: For composite keys, we can use first pk col in where clause as well as the concat to avoid full scans
-  private[rdbm] def splitPointsToPredicates(splitPoints: Seq[String], tableMetadata: TableExtractionMetadata): Option[Array[String]] = {
+  private[rdbm] def splitPointsToPredicates(splitPoints: Seq[String], tableMetadata: ExtractionMetadata): Option[Array[String]] = {
     val splitPointColumn = splitPointCol(tableMetadata)
     if (splitPoints.nonEmpty) {
       val mainPredicates = if (splitPoints.tail.nonEmpty) {
@@ -278,17 +285,6 @@ trait RDBMExtractor {
     else None
   }
 
-}
-
-case class TableExtractionMetadata(schemaName: String
-                                   , tableName: String
-                                   , primaryKeys: Seq[String]
-                                   , lastUpdatedColumn: Option[String] = None) {
-
-  def qualifiedTableName(escapeKeyword: String => String): String =
-    s"${escapeKeyword(schemaName)}.${escapeKeyword(tableName)}"
-
-  def labelName: String = s"${schemaName}_$tableName"
 }
 
 case class IncorrectUserPKException(userPKs: Seq[String], dbPKs: Seq[String]) extends Exception(

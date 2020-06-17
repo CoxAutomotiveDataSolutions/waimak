@@ -20,25 +20,25 @@ class TestRDBMExtractor extends SparkSpec {
 
   describe("selectQuery") {
     it("should generate a full select query if the table does not have a last updated column") {
-      val tableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("table_a_pk"), None)
+      val tableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("table_a_pk"), None)
       TExtractor.selectQuery(tableMetadata, Some(extractionTimestamp), Seq.empty) should be(
         "(select *, CURRENT_TIMESTAMP as system_timestamp_of_extraction from [dbo].[table_a]) s"
       )
     }
     it("should generate a full select query if the last updated is not set") {
-      val tableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
+      val tableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
       TExtractor.selectQuery(tableMetadata, None, Seq.empty) should be(
         "(select *, CURRENT_TIMESTAMP as system_timestamp_of_extraction from [dbo].[table_a]) s"
       )
     }
     it("should generate a select query using the last updated timestamp") {
-      val tableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
+      val tableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
       TExtractor.selectQuery(tableMetadata, Some(extractionTimestamp), Seq.empty) should be(
         "(select *, CURRENT_TIMESTAMP as system_timestamp_of_extraction from [dbo].[table_a] where [table_a_last_updated] > '2018-05-01 09:11:12.0') s"
       )
     }
     it("should add the explicit select columns to to the select statement") {
-      val tableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
+      val tableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
       TExtractor.selectQuery(tableMetadata, Some(extractionTimestamp), Seq("ValidFrom", "ValidTo")) should be(
         "(select *, ValidFrom,ValidTo,CURRENT_TIMESTAMP as system_timestamp_of_extraction from [dbo].[table_a] where [table_a_last_updated] > '2018-05-01 09:11:12.0') s"
       )
@@ -47,7 +47,7 @@ class TestRDBMExtractor extends SparkSpec {
 
   describe("splitPointsQuery") {
     it("should generate a query to find the split points with the last updated set") {
-      val tableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
+      val tableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
       TExtractor.splitPointsQuery(tableMetadata, Some(extractionTimestamp), 15) should be(
         """(
           |select split_point from (
@@ -57,7 +57,7 @@ class TestRDBMExtractor extends SparkSpec {
       )
     }
     it("should generate a query to find the split points when the last updated is not set") {
-      val tableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
+      val tableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
       TExtractor.splitPointsQuery(tableMetadata, None, 15) should be(
         """(
           |select split_point from (
@@ -67,7 +67,7 @@ class TestRDBMExtractor extends SparkSpec {
       )
     }
     it("should generate a query to find the split points for composite primary keys") {
-      val compositePKTableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("pk1", "pk2"), Some("table_a_last_updated"))
+      val compositePKTableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("pk1", "pk2"), Some("table_a_last_updated"))
       TExtractor.splitPointsQuery(compositePKTableMetadata, None, 15) should be(
         """(
           |select split_point from (
@@ -79,7 +79,7 @@ class TestRDBMExtractor extends SparkSpec {
   }
 
   describe("splitPointsToPredicates") {
-    val tableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
+    val tableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("table_a_pk"), Some("table_a_last_updated"))
     it("should be undefined if the split points are empty") {
       TExtractor.splitPointsToPredicates(Seq.empty, tableMetadata) should be(None)
     }
@@ -98,7 +98,7 @@ class TestRDBMExtractor extends SparkSpec {
     }
 
     it("should return predicates for composite primary keys") {
-      val compositePKTableMetadata = TableExtractionMetadata("dbo", "table_a", Seq("pk1", "pk2"), Some("table_a_last_updated"))
+      val compositePKTableMetadata = TableExtractionMetadata.fromPkSeq("dbo", "table_a", Seq("pk1", "pk2"), Some("table_a_last_updated"))
       TExtractor.splitPointsToPredicates(
         Seq("1-2", "5-4"), compositePKTableMetadata).map(_.toList) should be(
         Some(List("CONCAT([pk1],'-',[pk2]) >= '1-2' and CONCAT([pk1],'-',[pk2]) < '5-4'"

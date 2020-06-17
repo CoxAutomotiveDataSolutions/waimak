@@ -81,11 +81,11 @@ class SQLServerExtractor(override val sparkSession: SparkSession
     ((primaryKeys, getTablePKs(dbSchemaName, transformTableNameForRead(tableName))) match {
       case (Some(userPKs), Some(pksFromDB)) if userPKs.sorted != pksFromDB.sorted =>
         Failure(IncorrectUserPKException(userPKs, pksFromDB))
-      case (Some(userPKs), None) => Success(TableExtractionMetadata(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
-      case (_, Some(pksFromDB)) => Success(TableExtractionMetadata(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
+      case (Some(userPKs), None) => Success(TableExtractionMetadata.fromPkSeq(dbSchemaName, tableName, userPKs, lastUpdatedColumn))
+      case (_, Some(pksFromDB)) => Success(TableExtractionMetadata.fromPkSeq(dbSchemaName, tableName, pksFromDB, lastUpdatedColumn))
       case _ => Failure(PKsNotFoundOrProvidedException)
     }).map(meta => AuditTableInfo(meta.tableName
-      , meta.primaryKeys
+      , meta.pkCols
       , RDBMIngestionUtils.caseClassToMap(meta).mapValues(_.toString)
       , retainStorageHistory(meta.lastUpdatedColumn)
     ))
