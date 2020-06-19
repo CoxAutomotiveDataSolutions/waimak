@@ -20,7 +20,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.coxautodata</groupId>
-    <artifactId>waimak-parent_2.11</artifactId>
+    <artifactId>waimak-parent_2.12</artifactId>
     <packaging>pom</packaging>
     <version>2.8.2-SNAPSHOT</version>
 
@@ -88,7 +88,7 @@
     <profiles>
         <!-- Spark profiles -->
         <profile>
-            <id>apache-2.2.0_2.11</id>
+            <id>apache-2.2.0_2.11"</id>
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>
@@ -96,22 +96,25 @@
                 <spark.version>2.2.3</spark.version>
                 <scala.compatible.version>2.11</scala.compatible.version>
                 <scala.lang.version>2.11.12</scala.lang.version>
+                <scala.compat.version>2.11</scala.compat.version>
             </properties>
         </profile>
         <profile>
-            <id>apache-2.3.0_2.11</id>
+            <id>apache-2.3.0_2.11"</id>
             <properties>
                 <spark.version>2.3.4</spark.version>
                 <scala.compatible.version>2.11</scala.compatible.version>
                 <scala.lang.version>2.11.12</scala.lang.version>
+                <scala.compat.version>2.11</scala.compat.version>
             </properties>
         </profile>
         <profile>
-            <id>apache-2.4.0_2.11</id>
+            <id>apache-2.4.0_2.11"</id>
             <properties>
                 <spark.version>2.4.5</spark.version>
                 <scala.compatible.version>2.11</scala.compatible.version>
                 <scala.lang.version>2.11.12</scala.lang.version>
+                <scala.compat.version>2.11</scala.compat.version>
             </properties>
         </profile>
         <profile>
@@ -120,6 +123,7 @@
                 <spark.version>2.4.3</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
                 <scala.lang.version>2.12.8</scala.lang.version>
+                <scala.compat.version>2.12</scala.compat.version>
             </properties>
         </profile>
         <profile>
@@ -128,14 +132,16 @@
                 <spark.version>3.0.0</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
                 <scala.lang.version>2.12.11</scala.lang.version>
+                <scala.compat.version>2.12</scala.compat.version>
             </properties>
         </profile>
         <profile>
-            <id>cloudera-2.2.0.cloudera1_2.11</id>
+            <id>cloudera-2.2.0.cloudera1_2.11"</id>
             <properties>
                 <spark.version>2.2.0.cloudera1</spark.version>
                 <scala.compatible.version>2.11</scala.compatible.version>
                 <scala.lang.version>2.11.12</scala.lang.version>
+                <scala.compat.version>2.11</scala.compat.version>
             </properties>
             <repositories>
                 <repository>

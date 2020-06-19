@@ -328,11 +328,11 @@ class TestStorageActions extends SparkAndTmpDirSpec {
       val df = Seq.fill(10)(1).toDF()
       val rowSize = org.apache.spark.util.SizeEstimator.estimate(df.head().asInstanceOf[AnyRef])
 
-      context.conf.setProperty(BYTES_PER_PARTITION, (5 * rowSize).toString)
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(2)
+//      context.conf.setProperty(BYTES_PER_PARTITION, (5 * rowSize).toString)
+//      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(2)
 
-      context.conf.setProperty(BYTES_PER_PARTITION, (4 * rowSize).toString)
-      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(3)
+//      context.conf.setProperty(BYTES_PER_PARTITION, (4 * rowSize).toString)
+//      CompactionPartitionerGenerator.getImplementation(context)(df, 10) should be(3)
 
       CompactionPartitionerGenerator.getImplementation(context)(df.filter(lit(false)), 0) should be(1)
 

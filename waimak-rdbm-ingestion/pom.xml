@@ -18,13 +18,13 @@
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>waimak-parent_2.11</artifactId>
+        <artifactId>waimak-parent_2.12</artifactId>
         <groupId>com.coxautodata</groupId>
         <version>2.8.2-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>waimak-rdbm-ingestion_2.11</artifactId>
+    <artifactId>waimak-rdbm-ingestion_2.12</artifactId>
 
     <properties>
 
@@ -33,17 +33,17 @@
     <dependencies>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.11</artifactId>
+            <artifactId>waimak-core_${scala.compat.version}</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-storage_2.11</artifactId>
+            <artifactId>waimak-storage_${scala.compat.version}</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.11</artifactId>
+            <artifactId>waimak-core_${scala.compat.version}</artifactId>
             <version>${project.parent.version}</version>
             <type>test-jar</type>
             <scope>test</scope>
