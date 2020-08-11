@@ -2,7 +2,7 @@ package com.coxautodata.waimak.dataflow.spark
 
 import java.io.File
 
-import com.coxautodata.waimak.dataflow.Waimak
+import com.coxautodata.waimak.dataflow.{DataFlowException, Waimak}
 import com.coxautodata.waimak.dataflow.spark.TestSparkData.basePath
 import org.apache.hadoop.fs.Path
 
@@ -121,5 +121,37 @@ class TestWriteAsNamedFilesAction extends SparkAndTmpDirSpec {
 
     }
 
+    it("write a single text file") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val outputBasePath = new Path(testingBaseDirName, "output")
+
+      val data = Seq("hi", "there").toDF("row1")
+
+      Waimak.sparkFlow(spark, tmpDir.toString)
+        .open("csv_1", (_ : SparkFlowContext) => data)
+        .writeAsNamedFiles("csv_1", outputBasePath.toString, 1, "file", "text", Map("header" -> "true"))
+        .execute()
+
+      new File(outputBasePath.toString).listFiles().map(_.getName) should contain theSameElementsAs List("file.txt", ".file.txt.crc")
+
+    }
+
+    it("throw when asking to write multiple text files") {
+      val spark = sparkSession
+      import spark.implicits._
+
+      val outputBasePath = new Path(testingBaseDirName, "output")
+
+      val data = Seq("hi", "there").toDF("row1")
+
+      an [DataFlowException] should be thrownBy (
+        Waimak.sparkFlow(spark, tmpDir.toString)
+        .open("csv_1", (_ : SparkFlowContext) => data)
+        .writeAsNamedFiles("csv_1", outputBasePath.toString, 2, "file", "text", Map("header" -> "true"))
+        .execute()
+        )
+    }
   }
 }
