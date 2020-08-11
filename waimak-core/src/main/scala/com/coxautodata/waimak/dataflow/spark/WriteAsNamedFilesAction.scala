@@ -27,10 +27,11 @@ case class WriteAsNamedFilesAction(label: String, tempBasePath: Path, destBasePa
 
   override def performAction(inputs: DataFlowEntities, flowContext: SparkFlowContext): Try[ActionResult] = Try {
 
+    checkTextWriteOptions(numberOfFiles, format)
     val tempPath = new Path(tempBasePath, UUID.randomUUID().toString)
     inputs.get[Dataset[_]](label).repartition(numberOfFiles).write.options(options).format(format).save(tempPath.toString)
 
-    val foundFiles = flowContext.fileSystem.globStatus(new Path(tempPath, s"part-*.*$format*"))
+    val foundFiles = flowContext.fileSystem.globStatus(new Path(tempPath, s"part-*.*${fixTextExtension(format)}*"))
     if (numberOfFiles != foundFiles.length) throw new DataFlowException(s"Number of files found [${foundFiles.length}] did not match requested number of files [$numberOfFiles]")
     foundFiles
       .zip {
@@ -51,5 +52,16 @@ case class WriteAsNamedFilesAction(label: String, tempBasePath: Path, destBasePa
 }
 
 object WriteAsNamedFilesAction {
+  def checkTextWriteOptions(numberOfFiles: Int, format: String): Unit = {
+    if (format == "text") {
+      if (numberOfFiles > 1) throw new IllegalArgumentException("When writing text files only 1 file is able to be written")
+    }
+  }
+
+  def fixTextExtension(ext: String): String = ext match {
+    case "text" => "txt"
+    case _ @ a => a
+  }
+
   def getOutputExtension(path: Path): String = path.getName.dropWhile(_ != '.')
 }
