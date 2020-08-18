@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.2 - 2020-08-18
+
+### Fixed
+- Fixed a bug in the WriteAsNamedFilesAction
+
 ## 2.8.1 - 2020-06-17
 
 ### Fixed
