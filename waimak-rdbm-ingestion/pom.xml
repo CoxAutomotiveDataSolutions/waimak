@@ -83,7 +83,6 @@
                                     <MSSQL_SA_PASSWORD>SQLServer123!</MSSQL_SA_PASSWORD>
                                   </env>
                                 <wait>
-                                  <log>MSSQL ready</log>
                                   <time>20000</time>
                                 </wait>
                             </run>
@@ -101,7 +100,6 @@
                                     <POSTGRES_PASSWORD>Postgres123!</POSTGRES_PASSWORD>
                               </env>
                               <wait>
-                                <log>Postres ready</log>
                                 <time>20000</time>
                               </wait>
                             </run>
