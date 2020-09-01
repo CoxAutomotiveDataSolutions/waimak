@@ -125,7 +125,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
       case (Some(lastUpdatedCol), Some(_), Some(startCol), Some(endCol), Some(ts)) =>
         s"""from ${tableMetadata.qualifiedTableName(escapeKeyword)}
            |for SYSTEM_TIME from '$ts' to '$upperDateBound'
-           |where ${escapeKeyword(endCol)} < '$upperDateTimeBound' or ${escapeKeyword(startCol)} >= '$ts'""".stripMargin
+           |where ${escapeKeyword(endCol)} < '$upperDateTimeBound' and ${escapeKeyword(startCol)} > '$ts'""".stripMargin
       // All we care about here is that we are in a history table, this is the case where we want all the history unified
       case (Some(_), Some(_), Some(_), Some(_), None) =>
         s"""from ${tableMetadata.qualifiedTableName(escapeKeyword)}
