@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.3 - 2020-09-04
+
+### Fixed
+- Fix an issue with the sql server temporal extractor where rows were never being removed from storage, due to 
+  having a column added in error. Also try to improve the history query.
+
 ## 2.8.2 - 2020-08-18
 
 ### Fixed
