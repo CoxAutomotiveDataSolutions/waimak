@@ -109,25 +109,28 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
   }
 
   override def selectQuery(tableMetadata: ExtractionMetadata, lastUpdated: Option[Timestamp], explicitColumnSelects: Seq[String]): String = {
-    val extraSelectCols = extraSelects(tableMetadata, explicitColumnSelects).mkString(",")
+    val extraSelectCols = extraSelects(tableMetadata, explicitColumnSelects)
 
     logAndReturn(
-      s"""(select *, $extraSelectCols ${fromQueryPart(tableMetadata, lastUpdated)}) s""",
+      s"""(select * $extraSelectCols ${fromQueryPart(tableMetadata, lastUpdated)}) s""",
       (query: String) => s"Query: $query for metadata ${tableMetadata.toString} for lastUpdated ${lastUpdated}",
       Debug
     )
   }
 
   override def fromQueryPart(tableMetadata: ExtractionMetadata, lastUpdated: Option[Timestamp]): String = {
-    logDebug(s"table meta: ${tableMetadata} lastUpdated: ${lastUpdated}")
+    logInfo(s"table meta: ${tableMetadata} lastUpdated: ${lastUpdated}")
 
-    (tableMetadata.lastUpdatedColumn, tableMetadata.historyTableName, tableMetadata.startColName, tableMetadata.endColName, lastUpdated) match {
-      case (Some(lastUpdatedCol), Some(_), Some(startCol), Some(endCol), Some(ts)) =>
+    (tableMetadata.historyTableName, tableMetadata.startColName, tableMetadata.endColName, lastUpdated) match {
+      case (Some(_), Some(startCol), Some(endCol), Some(ts)) =>
+        logInfo("Delta flow query")
         s"""from ${tableMetadata.qualifiedTableName(escapeKeyword)}
            |for SYSTEM_TIME from '$ts' to '$upperDateBound'
-           |where ${escapeKeyword(endCol)} < '$upperDateTimeBound' or ${escapeKeyword(startCol)} >= '$ts'""".stripMargin
+           |where (${escapeKeyword(endCol)} < '$upperDateTimeBound' and ${escapeKeyword(endCol)} >= '$ts')
+           |or ${escapeKeyword(startCol)} >= '$ts'""".stripMargin
       // All we care about here is that we are in a history table, this is the case where we want all the history unified
-      case (Some(_), Some(_), Some(_), Some(_), None) =>
+      case (Some(_), Some(_), Some(_), None) =>
+        logInfo("Get all history query")
         s"""from ${tableMetadata.qualifiedTableName(escapeKeyword)}
            |for SYSTEM_TIME from '$lowerDateBound' to '$upperDateBound'""".stripMargin
       // If we have no history information then do a normal select from
@@ -136,10 +139,15 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
     }
   }
 
-  private def extraSelects(tableMetadata: ExtractionMetadata, explicitColumnSelects: Seq[String]): Seq[String] = {
-    val fixed = explicitColumnSelects :+ s"$sourceDBSystemTimestampFunction as $systemTimestampColumnName"
+  private def extraSelects(tableMetadata: ExtractionMetadata, explicitColumnSelects: Seq[String]): String = {
+    val fixed =
+      tableMetadata.lastUpdatedColumn match {
+        case Some(_) => explicitColumnSelects
+        case None => explicitColumnSelects :+ s"$sourceDBSystemTimestampFunction as $systemTimestampColumnName"
+      }
 
-    tableMetadata.endColName.map(fixed :+ sourceType(_)).getOrElse(fixed)
+    val selects = tableMetadata.endColName.map(fixed :+ sourceType(_)).getOrElse(fixed)
+    if (selects.isEmpty) "" else ", " + selects.mkString(",")
   }
 
   private def sourceType(endColName: String): String = {
