@@ -34,6 +34,9 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
       .collect()
       .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata).toMap
   }
+
+  val defaultUpperTimestamp = "9999-12-31 23:59:59.0000000"
+
   val metadataQuery: String =
     s"""(
        | SELECT SCHEMA_NAME(main.schema_id) as schemaName,
@@ -42,7 +45,8 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
        | history.name as historyTableName,
        | colstart.name as startColName,
        | colend.name as endColName,
-       | STRING_AGG(tc.name, ';') as primaryKeys
+       | STRING_AGG(tc.name, ';') as primaryKeys,
+       | '$defaultUpperTimestamp' as databaseUpperTimestamp
        | FROM sys.tables main
        |-- Find the corresponding history table
        | left join sys .tables history on main.history_table_id = history.object_id
@@ -69,7 +73,38 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
 
   val lowerDateBound = "1970-01-01"
   val upperDateBound = "9999-12-31"
-  val upperDateTimeBound = "9999-12-31 23:59:59.9999999"
+
+  def castToDateTime7(col: String): String =
+    s"cast(${escapeKeyword(col)} as datetime2(7))"
+
+  /** This query selects the max timestamp for a history tables endCol. This is here because for some versions of sql
+   * server we saw the end timestamp being 9999-12-31 23:59:59.0000000, whereas for others the end timestamp would be
+   * 9999-12-31 23:59:59.9999999. Instead of trying to hard code this, we decided that we would instead try to detect
+   * which of these cases we were in, by selecting the max value from the endCol. In practice, if all the rows were deleted
+   * this would be much less than 9999-12-31, however in this case there would be no value in selecting less than the max
+   * anyway. */
+  def upperTimestamp(tableMetadata: ExtractionMetadata): String = {
+    import sparkSession.implicits._
+
+    tableMetadata.endColName match {
+      case Some(endCol) => {
+        val query = s"select cast(max(${castToDateTime7(endCol)}) as nvarchar) as databaseUpperTimestamp from ${tableMetadata.qualifiedTableName(escapeKeyword)}"
+        RDBMIngestionUtils.lowerCaseAll(
+          sparkSession.read.format("jdbc")
+            .option("driver", driverClass)
+            .option("url", connectionDetails.jdbcString)
+            .option("user", connectionDetails.user)
+            .option("password", connectionDetails.password)
+            .option("dbtable", s"($query) as maxTs")
+            .load
+        )
+          .as[String]
+          .collect()
+          .head
+      }
+      case None => defaultUpperTimestamp
+    }
+  }
 
   override def getTableMetadata(dbSchemaName: String
                                 , tableName: String
@@ -93,14 +128,14 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
   }
 
   override def loadDataset(meta: Map[String, String]
-                                                    , lastUpdated: Option[Timestamp]
-                                                    , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
+                           , lastUpdated: Option[Timestamp]
+                           , maxRowsPerPartition: Option[Int]): (Dataset[_], Column) = {
     val sqlServerTableMetadata: SQLServerTemporalTableMetadata = CaseClassConfigParser.fromMap[SQLServerTemporalTableMetadata](meta)
 
     val explicitColumnSelects: Seq[String] = (for {
       startCol <- sqlServerTableMetadata.startColName
       endCol <- sqlServerTableMetadata.endColName
-    } yield Seq(startCol, endCol).map(col => s"CAST($col AS DATETIME2(7)) AS $col"))
+    } yield Seq(startCol, endCol).map(col => castToDateTime7(col) + s" as $col"))
       .foldRight(Seq[String]())((cols, dateCols) => cols ++ dateCols)
 
     val table = sparkLoad(sqlServerTableMetadata, lastUpdated, maxRowsPerPartition, explicitColumnSelects)
@@ -109,11 +144,13 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
   }
 
   override def selectQuery(tableMetadata: ExtractionMetadata, lastUpdated: Option[Timestamp], explicitColumnSelects: Seq[String]): String = {
-    val extraSelectCols = extraSelects(tableMetadata, explicitColumnSelects)
+    val upperTS = upperTimestamp(tableMetadata)
+    val tableMetadataWithUpperBound = tableMetadata.setUpperTimestamp(upperTS)
+    val extraSelectCols = extraSelects(tableMetadataWithUpperBound, explicitColumnSelects)
 
     logAndReturn(
-      s"""(select * $extraSelectCols ${fromQueryPart(tableMetadata, lastUpdated)}) s""",
-      (query: String) => s"Query: $query for metadata ${tableMetadata.toString} for lastUpdated ${lastUpdated}",
+      s"""(select * $extraSelectCols ${fromQueryPart(tableMetadataWithUpperBound, lastUpdated)}) s""",
+      (query: String) => s"Query: $query for metadata ${tableMetadataWithUpperBound.toString} for lastUpdated ${lastUpdated}",
       Debug
     )
   }
@@ -126,7 +163,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
         logInfo("Delta flow query")
         s"""from ${tableMetadata.qualifiedTableName(escapeKeyword)}
            |for SYSTEM_TIME from '$ts' to '$upperDateBound'
-           |where (${escapeKeyword(endCol)} < '$upperDateTimeBound' and ${escapeKeyword(endCol)} >= '$ts')
+           |where (${escapeKeyword(endCol)} < ${upperTS(tableMetadata)} and ${escapeKeyword(endCol)} >= '$ts')
            |or ${escapeKeyword(startCol)} >= '$ts'""".stripMargin
       // All we care about here is that we are in a history table, this is the case where we want all the history unified
       case (Some(_), Some(_), Some(_), None) =>
@@ -146,16 +183,19 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
         case None => explicitColumnSelects :+ s"$sourceDBSystemTimestampFunction as $systemTimestampColumnName"
       }
 
-    val selects = tableMetadata.endColName.map(fixed :+ sourceType(_)).getOrElse(fixed)
+    val selects = tableMetadata.endColName.map(fixed :+ sourceType(_, tableMetadata)).getOrElse(fixed)
     if (selects.isEmpty) "" else ", " + selects.mkString(",")
   }
 
-  private def sourceType(endColName: String): String = {
+  private def sourceType(endColName: String, tableMetadata: ExtractionMetadata): String = {
     s"""source_type =
        |  case
-       |    when ${escapeKeyword(endColName)} = '$upperDateTimeBound' then 0
+       |    when ${escapeKeyword(endColName)} = ${upperTS(tableMetadata)} then 0
        |    else 1
        |  end
        |""".stripMargin
   }
+
+  private def upperTS(tableMetadata: ExtractionMetadata): String =
+    s"'${tableMetadata.databaseUpperTimestamp.getOrElse(defaultUpperTimestamp)}'"
 }

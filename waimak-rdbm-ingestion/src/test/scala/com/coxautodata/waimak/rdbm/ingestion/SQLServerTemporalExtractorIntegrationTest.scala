@@ -9,7 +9,6 @@ import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.AuditTableInfo
 import com.coxautodata.waimak.storage.StorageActions._
 import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.functions.max
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
 import scala.util.Success
@@ -127,6 +126,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
           , "historyTableSchema" -> "dbo"
           , "historyTableName" -> "testtemporalhistory"
           , "startColName" -> "sysstarttime"
+          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59.0000000"
           , "endColName" -> "sysendtime")
           , true))
       )
@@ -143,7 +143,8 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
         Success(AuditTableInfo("testnontemporal", Seq("testnontemporalid1", "testnontemporalid2"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testnontemporal"
-          , "primaryKeys" -> "testnontemporalid1;testnontemporalid2")
+          , "primaryKeys" -> "testnontemporalid1;testnontemporalid2"
+          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59.0000000")
           , false))
       )
     }
@@ -154,7 +155,8 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
         Success(AuditTableInfo("testnontemporal", Seq("testnontemporalid1", "testnontemporalid2"), Map(
           "schemaName" -> "dbo"
           , "tableName" -> "testnontemporal"
-          , "primaryKeys" -> "testnontemporalid1;testnontemporalid2")
+          , "primaryKeys" -> "testnontemporalid1;testnontemporalid2"
+          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59.0000000")
           , true))
       )
 
@@ -166,6 +168,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
           , "historyTableSchema" -> "dbo"
           , "historyTableName" -> "testtemporalhistory"
           , "startColName" -> "sysstarttime"
+          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59.0000000"
           , "endColName" -> "sysendtime")
           , false))
       )

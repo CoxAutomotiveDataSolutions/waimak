@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.4 - 2020-09-08
+
+### Fixed
+- Optimise the sql server temporal extractor further to select the appropriate upper bound timestamp
+  when selecting from a history table. This should bring in less rows than before.
+
 ## 2.8.3 - 2020-09-04
 
 ### Fixed

@@ -14,6 +14,8 @@ trait ExtractionMetadata {
   def historyTableName: Option[String] = None
   def startColName: Option[String] = None
   def endColName: Option[String] = None
+  def databaseUpperTimestamp: Option[String] = None
+  def setUpperTimestamp(ts: String): ExtractionMetadata
 
   def primaryKeysSeq: Seq[String] = pkCols
 
@@ -33,6 +35,8 @@ case class TableExtractionMetadata( schemaName: String
   override def pkCols: Seq[String] =
     if (primaryKeys.contains(",")) primaryKeys.split(",").toSeq
     else Seq(primaryKeys)
+
+  override def setUpperTimestamp(ts: String): ExtractionMetadata = this
 }
 object TableExtractionMetadata {
   /**
@@ -64,7 +68,8 @@ case class SQLServerTemporalTableMetadata(schemaName: String
                                           , override val historyTableName: Option[String] = None
                                           , override val startColName: Option[String] = None
                                           , override val endColName: Option[String] = None
-                                          , primaryKeys: String) extends ExtractionMetadata {
+                                          , primaryKeys: String
+                                          , override val databaseUpperTimestamp: Option[String] = Some("9999-12-31 23:59:59.0000000")) extends ExtractionMetadata {
 
   def mainTableMetadata: TableExtractionMetadata = TableExtractionMetadata.fromPkSeq(schemaName, tableName, pkCols, startColName)
 
@@ -80,6 +85,8 @@ case class SQLServerTemporalTableMetadata(schemaName: String
   override def qualifiedTableName(escapeKeyword: String => String): String = s"${escapeKeyword(schemaName)}.${escapeKeyword(tableName)}"
 
   override def transformTableName(transform: String => String): ExtractionMetadata = this.copy(tableName = transform(tableName))
+
+  def setUpperTimestamp(ts: String): SQLServerTemporalTableMetadata = this.copy(databaseUpperTimestamp = Some(ts))
 
   override def pkCols: Seq[String] =
     if (primaryKeys.contains(";")) primaryKeys.split(";").toSeq
