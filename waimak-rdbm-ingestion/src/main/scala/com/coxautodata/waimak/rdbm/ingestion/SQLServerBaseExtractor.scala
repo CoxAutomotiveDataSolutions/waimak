@@ -13,7 +13,9 @@ abstract class SQLServerBaseExtractor(override val connectionDetails: SQLServerC
 
   override val sourceDBSystemTimestampFunction = "CURRENT_TIMESTAMP"
 
-  override def escapeKeyword(keyword: String) = s"[$keyword]"
+  override def escapeKeyword(keyword: String) = if (escapeGuard(keyword)) s"[$keyword]" else keyword
+
+  private def escapeGuard(keyword: String): Boolean = !(keyword.contains("[") && keyword.contains("]"))
 }
 
 /**
