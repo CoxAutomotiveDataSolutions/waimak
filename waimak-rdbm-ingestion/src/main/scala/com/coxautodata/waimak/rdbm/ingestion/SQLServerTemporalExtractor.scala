@@ -35,7 +35,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
       .map(metadata => s"${metadata.schemaName}.${metadata.tableName}" -> metadata).toMap
   }
 
-  val defaultUpperTimestamp = "9999-12-31 23:59:59.0000000"
+  val defaultUpperTimestamp = "9999-12-31 23:59:59"
 
   val metadataQuery: String =
     s"""(
@@ -82,13 +82,16 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
    * 9999-12-31 23:59:59.9999999. Instead of trying to hard code this, we decided that we would instead try to detect
    * which of these cases we were in, by selecting the max value from the endCol. In practice, if all the rows were deleted
    * this would be much less than 9999-12-31, however in this case there would be no value in selecting less than the max
-   * anyway. */
+   * anyway.
+   *
+   * When the table is empty the query returns null, so in this case we just use the default timestamp. */
   def upperTimestamp(tableMetadata: ExtractionMetadata): String = {
     import sparkSession.implicits._
 
     tableMetadata.endColName match {
       case Some(endCol) => {
-        val query = s"select cast(max(${castToDateTime7(endCol)}) as nvarchar) as databaseUpperTimestamp from ${tableMetadata.qualifiedTableName(escapeKeyword)}"
+        val query = s"select coalesce(cast(max(${castToDateTime7(endCol)}) as nvarchar), '$defaultUpperTimestamp') as databaseUpperTimestamp " +
+          s"from ${tableMetadata.qualifiedTableName(escapeKeyword)}"
         RDBMIngestionUtils.lowerCaseAll(
           sparkSession.read.format("jdbc")
             .option("driver", driverClass)

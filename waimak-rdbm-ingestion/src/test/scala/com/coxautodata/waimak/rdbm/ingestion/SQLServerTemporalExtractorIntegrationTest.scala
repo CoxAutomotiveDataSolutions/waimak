@@ -1,7 +1,7 @@
 package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.{DriverManager, Timestamp}
-import java.time.{Instant, LocalDateTime, ZoneId, ZoneOffset, ZonedDateTime}
+import java.time.{LocalDateTime, ZoneId, ZoneOffset, ZonedDateTime}
 
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
@@ -23,6 +23,56 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
   val sqlServerConnectionDetails: SQLServerConnectionDetails = SQLServerConnectionDetails("localhost", 1401, "master", "SA", "SQLServer123!")
   val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
+
+  override def beforeEach(): Unit = {
+    super.beforeEach()
+    cleanupTables()
+    Thread.sleep(50)
+    setupTables()
+  }
+
+  override def afterEach(): Unit = super.afterEach()
+
+  override def afterAll(): Unit = {
+    super.afterAll()
+    cleanupTables()
+  }
+
+  def cleanupTables(): Unit =
+    executeSQl(Seq(
+      """if exists (SELECT * FROM INFORMATION_SCHEMA.TABLES
+        |           WHERE TABLE_NAME = N'TestTemporal')
+        |begin
+        |    alter table TestTemporal set (SYSTEM_VERSIONING = OFF)
+        |end""".stripMargin
+      ,
+      """if exists (SELECT * FROM INFORMATION_SCHEMA.TABLES
+        |           WHERE TABLE_NAME = N'TestTemporalEmpty')
+        |begin
+        |    alter table TestTemporalEmpty set (SYSTEM_VERSIONING = OFF)
+        |end""".stripMargin
+      , "drop table if exists TestTemporal"
+      , "drop table if exists TestTemporalHistory"
+      , "drop table if exists TestNonTemporal"
+      , "drop table if exists TestTemporalEmpty"
+    ))
+
+  def executeSQl(sqls: Seq[String]): Unit = {
+    Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
+    val connection = DriverManager.getConnection(sqlServerConnectionDetails.jdbcString, sqlServerConnectionDetails.user, sqlServerConnectionDetails.password)
+    val statement = connection.createStatement
+    sqls.foreach(sql => {
+      statement.execute(sql)
+    })
+    statement.closeOnCompletion()
+  }
+
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    cleanupTables()
+    setupTables()
+    Thread.sleep(50)
+  }
 
   def setupTables(): Unit = {
     val testTemporalTableCreate =
@@ -64,51 +114,22 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
         |   insert into TestNonTemporal (TestNonTemporalID1, TestNonTemporalID2, TestNonTemporalValue) VALUES (4, 3, 'V4');
         |   insert into TestNonTemporal (TestNonTemporalID1, TestNonTemporalID2, TestNonTemporalValue) VALUES (5, 3, 'V5');""".stripMargin
 
-    executeSQl(Seq(testTemporalTableCreate, testNonTemporalTableCreate))
-  }
+    val testTemporalTableEmptyCreate =
+      """CREATE TABLE TestTemporalEmpty
+        |(
+        |     TestTemporalID int NOT NULL PRIMARY KEY CLUSTERED
+        |   , SysStartTime datetime2 GENERATED ALWAYS AS ROW START HIDDEN NOT NULL
+        |   , SysEndTime datetime2 GENERATED ALWAYS AS ROW END HIDDEN NOT NULL
+        |   , TestTemporalValue varchar(50) NOT NULL
+        |   , PERIOD FOR SYSTEM_TIME (SysStartTime, SysEndTime)
+        |)
+        |WITH
+        |   (
+        |      SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.TestTemporalEmptyHistory)
+        |   )
+        |;""".stripMargin
 
-  def executeSQl(sqls: Seq[String]): Unit = {
-    Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
-    val connection = DriverManager.getConnection(sqlServerConnectionDetails.jdbcString, sqlServerConnectionDetails.user, sqlServerConnectionDetails.password)
-    val statement = connection.createStatement
-    sqls.foreach(sql => {
-      statement.execute(sql)
-    })
-    statement.closeOnCompletion()
-  }
-
-  def cleanupTables(): Unit = {
-    executeSQl(Seq(
-      """if exists (SELECT * FROM INFORMATION_SCHEMA.TABLES
-        |           WHERE TABLE_NAME = N'TestTemporal')
-        |begin
-        |    alter table TestTemporal set (SYSTEM_VERSIONING = OFF)
-        |end""".stripMargin
-      , "drop table if exists TestTemporal"
-      , "drop table if exists TestTemporalHistory"
-      , "drop table if exists TestNonTemporal"
-    ))
-  }
-
-  override def beforeEach(): Unit = {
-    super.beforeEach()
-    cleanupTables()
-    Thread.sleep(50)
-    setupTables()
-  }
-
-  override def afterEach(): Unit = super.afterEach()
-
-  override def afterAll(): Unit = {
-    super.afterAll()
-    cleanupTables()
-  }
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    cleanupTables()
-    setupTables()
-    Thread.sleep(50)
+    executeSQl(Seq(testTemporalTableCreate, testNonTemporalTableCreate, testTemporalTableEmptyCreate))
   }
 
   describe("getTableMetadata") {
@@ -126,7 +147,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
           , "historyTableSchema" -> "dbo"
           , "historyTableName" -> "testtemporalhistory"
           , "startColName" -> "sysstarttime"
-          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59.0000000"
+          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59"
           , "endColName" -> "sysendtime")
           , true))
       )
@@ -144,7 +165,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
           "schemaName" -> "dbo"
           , "tableName" -> "testnontemporal"
           , "primaryKeys" -> "testnontemporalid1;testnontemporalid2"
-          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59.0000000")
+          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59")
           , false))
       )
     }
@@ -156,7 +177,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
           "schemaName" -> "dbo"
           , "tableName" -> "testnontemporal"
           , "primaryKeys" -> "testnontemporalid1;testnontemporalid2"
-          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59.0000000")
+          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59")
           , true))
       )
 
@@ -168,7 +189,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
           , "historyTableSchema" -> "dbo"
           , "historyTableName" -> "testtemporalhistory"
           , "startColName" -> "sysstarttime"
-          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59.0000000"
+          , "databaseUpperTimestamp" -> "9999-12-31 23:59:59"
           , "endColName" -> "sysendtime")
           , false))
       )
@@ -358,7 +379,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
        """.stripMargin
 
     executeSQl(Seq(deletes2, updates2, inserts2))
-//    executeSQl(Seq(updates2, inserts2, deletes2))
+    //    executeSQl(Seq(updates2, inserts2, deletes2))
 
     Thread.sleep(50)
 
@@ -379,7 +400,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
       .filterNot(id => Seq(1, 8).contains(id.testtemporalid))
       .filterNot(value => value.testtemporalvalue == "Value7")
 
-//    output2.sortBy(_.testtemporalid).foreach(println(_))
+    //    output2.sortBy(_.testtemporalid).foreach(println(_))
 
     val expected = Seq(
       TestTemporal(2, "Value2", 1),
@@ -428,6 +449,57 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
 
     finalOut should contain theSameElementsAs (expectedFinal)
 
+  }
+
+  it("should not fail when extracting from an empty table") {
+    val spark = sparkSession
+    import spark.implicits._
+
+    val sqlServerExtractor = new SQLServerTemporalExtractor(sparkSession, sqlServerConnectionDetails)
+    val flow = Waimak.sparkFlow(sparkSession)
+    val executor = Waimak.sparkExecutor()
+
+    val tableConfig: Map[String, RDBMExtractionTableConfig] = Map("testtemporalempty" -> RDBMExtractionTableConfig("testtemporalempty", maxRowsPerPartition = Some(2)))
+
+
+    val writeFlow = flow.extractToStorageFromRDBM(sqlServerExtractor
+      , "dbo"
+      , s"$testingBaseDir/output"
+      , tableConfig
+      , insertDateTime)("testtemporalempty")
+
+    executor.execute(writeFlow)
+
+    val deltaWriteFlow = flow.extractToStorageFromRDBM(sqlServerExtractor
+      , "dbo"
+      , s"$testingBaseDir/output"
+      , tableConfig
+      , insertDateTime)("testtemporalempty")
+
+    val res = executor.execute(deltaWriteFlow)
+
+    val testTemporalEmpty = res._2.inputs.get[Dataset[_]]("testtemporalempty")
+    testTemporalEmpty.sort("TestTemporalID").show()
+    val output = testTemporalEmpty.sort("source_type", "testtemporalid")
+      .as[TestTemporal].collect()
+
+    output should be(Seq[TestTemporal]())
+
+    val maxTS = Timestamp.valueOf(LocalDateTime.now(ZoneId.of("Europe/London")))
+
+    val snapshotReadFlow =
+      flow.snapshotTemporalTablesFromStorage(s"$testingBaseDir/output", maxTS)("testtemporalempty")
+
+    val snapshotRes = executor.execute(snapshotReadFlow)
+
+    val testTemporalSnapshot = snapshotRes._2.inputs.get[Dataset[_]]("testtemporalempty")
+
+    val finalOut = testTemporalSnapshot.sort("testtemporalid")
+      .as[TestTemporal].collect()
+
+    testTemporalSnapshot.show(truncate = false)
+
+    finalOut should be(Seq[TestTemporal]())
   }
 }
 
