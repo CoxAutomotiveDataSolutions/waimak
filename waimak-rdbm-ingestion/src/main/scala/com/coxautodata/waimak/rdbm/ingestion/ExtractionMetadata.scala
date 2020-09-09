@@ -69,7 +69,7 @@ case class SQLServerTemporalTableMetadata(schemaName: String
                                           , override val startColName: Option[String] = None
                                           , override val endColName: Option[String] = None
                                           , primaryKeys: String
-                                          , override val databaseUpperTimestamp: Option[String] = Some("9999-12-31 23:59:59.0000000")) extends ExtractionMetadata {
+                                          , override val databaseUpperTimestamp: Option[String] = Some("9999-12-31 23:59:59")) extends ExtractionMetadata {
 
   def mainTableMetadata: TableExtractionMetadata = TableExtractionMetadata.fromPkSeq(schemaName, tableName, pkCols, startColName)
 
