@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.5 - 2020-09-09
+
+### Fixed
+- Fixed a bug in the sql server temporal extractor where it would fail to extract from empty
+  tables.
+
 ## 2.8.4 - 2020-09-08
 
 ### Fixed
