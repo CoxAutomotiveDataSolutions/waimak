@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.8.6 - 2020-12-05
+- Add spark 3 build and publish against spark 3, including new databricks jar
+
 ## 2.8.5 - 2020-09-09
 
 ### Fixed
