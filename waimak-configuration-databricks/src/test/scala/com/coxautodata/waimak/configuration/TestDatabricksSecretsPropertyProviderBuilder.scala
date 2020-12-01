@@ -1,11 +1,13 @@
 package com.coxautodata.waimak.configuration
 
 import java.util.Properties
-
 import com.coxautodata.waimak.configuration.CaseClassConfigParser.CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES
 import com.coxautodata.waimak.configuration.DatabricksSecretsPropertyProviderBuilder._
 import com.coxautodata.waimak.dataflow.spark.{SparkFlowContext, SparkSpec}
+import com.databricks.dbutils_v1.{DatabricksCredentialUtils, LibraryUtils}
 import org.apache.spark.sql.RuntimeConfig
+
+import java.util
 
 class TestDatabricksSecretsPropertyProviderBuilder extends SparkSpec {
 
@@ -147,6 +149,34 @@ class TestDBUtilsV1Secrets(properties: Map[String, Properties]) extends com.data
   override def help(): Unit = ???
 
   override def help(moduleOrMethod: String): Unit = ???
+
+  override val library: LibraryUtils = new LibraryUtils {
+    override def install(path: String): Boolean = ???
+
+    override def restartPython(): Unit = ???
+
+    override def installPyPI(pypiPackage: String, version: String, repo: String, extras: String): Boolean = ???
+
+    override def updateCondaEnv(envYmlContent: String): Boolean = ???
+
+    override def list(): util.List[String] = ???
+
+    override def help(): Unit = ???
+
+    override def help(moduleOrMethod: String): Unit = ???
+  }
+
+  override val credentials: DatabricksCredentialUtils = new DatabricksCredentialUtils {
+    override def assumeRole(role: String): Boolean = ???
+
+    override def showCurrentRole(): util.List[String] = ???
+
+    override def showRoles(): util.List[String] = ???
+
+    override def help(): Unit = ???
+
+    override def help(moduleOrMethod: String): Unit = ???
+  }
 }
 
 case class DatabricksTest(key: String)
