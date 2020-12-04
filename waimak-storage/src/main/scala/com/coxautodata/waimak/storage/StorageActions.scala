@@ -296,7 +296,7 @@ object TotalBytesPartitioner extends CompactionPartitionerGenerator {
         if (numRows <= maxRecordsToSample || maxRecordsToSample == -1) ds
         else ds.sample(withReplacement = false, maxRecordsToSample / numRows.toDouble)
       }
-      val averageBytesPerRow = sampled.toDF().rdd.map(SizeEstimator.estimate).mean()
+      val averageBytesPerRow: Double = Try(sampled.toDF().rdd.map(SizeEstimator.estimate).mean()).getOrElse(0.0)
       Math.ceil((numRows * averageBytesPerRow) / bytesPerPartition).toInt.max(1)
     }
   }
