@@ -1,0 +1,65 @@
+# Maven
+# Build your Java project and run tests with Apache Maven.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+  variables:
+    MAVEN_CACHE_FOLDER: $(Pipeline.Workspace)/.m2/repository
+    MAVEN_OPTS: '-Dmaven.repo.local=$(MAVEN_CACHE_FOLDER) -Xmx3072m'
+
+jobs:
+- job: build
+  displayName: Maven build
+  strategy:
+    matrix:
+      Spark2311:
+        MAVEN_PROFILE: 'apache-2.3.0_2.11'
+        SCALA_VERSION: '2.11'
+        EXTRA_MAVEN_OPTIONS: ''
+      Spark2411:
+        MAVEN_PROFILE: 'apache-2.4.0_2.11'
+        SCALA_VERSION: '2.11'
+        EXTRA_MAVEN_OPTIONS: ''
+      Spark2711:
+        MAVEN_PROFILE: 'apache-2.4.7_2.11'
+        SCALA_VERSION: '2.11'
+        EXTRA_MAVEN_OPTIONS: ''
+      Spark24511:
+        MAVEN_PROFILE: 'apache-2.4.5_2.11'
+        DEPLOY_PROFILE: 'true'
+        COVERAGE_PROFILE: 'true'
+        SCALA_VERSION: '2.11'
+        EXTRA_MAVEN_OPTIONS: ''
+      Spark30112:
+        MAVEN_PROFILE: 'apache-3.0.1_2.12'
+        DEPLOY_PROFILE: 'true'
+        SCALA_VERSION: '2.12'
+        EXTRA_MAVEN_OPTIONS: '-pl !waimak-deequ'
+    maxParallel: 5
+  steps:
+  - task: Bash@3
+    inputs:
+      targetType: filePath
+      filePath: dev/change-scala-version.sh
+      arguments: "$(SCALA_VERSION)"
+  - task: Cache@2
+    inputs:
+      key: 'maven | "$(Agent.OS)" | **/pom.xml | "$(MAVEN_PROFILE)"'
+      path: $(MAVEN_CACHE_FOLDER)
+    displayName: Cache Maven local repo
+  - task: Maven@3
+    inputs:
+      mavenPomFile: 'pom.xml'
+      mavenOptions: '-Xmx3072m -Dmaven.repo.local=$(MAVEN_CACHE_FOLDER)'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.8'
+      jdkArchitectureOption: 'x64'
+      publishJUnitResults: true
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      goals: 'verify -P$(MAVEN_PROFILE) -U $(EXTRA_MAVEN_OPTIONS)'
