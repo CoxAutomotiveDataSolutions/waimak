@@ -84,7 +84,7 @@
         <profile>
             <id>apache-2.3.0_2.11</id>
             <properties>
-                <spark.version>2.3.0</spark.version>
+                <spark.version>2.4.7</spark.version>
                 <scala.compatible.version>2.11</scala.compatible.version>
                 <scala.lang.version>2.11.12</scala.lang.version>
             </properties>
