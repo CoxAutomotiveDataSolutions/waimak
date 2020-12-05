@@ -36,7 +36,7 @@
         <dependency>
             <groupId>com.beachape</groupId>
             <artifactId>enumeratum_2.11</artifactId>
-            <version>1.5.15</version>
+            <version>1.6.1</version>
         </dependency>
     </dependencies>
 

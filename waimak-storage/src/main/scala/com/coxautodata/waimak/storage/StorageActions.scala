@@ -296,7 +296,9 @@ object TotalBytesPartitioner extends CompactionPartitionerGenerator {
         if (numRows <= maxRecordsToSample || maxRecordsToSample == -1) ds
         else ds.sample(withReplacement = false, maxRecordsToSample / numRows.toDouble)
       }
-      val averageBytesPerRow = sampled.toDF().rdd.map(SizeEstimator.estimate).mean()
+      // For spark 3 or scala212 mean no longer returns 0 for mean of empty DF, instead it throws
+      // For now we will just return 0 when we throw here
+      val averageBytesPerRow: Double = Try(sampled.toDF().rdd.map(SizeEstimator.estimate).mean()).getOrElse(0.0)
       Math.ceil((numRows * averageBytesPerRow) / bytesPerPartition).toInt.max(1)
     }
   }
