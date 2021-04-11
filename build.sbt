@@ -13,8 +13,8 @@ lazy val defaultScalaVersion = scala212
 
 ThisBuild / crossScalaVersions := Seq(scala212, scala211)
 
-lazy val sparkVers = sys.props.get("SPARK_VERSION").getOrElse(defaultSparkVersion)
-lazy val scalaVers = sys.props.get("SCALA_VERSION").getOrElse(defaultScalaVersion)
+lazy val sparkVers = sys.env.getOrElse("SPARK_VERSION", defaultSparkVersion)
+lazy val scalaVers = sys.env.getOrElse("SCALA_VERSION", defaultScalaVersion)
 
 ThisBuild / scalaVersion := scalaVers
 
