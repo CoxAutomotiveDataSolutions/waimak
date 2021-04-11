@@ -20,19 +20,19 @@ jobs:
     matrix:
       Spark24711:
         SPARKVERSION: '2.4.7'
-        SCALAVERSION: '2.11'
+        SCALAVERSION: '2.11.12'
       Spark24511:
         SPARKVERSION: '2.4.5'
-        SCALAVERSION: '2.11'
+        SCALAVERSION: '2.11.12'
       Spark24512:
         SPARKVERSION: '2.4.5'
-        SCALAVERSION: '2.12'
+        SCALAVERSION: '2.12.13'
       Spark3012:
         SPARKVERSION: '3.0.2'
-        SCALAVERSION: '2.12'
+        SCALAVERSION: '2.12.13'
       Spark3112:
         SPARKVERSION: '3.1.1'
-        SCALAVERSION: '2.12'
+        SCALAVERSION: '2.12.13'
     maxParallel: 5
   steps:
   - task: JavaToolInstaller@0
@@ -41,8 +41,8 @@ jobs:
       jdkArchitectureOption: 'x64'
       jdkSourceOption: 'PreInstalled'
   - script: |
-      echo $SCALA_VERSION
-      echo $SPARK_VERSION
+      echo Scala Version: $SCALA_VERSION
+      echo Spark Version: $SPARK_VERSION
       sbt '; compile ; test'
     env:
       SPARK_VERSION: $(SPARKVERSION)
