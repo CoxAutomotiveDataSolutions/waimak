@@ -172,3 +172,14 @@ metastore_db
 spark-warehouse
 *.attach_pid*
 
+## sbt stuff
+
+.bsp/
+null/
+.bloop/
+.vscode/
+.metals/
+project/metals.sbt
+.ammonite/
+project/project
+
