@@ -35,4 +35,9 @@ jobs:
         SCALA_VERSION: '2.12'
     maxParallel: 5
   steps:
+  - task: JavaToolInstaller@0
+    inputs:
+      versionSpec: '8'
+      jdkArchitectureOption: 'x64'
+      jdkSourceOption: 'PreInstalled'
   - script: sbt '; compile ; test'
