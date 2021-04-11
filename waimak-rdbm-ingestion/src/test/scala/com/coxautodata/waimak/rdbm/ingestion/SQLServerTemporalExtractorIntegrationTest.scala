@@ -1,30 +1,51 @@
 package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.{DriverManager, Timestamp}
-import java.time.{LocalDateTime, ZoneId, ZoneOffset, ZonedDateTime}
-
+import java.time.{Duration, LocalDateTime, ZoneId, ZoneOffset, ZonedDateTime}
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.AuditTableInfo
 import com.coxautodata.waimak.storage.StorageActions._
+import com.dimafeng.testcontainers.{ForAllTestContainer, MSSQLServerContainer}
 import org.apache.spark.sql.Dataset
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
-
+import org.awaitility.Awaitility.await
+import org.scalatest.BeforeAndAfterEach
+import java.lang
+import java.time.temporal.ChronoUnit
+import java.util.concurrent.Callable
 import scala.util.Success
 
 /**
  * Created by Vicky Avison on 19/04/18.
  */
-class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll with BeforeAndAfterEach {
+class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
+  with ForAllTestContainer with BeforeAndAfterEach {
 
   override val appName: String = "SQLServerTemporalConnectorIntegrationTest"
 
-  val sqlServerConnectionDetails: SQLServerConnectionDetails = SQLServerConnectionDetails("localhost", 1401, "master", "SA", "SQLServer123!")
+  override val container: MSSQLServerContainer = MSSQLServerContainer()
+
+  val containerTimeout: Duration = Duration.of(30, ChronoUnit.SECONDS)
+
+  val containerPollInterval: Duration = Duration.of(1, ChronoUnit.SECONDS)
+
+  lazy val sqlServerConnectionDetails: SQLServerConnectionDetails =
+    SQLServerConnectionDetails("localhost", container.exposedPorts.head, container.databaseName, container.username, container.password)
+
   val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
 
+  private val containerHealthCheck = new Callable[java.lang.Boolean] {
+    override def call(): lang.Boolean = container.container.isHealthy
+  }
+
+  def waitForHealthyDBContainer(): Unit = {
+    await().atMost(containerTimeout).pollInterval(containerPollInterval).until(containerHealthCheck)
+  }
+
   override def beforeEach(): Unit = {
+    waitForHealthyDBContainer()
     super.beforeEach()
     cleanupTables()
     Thread.sleep(50)
@@ -33,8 +54,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
 
   override def afterEach(): Unit = super.afterEach()
 
-  override def afterAll(): Unit = {
-    super.afterAll()
+  override def beforeStop(): Unit = {
     cleanupTables()
   }
 
@@ -67,8 +87,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec with 
     statement.closeOnCompletion()
   }
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
+  override def afterStart(): Unit = {
     cleanupTables()
     setupTables()
     Thread.sleep(50)

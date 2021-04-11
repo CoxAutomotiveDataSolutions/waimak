@@ -3,7 +3,6 @@ package com.coxautodata.waimak.metastore
 import java.io.File
 
 import com.coxautodata.waimak.dataflow.Waimak
-import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark._
 import org.apache.spark.sql.SparkSession
@@ -14,9 +13,15 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
   override def builderOptions: SparkSession.Builder => SparkSession.Builder = {
     val build = (sparkSession: SparkSession.Builder) => sparkSession.enableHiveSupport()
       .config("spark.sql.warehouse.dir", s"$basePath/hive")
-      .config("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:;databaseName=$basePath/derby;create=true")
+      .config("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:$basePath/derby;create=true")
 
     super.builderOptions andThen build
+  }
+
+  // SBT seems to run with different security manager settings, turn these off for this test
+  override def beforeEach(): Unit = {
+    System.setSecurityManager(null)
+    super.beforeEach()
   }
 
   override val appName: String = "Metastore Utils"

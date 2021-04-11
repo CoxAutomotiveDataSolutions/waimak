@@ -15,36 +15,32 @@ pool:
 
 jobs:
 - job: build
-  displayName: Maven build
+  displayName: sbt build
   strategy:
     matrix:
-      Spark30112:
-        MAVEN_PROFILE: 'apache-3.0.1_2.12'
-        DEPLOY_PROFILE: 'true'
-        SCALA_VERSION: '2.12'
-      Spark31112:
-        MAVEN_PROFILE: 'apache-3.1.1_2.12'
-        DEPLOY_PROFILE: 'false'
-        SCALA_VERSION: '2.12'
+      Spark24711:
+        SPARKVERSION: '2.4.7'
+        SCALAVERSION: '2.11.12'
+      Spark24511:
+        SPARKVERSION: '2.4.5'
+        SCALAVERSION: '2.11.12'
+      Spark3012:
+        SPARKVERSION: '3.0.2'
+        SCALAVERSION: '2.12.13'
+      Spark3112:
+        SPARKVERSION: '3.1.1'
+        SCALAVERSION: '2.12.13'
     maxParallel: 5
   steps:
-  - task: Bash@3
+  - task: JavaToolInstaller@0
     inputs:
-      targetType: filePath
-      filePath: dev/change-scala-version.sh
-      arguments: "$(SCALA_VERSION)"
-  - task: Cache@2
-    inputs:
-      key: 'maven | "$(Agent.OS)" | **/pom.xml | "$(MAVEN_PROFILE)"'
-      path: $(MAVEN_CACHE_FOLDER)
-    displayName: Cache Maven local repo
-  - task: Maven@3
-    inputs:
-      mavenPomFile: 'pom.xml'
-      mavenOptions: '-Xmx3072m -Dmaven.repo.local=$(MAVEN_CACHE_FOLDER)'
-      javaHomeOption: 'JDKVersion'
-      jdkVersionOption: '1.8'
+      versionSpec: '8'
       jdkArchitectureOption: 'x64'
-      publishJUnitResults: true
-      testResultsFiles: '**/surefire-reports/TEST-*.xml'
-      goals: 'verify -P$(MAVEN_PROFILE) -U'
+      jdkSourceOption: 'PreInstalled'
+  - script: |
+      echo Scala Version: $SCALA_VERSION
+      echo Spark Version: $SPARK_VERSION
+      sbt '; project rdbm ; compile ; test'
+    env:
+      SPARK_VERSION: $(SPARKVERSION)
+      SCALA_VERSION: $(SCALAVERSION)

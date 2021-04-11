@@ -2,28 +2,32 @@ package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.{DriverManager, Timestamp}
 import java.time.{ZoneOffset, ZonedDateTime}
-
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.AuditTableInfo
+import com.dimafeng.testcontainers.{ForAllTestContainer, MSSQLServerContainer}
 import org.scalatest.BeforeAndAfterAll
 
 import scala.util.{Failure, Success}
 
-class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll {
+class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with ForAllTestContainer {
 
   override val appName: String = "SQLServerConnectorIntegrationTest"
 
-  val sqlServerConnectionDetails: SQLServerConnectionDetails = SQLServerConnectionDetails("localhost", 1401, "master", "SA", "SQLServer123!")
+  override val container: MSSQLServerContainer = MSSQLServerContainer()
+
+  lazy val sqlServerConnectionDetails: SQLServerConnectionDetails =
+    SQLServerConnectionDetails("localhost", container.exposedPorts.head, container.databaseName, container.username, container.password)
+
   val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
 
-  override def beforeAll(): Unit = {
+  override def afterStart(): Unit = {
     setupTables()
   }
 
-  override def afterAll(): Unit = {
+  override def beforeStop(): Unit = {
     cleanupTables()
   }
 
@@ -68,7 +72,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
   def executeSQl(sqls: Seq[String]): Unit = {
     Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
-    val connection = DriverManager.getConnection(sqlServerConnectionDetails.jdbcString, sqlServerConnectionDetails.user, sqlServerConnectionDetails.password)
+    val connection = DriverManager.getConnection(container.jdbcUrl, sqlServerConnectionDetails.user, sqlServerConnectionDetails.password)
     val statement = connection.createStatement
     sqls.foreach(statement.execute)
     statement.closeOnCompletion()
