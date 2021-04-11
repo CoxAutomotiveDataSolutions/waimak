@@ -53,7 +53,9 @@ val common = Def.settings(
     "org.apache.spark" %% "spark-hive" % sparkVers % "provided",
     "org.apache.commons" % "commons-lang3" % "3.9",
     "org.scalatest" %% "scalatest" % "3.0.8" % "test"
-  )
+  ),
+  Test / parallelExecution := false,
+  Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 )
 
 lazy val root = (project in file("."))

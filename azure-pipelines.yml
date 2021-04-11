@@ -15,7 +15,7 @@ pool:
 
 jobs:
 - job: build
-  displayName: Maven build
+  displayName: sbt build
   strategy:
     matrix:
       Spark24711:
