@@ -60,7 +60,7 @@ val common = Def.settings(
 )
 
 lazy val root = (project in file("."))
-  .aggregate(core, app, databricksConf)
+  .aggregate(core, app, databricksConf, storage, dataquality, experimental, hive, impala, rdbm)
 
 lazy val core = (project in file("waimak-core"))
   .settings(
@@ -71,7 +71,7 @@ lazy val core = (project in file("waimak-core"))
 
 lazy val app = (project in file("waimak-app"))
   .settings(common: _*)
-  .dependsOn(core)
+  .dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val databricksConf = (project in file("waimak-configuration-databricks"))
   .settings(common: _*)
@@ -79,7 +79,7 @@ lazy val databricksConf = (project in file("waimak-configuration-databricks"))
     libraryDependencies ++= Seq(
       "com.databricks" %% "dbutils-api" % "0.0.5"
     )
-  ).dependsOn(core)
+  ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val storage = (project in file("waimak-storage"))
   .settings(common: _*)
@@ -94,7 +94,7 @@ lazy val dataquality = (project in file("waimak-dataquality"))
       "io.circe" %% "circe-generic" % "0.11.1",
       "org.jvnet.mock-javamail" % "mock-javamail" % "1.9"
     )
-  ).dependsOn(core, storage)
+  ).dependsOn(core % "compile->compile;test->test;provided->provided", storage)
 
 // Disabled for now due to https://github.com/awslabs/deequ/issues/353 and
 // https://github.com/awslabs/deequ/issues/354
@@ -114,21 +114,21 @@ lazy val experimental = (project in file("waimak-experimental"))
   .settings(
     scalaVersion := scalaVers,
     libraryDependencies ++= Seq()
-  ).dependsOn(core)
+  ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val hive = (project in file("waimak-hive"))
   .settings(common: _*)
   .settings(
     scalaVersion := scalaVers,
     libraryDependencies ++= Seq()
-  ).dependsOn(core)
+  ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val impala = (project in file("waimak-impala"))
   .settings(common: _*)
   .settings(
     scalaVersion := scalaVers,
     libraryDependencies ++= Seq()
-  ).dependsOn(core)
+  ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 val testcontainersScalaVersion = "0.39.3"
 
