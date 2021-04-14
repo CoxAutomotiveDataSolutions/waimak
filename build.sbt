@@ -120,7 +120,9 @@ lazy val hive = (project in file("waimak-hive"))
   .settings(common: _*)
   .settings(
     scalaVersion := scalaVers,
-    libraryDependencies ++= Seq()
+    libraryDependencies ++= Seq(
+      "org.apache.derby" % "derby" % "10.15.2.0" % Test
+    )
   ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val impala = (project in file("waimak-impala"))
