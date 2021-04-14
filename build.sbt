@@ -65,7 +65,9 @@ lazy val root = (project in file("."))
 lazy val core = (project in file("waimak-core"))
   .settings(
     libraryDependencies ++= Seq(
-      "com.beachape" %% "enumeratum" % "1.6.1"
+      "com.beachape" %% "enumeratum" % "1.6.1",
+      "org.apache.derby" % "derbyclient" % "10.15.2.0" % Test,
+      "org.apache.derby" % "derby" % "10.15.2.0" % Test
     ))
   .settings(common: _*)
 
@@ -120,10 +122,7 @@ lazy val hive = (project in file("waimak-hive"))
   .settings(common: _*)
   .settings(
     scalaVersion := scalaVers,
-    libraryDependencies ++= Seq(
-      "org.apache.derby" % "derbyclient" % "10.15.2.0",
-      "org.apache.derby" % "derby" % "10.15.2.0"
-    )
+    libraryDependencies ++= Seq()
   ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val impala = (project in file("waimak-impala"))
