@@ -10,12 +10,12 @@ import org.apache.spark.sql.{Column, Dataset, SparkSession}
 import scala.util.{Failure, Success, Try}
 
 /**
-  * Created by Vicky Avison on 27/04/18.
-  *
-  * @param transformTableNameForRead How to transform the target table name into the table name in the database if the two are different.
-  *                                  Useful if you have multiple tables representing the same thing but with different names, and you wish them to
-  *                                  be written to the same target table
-  */
+ * Created by Vicky Avison on 27/04/18.
+ *
+ * @param transformTableNameForRead How to transform the target table name into the table name in the database if the two are different.
+ *                                  Useful if you have multiple tables representing the same thing but with different names, and you wish them to
+ *                                  be written to the same target table
+ */
 class PostgresExtractor(override val sparkSession: SparkSession
                         , override val connectionDetails: PostgresConnectionDetails
                         , override val extraConnectionProperties: Properties = new Properties()
@@ -97,10 +97,15 @@ case class PostgresConnectionDetails(server: String
                                      , databaseName: String
                                      , user: String
                                      , password: String
-                                     , sslFactory: Option[String]) extends RDBMConnectionDetails {
-  val jdbcString: String = sslFactory.foldLeft(s"jdbc:postgresql://$server:$port/$databaseName")((s, factory) => {
-    s"$s?ssl=true&sslfactory=$factory"
-  })
+                                     , sslFactory: Option[String]
+                                     , jdbcStr: Option[String] = None) extends RDBMConnectionDetails {
+  val jdbcString: String =
+    jdbcStr match {
+      case Some(str) => str
+      case None => sslFactory.foldLeft(s"jdbc:postgresql://$server:$port/$databaseName")((s, factory) => {
+        s"$s?ssl=true&sslfactory=$factory"
+      })
+    }
 }
 
 

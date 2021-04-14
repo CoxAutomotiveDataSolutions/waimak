@@ -2,30 +2,37 @@ package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.{DriverManager, Timestamp}
 import java.time.{ZoneOffset, ZonedDateTime}
-
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.AuditTableInfo
 import com.coxautodata.waimak.storage.StorageActions._
 import org.apache.spark.sql.Dataset
-import org.scalatest.BeforeAndAfterAll
+import com.dimafeng.testcontainers.{ForAllTestContainer, PostgreSQLContainer}
 
 import scala.util.{Failure, Success}
 
-class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll {
+class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with ForAllTestContainer {
 
   override val appName: String = "PostgresExtractorIntegrationTest"
 
-  val postgresConnectionDetails = PostgresConnectionDetails("localhost", 5433, "postgres", "postgres", "Postgres123!", None)
   val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
 
-  override def beforeAll(): Unit = {
+  override val container: PostgreSQLContainer = PostgreSQLContainer()
+
+  lazy val postgresConnectionDetails = PostgresConnectionDetails(
+    "localhost", container.exposedPorts.head,
+    container.databaseName, container.username,
+    container.password, None,
+    Some(container.jdbcUrl)
+  )
+
+  override def afterStart(): Unit = {
     setupTables()
   }
 
-  override def afterAll(): Unit = {
+  override def beforeStop(): Unit = {
     cleanupTables()
   }
 
@@ -70,7 +77,7 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAnd
 
   def executeSQl(sqls: Seq[String]): Unit = {
     Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
-    val connection = DriverManager.getConnection(postgresConnectionDetails.jdbcString, postgresConnectionDetails.user, postgresConnectionDetails.password)
+    val connection = DriverManager.getConnection(container.jdbcUrl, container.username, container.password)
     val statement = connection.createStatement
     sqls.foreach(statement.execute)
     statement.closeOnCompletion()
