@@ -24,9 +24,6 @@ jobs:
       Spark24511:
         SPARKVERSION: '2.4.5'
         SCALAVERSION: '2.11.12'
-      Spark24512:
-        SPARKVERSION: '2.4.5'
-        SCALAVERSION: '2.12.13'
       Spark3012:
         SPARKVERSION: '3.0.2'
         SCALAVERSION: '2.12.13'
