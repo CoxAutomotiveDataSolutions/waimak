@@ -18,6 +18,11 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
     super.builderOptions andThen build
   }
 
+  override def beforeEach(): Unit = {
+    System.setSecurityManager(null)
+    super.beforeEach()
+  }
+
   override val appName: String = "Metastore Utils"
 
   describe("HiveTestConnector") {
