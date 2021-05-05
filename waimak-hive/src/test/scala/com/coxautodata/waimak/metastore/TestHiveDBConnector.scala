@@ -13,7 +13,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
   override def builderOptions: SparkSession.Builder => SparkSession.Builder = {
     val build = (sparkSession: SparkSession.Builder) => sparkSession.enableHiveSupport()
       .config("spark.sql.warehouse.dir", s"$basePath/hive")
-      .config("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:;databaseName=$basePath/derby;create=true")
+      .config("javax.jdo.option.ConnectionURL", s"jdbc:derby:memory:$basePath/derby;create=true")
 
     super.builderOptions andThen build
   }
