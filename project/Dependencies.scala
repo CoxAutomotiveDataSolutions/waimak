@@ -3,7 +3,7 @@ import sbt._
 object Dependencies {
 
   // Maybe needed in future for deequ
-  def getDeequDependency(scalaVersion: String, sparkVersion: String) = {
+  def getDeequDependency(scalaVersion: String, sparkVersion: String): ModuleID = {
     (scalaVersion.toMinVersion, sparkVersion.toMinVersion) match {
       case ("2.11", "2.4") => "com.amazon.deequ" % "deequ" % "1.2.2-spark-2.4"
       case ("2.12", "3.0") | ("2.12", "3.1") => "com.amazon.deequ" % "deequ" % "1.2.2-spark-3.0"

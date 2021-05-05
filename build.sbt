@@ -117,7 +117,8 @@ lazy val experimental = (project in file("waimak-experimental"))
     libraryDependencies ++= Seq()
   ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
-val derbyVersion = "10.14.2.0"
+// This has been updated to 10.14 in upstream spark, so watch out for that in 3.2 onwards
+val derbyVersion = "10.12.1.1"
 
 lazy val hive = (project in file("waimak-hive"))
   .settings(common: _*)

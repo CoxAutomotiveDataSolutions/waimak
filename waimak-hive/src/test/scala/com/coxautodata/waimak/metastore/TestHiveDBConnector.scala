@@ -3,7 +3,6 @@ package com.coxautodata.waimak.metastore
 import java.io.File
 
 import com.coxautodata.waimak.dataflow.Waimak
-import com.coxautodata.waimak.dataflow.spark.SparkActions._
 import com.coxautodata.waimak.dataflow.spark.TestSparkData._
 import com.coxautodata.waimak.dataflow.spark._
 import org.apache.spark.sql.SparkSession
