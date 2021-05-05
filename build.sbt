@@ -126,7 +126,8 @@ lazy val hive = (project in file("waimak-hive"))
     scalaVersion := scalaVers,
     libraryDependencies ++= Seq(
       "org.apache.derby" % "derbyclient" % derbyVersion % Test,
-      "org.apache.derby" % "derbytools" % derbyVersion % Test
+      "org.apache.derby" % "derbytools" % derbyVersion % Test,
+      "org.apache.derby" % "derby" % derbyVersion % Test
     )
   ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
