@@ -56,6 +56,7 @@ val common = Def.settings(
     "org.scalatest" %% "scalatest" % "3.0.8" % Test
   ),
   Test / parallelExecution := false,
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),
   Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 )
 
@@ -101,15 +102,15 @@ lazy val dataquality = (project in file("waimak-dataquality"))
 // Disabled for now due to https://github.com/awslabs/deequ/issues/353 and
 // https://github.com/awslabs/deequ/issues/354
 
-//lazy val deequDep = getDeequDependency(scalaVers, sparkVers)
-//lazy val deequ = (project in file("waimak-deequ"))
-//  .settings(common: _*)
-//  .settings(
-//    scalaVersion := scalaVers,
-//    libraryDependencies ++= Seq(
-//      deequDep
-//    )
-//  ).dependsOn(core, storage, dataquality)
+lazy val deequDep = getDeequDependency(scalaVers, sparkVers)
+lazy val deequ = (project in file("waimak-deequ"))
+  .settings(common: _*)
+  .settings(
+    scalaVersion := scalaVers,
+    libraryDependencies ++= Seq(
+      deequDep
+    )
+  ).dependsOn(core, storage, dataquality)
 
 lazy val experimental = (project in file("waimak-experimental"))
   .settings(common: _*)
