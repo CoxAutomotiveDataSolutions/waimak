@@ -1,12 +1,18 @@
 package com.coxautodata.waimak.metastore
 
 import org.apache.derby.client.am.SqlException
-import org.scalatest.WordSpec
+import org.scalatest.{BeforeAndAfterAll, WordSpec}
 
 import java.util.Properties
 import scala.util.Try
 
-class TestDerby extends WordSpec {
+class TestDerby extends WordSpec with BeforeAndAfterAll {
+
+  override def beforeAll(): Unit = {
+    System.setSecurityManager(null)
+    super.beforeAll()
+  }
+
   "derby" should {
     "load" in {
       try Class.forName("org.apache.derby.jdbc.EmbeddedDriver").newInstance
