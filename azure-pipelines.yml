@@ -40,7 +40,7 @@ jobs:
   - script: |
       echo Scala Version: $SCALA_VERSION
       echo Spark Version: $SPARK_VERSION
-      sbt '; project hive; compile ; test'
+      sbt '; compile ; test'
     env:
       SPARK_VERSION: $(SPARKVERSION)
       SCALA_VERSION: $(SCALAVERSION)
