@@ -18,6 +18,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
     super.builderOptions andThen build
   }
 
+  // SBT seems to run with different security manager settings, turn these off for this test
   override def beforeEach(): Unit = {
     System.setSecurityManager(null)
     super.beforeEach()
