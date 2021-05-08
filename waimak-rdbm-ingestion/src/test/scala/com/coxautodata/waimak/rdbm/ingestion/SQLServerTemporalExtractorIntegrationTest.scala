@@ -10,16 +10,17 @@ import com.coxautodata.waimak.storage.StorageActions._
 import com.dimafeng.testcontainers.{ForAllTestContainer, MSSQLServerContainer}
 import org.apache.spark.sql.Dataset
 import org.awaitility.Awaitility.await
-import org.awaitility.scala.AwaitilitySupport
 import org.scalatest.BeforeAndAfterEach
+import java.lang
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.Callable
 import scala.util.Success
 
 /**
  * Created by Vicky Avison on 19/04/18.
  */
 class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
-  with ForAllTestContainer with BeforeAndAfterEach with AwaitilitySupport {
+  with ForAllTestContainer with BeforeAndAfterEach {
 
   override val appName: String = "SQLServerTemporalConnectorIntegrationTest"
 
@@ -35,8 +36,13 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
   val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
 
-  def waitForHealthyDBContainer(): Unit =
-    await.atMost(containerTimeout).pollInterval(containerPollInterval).until(container.container.isHealthy)
+  private val containerHealthCheck = new Callable[java.lang.Boolean] {
+    override def call(): lang.Boolean = container.container.isHealthy
+  }
+
+  def waitForHealthyDBContainer(): Unit = {
+    await().atMost(containerTimeout).pollInterval(containerPollInterval).until(containerHealthCheck)
+  }
 
   override def beforeEach(): Unit = {
     waitForHealthyDBContainer()
