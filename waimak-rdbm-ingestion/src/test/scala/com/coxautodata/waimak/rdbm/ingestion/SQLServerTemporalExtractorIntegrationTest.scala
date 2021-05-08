@@ -30,14 +30,16 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
 
   val containerPollInterval: Duration = Duration.of(1, ChronoUnit.SECONDS)
 
+  lazy val hostPort: Int = container.container.getMappedPort(container.exposedPorts.head)
+
   lazy val sqlServerConnectionDetails: SQLServerConnectionDetails =
-    SQLServerConnectionDetails("localhost", container.exposedPorts.head, container.databaseName, container.username, container.password)
+    SQLServerConnectionDetails("localhost", hostPort, "master", container.username, container.password)
 
   val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
 
   private val containerHealthCheck = new Callable[java.lang.Boolean] {
-    override def call(): lang.Boolean = container.container.isHealthy
+    override def call(): lang.Boolean = container.container.isRunning
   }
 
   def waitForHealthyDBContainer(): Unit = {
@@ -55,7 +57,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
   override def afterEach(): Unit = super.afterEach()
 
   override def beforeStop(): Unit = {
-    cleanupTables()
+    //cleanupTables()
   }
 
   def cleanupTables(): Unit =
@@ -79,7 +81,9 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
 
   def executeSQl(sqls: Seq[String]): Unit = {
     Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
-    val connection = DriverManager.getConnection(sqlServerConnectionDetails.jdbcString, sqlServerConnectionDetails.user, sqlServerConnectionDetails.password)
+    val jdcbUrl = container.jdbcUrl
+    println(jdcbUrl)
+    val connection = DriverManager.getConnection(jdcbUrl, container.username, container.password)
     val statement = connection.createStatement
     sqls.foreach(sql => {
       statement.execute(sql)
@@ -88,6 +92,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
   }
 
   override def afterStart(): Unit = {
+    waitForHealthyDBContainer()
     cleanupTables()
     setupTables()
     Thread.sleep(50)
