@@ -18,7 +18,9 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with ForAllTe
   override val container: MSSQLServerContainer = MSSQLServerContainer()
 
   lazy val sqlServerConnectionDetails: SQLServerConnectionDetails =
-    SQLServerConnectionDetails("localhost", container.exposedPorts.head, container.databaseName, container.username, container.password)
+    SQLServerConnectionDetails("localhost", hostPort, "master", container.username, container.password)
+
+  lazy val hostPort: Int = container.container.getMappedPort(container.exposedPorts.head)
 
   val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
