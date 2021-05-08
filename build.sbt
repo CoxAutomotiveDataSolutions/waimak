@@ -150,5 +150,6 @@ lazy val rdbm = (project in file("waimak-rdbm-ingestion"))
       "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersScalaVersion % Test,
       "com.dimafeng" %% "testcontainers-scala-postgresql" % testcontainersScalaVersion % Test,
       "com.dimafeng" %% "testcontainers-scala-mssqlserver" % testcontainersScalaVersion % Test,
+      "org.awaitility" % "awaitility-scala" % "4.1.0" % Test
     )
   ).dependsOn(core % "compile->compile;test->test;provided->provided", storage)
