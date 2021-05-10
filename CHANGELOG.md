@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.9.0 - 2021-05-13
+- Update deequ to use new Scala 2.12 and Spark 3 version
+- Publish deequ jar for Spark 3 builds
+- Change build profiles
+- Start removing Scala 2.11 builds. From here on the build will be Spark 3+ and Scala 2.12 onwards.
+  Jars for 2.11 after this release are unlikely.
+
 ## 2.8.7 - 2021-05-11
 - Update version of scalatest
 
