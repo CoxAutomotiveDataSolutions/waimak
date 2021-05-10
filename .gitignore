@@ -172,3 +172,7 @@ metastore_db
 spark-warehouse
 *.attach_pid*
 
+## Metals and vscode
+.bloop/
+.metals/
+.vscode/

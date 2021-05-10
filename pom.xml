@@ -20,9 +20,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.coxautodata</groupId>
-    <artifactId>waimak-parent_2.11</artifactId>
+    <artifactId>waimak-parent_2.12</artifactId>
     <packaging>pom</packaging>
-    <version>2.8.7</version>
+    <version>2.9.0</version>
 
     <name>Waimak</name>
     <description>Waimak is an open-source framework that makes it easier to create complex data flows in Apache Spark.
@@ -80,32 +80,13 @@
         <module>waimak-dataquality</module>
     </modules>
     <profiles>
-        <!-- Spark profiles -->
-        <profile>
-            <id>apache-2.3.0_2.11</id>
-            <properties>
-                <spark.version>2.3.0</spark.version>
-                <scala.compatible.version>2.11</scala.compatible.version>
-                <scala.lang.version>2.11.12</scala.lang.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>apache-2.4.0_2.11</id>
-            <properties>
-                <spark.version>2.4.0</spark.version>
-                <scala.compatible.version>2.11</scala.compatible.version>
-                <scala.lang.version>2.11.12</scala.lang.version>
-            </properties>
-        </profile>
         <profile>
             <id>apache-2.4.5_2.11</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
             <properties>
                 <spark.version>2.4.5</spark.version>
                 <scala.compatible.version>2.11</scala.compatible.version>
                 <scala.lang.version>2.11.12</scala.lang.version>
+                <deequ.version>1.2.2-spark-2.4</deequ.version>
             </properties>
         </profile>
         <profile>
@@ -114,22 +95,28 @@
                 <spark.version>2.4.0</spark.version>
                 <scala.compatible.version>2.11</scala.compatible.version>
                 <scala.lang.version>2.11.12</scala.lang.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>apache-2.4.7_2.12</id>
-            <properties>
-                <spark.version>2.4.3</spark.version>
-                <scala.compatible.version>2.12</scala.compatible.version>
-                <scala.lang.version>2.12.10</scala.lang.version>
+                <deequ.version>1.2.2-spark-2.4</deequ.version>
             </properties>
         </profile>
         <profile>
             <id>apache-3.0.1_2.12</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
             <properties>
                 <spark.version>3.0.1</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
                 <scala.lang.version>2.12.10</scala.lang.version>
+                <deequ.version>1.2.2-spark-3.0</deequ.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>apache-3.1.1_2.12</id>
+            <properties>
+                <spark.version>3.1.1</spark.version>
+                <scala.compatible.version>2.12</scala.compatible.version>
+                <scala.lang.version>2.12.10</scala.lang.version>
+                <deequ.version>1.2.2-spark-3.0</deequ.version>
             </properties>
         </profile>
 
@@ -245,7 +232,6 @@
         <circe.version>0.11.1</circe.version>
         <mock.javamail.version>1.9</mock.javamail.version>
         <apache.commons.version>1.5</apache.commons.version>
-        <deequ.version>1.0.1</deequ.version>
         <skipTests>false</skipTests>
         <skipUTs>${skipTests}</skipUTs>
         <skipITs>${skipTests}</skipITs>
@@ -254,6 +240,12 @@
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_${scala.compatible.version}</artifactId>
+            <version>${scalatest.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.scalactic</groupId>
+            <artifactId>scalactic_${scala.compatible.version}</artifactId>
             <version>${scalatest.version}</version>
             <scope>test</scope>
         </dependency>

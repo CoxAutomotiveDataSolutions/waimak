@@ -13,6 +13,11 @@ Waimak aims to abstract the more complex parts of Spark application development 
 
 Our metaphor to describe this framework is the braided river – it splits and rejoins to itself repeatedly on its journey. By describing a Spark application as a sequence of flow transformations, Waimak can execute independent branches of the flow in parallel making more efficient use of compute resources and greatly reducing the execution time of complex flows.
 
+## Versions
+
+From Waimak version 2.9 onwards we will be focusing our attention on Spark 3+ and Scala 2.12. While some of the jars will still be published for 2.11 we are focusing on having the build be 2.12 first.
+This is due to an increasing number of the dependencies (databricks config and deequ for example) now being produced for Scala 2.12. If you still require Scala 2.11 support for new versions please open an issue and we can work with you on this.
+
 ## Why would I use Waimak?
 We developed Waimak to:
 * allow teams to own their own business logic without owning an entire production Spark application
@@ -89,11 +94,8 @@ Waimak is tested against the following versions of Spark:
 
 Package Maintainer | Spark Version | Scala Version
 ------------------ | ------------- | -------------
-Apache Spark | [2.2.0](https://spark.apache.org/releases/spark-release-2-2-0.html) | 2.11
-Apache Spark | [2.3.0](https://spark.apache.org/releases/spark-release-2-3-0.html) | 2.11
-Apache Spark | [2.4.0](https://spark.apache.org/releases/spark-release-2-4-0.html) | 2.11
-Apache Spark | [2.4.3](https://spark.apache.org/releases/spark-release-2-4-3.html) | 2.12
-Cloudera Spark | [2.2.0](https://www.cloudera.com/documentation/spark2/latest/topics/spark2.html) | 2.11
+Apache Spark | [2.4.5](https://spark.apache.org/releases/spark-release-2-4-5.html) | 2.11
+Apache Spark | [3.0.1](https://spark.apache.org/releases/spark-release-3-0-1.html) | 2.12
 
 Other versions of Spark >= 2.2 are also likely to work and can be added to the list of tested versions if there is sufficient need.
 
