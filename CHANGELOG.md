@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.8.7 - 2021-05-11
+- Update version of scalatest
+
 ## 2.8.6 - 2020-12-05
 - Add spark 3 build and publish against spark 3, including new databricks jar
 

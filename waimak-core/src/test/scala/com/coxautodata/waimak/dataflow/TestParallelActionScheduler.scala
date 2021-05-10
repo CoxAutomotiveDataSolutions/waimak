@@ -1,13 +1,14 @@
 package com.coxautodata.waimak.dataflow
 
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
 import scala.util.Success
 
 /**
   * Created by Alexei Perelighin on 2018/08/13
   */
-class TestParallelActionScheduler extends FunSpec with Matchers {
+class TestParallelActionScheduler extends AnyFunSpec with Matchers {
 
   val defaultPool = Set(DEFAULT_POOL_NAME)
 

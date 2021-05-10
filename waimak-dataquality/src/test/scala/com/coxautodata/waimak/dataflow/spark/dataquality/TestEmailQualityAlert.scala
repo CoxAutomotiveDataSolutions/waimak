@@ -6,9 +6,10 @@ import com.coxautodata.waimak.dataflow.spark.dataquality.AlertImportance.Warning
 import javax.mail.Message.RecipientType._
 import javax.mail.Provider
 import org.jvnet.mock_javamail.{Mailbox, MockTransport}
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
-class TestEmailQualityAlert extends FunSpec with Matchers {
+class TestEmailQualityAlert extends AnyFunSpec with Matchers {
 
   val testAlerter: BaseEmailQualityAlert = new BaseEmailQualityAlert {
     override def provider: Option[Provider] = Some(new MockedSMTPProvider)

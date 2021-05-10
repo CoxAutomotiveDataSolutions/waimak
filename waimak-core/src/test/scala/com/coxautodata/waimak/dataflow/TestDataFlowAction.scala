@@ -1,8 +1,9 @@
 package com.coxautodata.waimak.dataflow
 
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
-class TestDataFlowAction extends FunSpec with Matchers {
+class TestDataFlowAction extends AnyFunSpec with Matchers {
 
   val func2 = () => List(Some("v1"), Some("v2"))
 

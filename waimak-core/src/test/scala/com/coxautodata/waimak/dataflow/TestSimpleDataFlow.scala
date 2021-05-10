@@ -2,11 +2,12 @@ package com.coxautodata.waimak.dataflow
 
 import java.util.UUID
 
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
 import scala.util.{Success, Try}
 
-class TestSparkDataFlow extends FunSpec with Matchers {
+class TestSparkDataFlow extends AnyFunSpec with Matchers {
 
   val defaultPool = Set(DEFAULT_POOL_NAME)
 

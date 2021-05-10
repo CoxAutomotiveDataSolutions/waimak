@@ -1,8 +1,9 @@
 package com.coxautodata.waimak.configuration
 
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
-class TestPropertyProviderTrait extends FunSpec with Matchers {
+class TestPropertyProviderTrait extends AnyFunSpec with Matchers {
 
   describe("getWithRetry") {
 

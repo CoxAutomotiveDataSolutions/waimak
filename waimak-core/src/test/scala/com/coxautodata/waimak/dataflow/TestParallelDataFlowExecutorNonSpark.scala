@@ -1,11 +1,12 @@
 package com.coxautodata.waimak.dataflow
 
 import com.coxautodata.waimak.dataflow.DFExecutorPriorityStrategies._
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
 import scala.util.Try
 
-class TestParallelDataFlowExecutorNonSpark extends FunSpec with Matchers {
+class TestParallelDataFlowExecutorNonSpark extends AnyFunSpec with Matchers {
 
   val exceptionAction = new DataFlowAction {
     override val inputLabels: List[String] = List.empty
