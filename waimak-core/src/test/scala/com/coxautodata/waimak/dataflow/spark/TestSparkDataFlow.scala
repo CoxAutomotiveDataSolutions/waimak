@@ -454,7 +454,9 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
         executor.execute(flow)
       }
       e.getMessage should be(s"Exception performing action: ${flow.actions.drop(4).head.guid}: Action: write Inputs: [person] Outputs: []")
-      e.cause.getMessage should be("Table `default`.`person` already exists.;")
+      // In spark 3.1 the trailing ';' seems to have been removed, however everything else seems to be the same
+      // In order to make these tests work between spark versions we remove the ';' from the message
+      e.cause.getMessage.replace(";", "") should be("Table `default`.`person` already exists.")
 
       val secondFlow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
