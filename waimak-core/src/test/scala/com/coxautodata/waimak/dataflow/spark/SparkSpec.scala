@@ -1,17 +1,18 @@
 package com.coxautodata.waimak.dataflow.spark
 
 import java.nio.file.Files
-
 import org.apache.commons.io.FileUtils
 import org.apache.commons.lang3.SystemUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
-import org.scalatest.{BeforeAndAfterEach, FunSpec, Matchers}
+import org.scalatest.BeforeAndAfterEach
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
 /**
   * Created by Vicky Avison on 24/10/17.
   */
-trait SparkSpec extends FunSpec with Matchers with BeforeAndAfterEach {
+trait SparkSpec extends AnyFunSpec with Matchers with BeforeAndAfterEach {
 
   var sparkSession: SparkSession = _
   val master = "local[2]"

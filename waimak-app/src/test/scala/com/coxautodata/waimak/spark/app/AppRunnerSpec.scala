@@ -1,13 +1,14 @@
 package com.coxautodata.waimak.spark.app
 
 import java.nio.file.Files
-
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.SparkSession
-import org.scalatest.{BeforeAndAfterEach, FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.BeforeAndAfterEach
 
-trait AppRunnerSpec extends FunSpec with Matchers with BeforeAndAfterEach {
+trait AppRunnerSpec extends AnyFunSpec with Matchers with BeforeAndAfterEach {
 
   var testingBaseDir: java.nio.file.Path = _
   var testingBaseDirName: String = _

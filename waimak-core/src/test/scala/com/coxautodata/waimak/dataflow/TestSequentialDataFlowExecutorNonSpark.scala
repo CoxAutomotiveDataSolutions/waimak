@@ -1,13 +1,14 @@
 package com.coxautodata.waimak.dataflow
 
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
 import scala.collection.mutable
 
 /**
   * Created by Alexei Perelighin on 2018/01/11.
   */
-class TestSequentialDataFlowExecutorNonSpark extends FunSpec with Matchers {
+class TestSequentialDataFlowExecutorNonSpark extends AnyFunSpec with Matchers {
 
   val func3: DataFlowEntities => ActionResult = ent => {
     ent.collect { case v => v._2 }
