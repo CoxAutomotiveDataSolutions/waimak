@@ -229,14 +229,14 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.sdk.version>1.8</java.sdk.version>
-        <scalatest.version>3.0.8</scalatest.version>
+        <scalatest.version>3.2.8</scalatest.version>
         <azure.storage.version>6.1.0</azure.storage.version>
         <jdbc.mssql.version>8.4.1.jre8</jdbc.mssql.version>
         <jdbc.postgres.version>42.2.2</jdbc.postgres.version>
         <docker.maven.plugin.version>0.25.2</docker.maven.plugin.version>
         <scala.maven.plugin.version>3.2.2</scala.maven.plugin.version>
         <maven.compiler.plugin.version>3.6.1</maven.compiler.plugin.version>
-        <scalatest.maven.plugin.version>2.0.0</scalatest.maven.plugin.version>
+        <scalatest.maven.plugin.version>2.0.2</scalatest.maven.plugin.version>
         <maven.jar.plugin.version>3.0.2</maven.jar.plugin.version>
         <maven.source.plugin.version>3.0.1</maven.source.plugin.version>
         <jgitflow.maven.plugin.version>1.0-m5.1</jgitflow.maven.plugin.version>

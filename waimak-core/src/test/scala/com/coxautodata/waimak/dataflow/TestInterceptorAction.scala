@@ -1,13 +1,14 @@
 package com.coxautodata.waimak.dataflow
 
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.funspec.AnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
 import scala.util.Success
 
 /**
   * Created by Alexei Perelighin on 2018/02/27
   */
-class TestInterceptorAction extends FunSpec with Matchers {
+class TestInterceptorAction extends AnyFunSpec with Matchers {
 
   describe("smoke tests") {
 
