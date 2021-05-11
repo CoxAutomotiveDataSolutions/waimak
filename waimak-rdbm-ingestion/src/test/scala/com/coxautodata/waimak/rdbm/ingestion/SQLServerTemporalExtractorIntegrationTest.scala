@@ -81,9 +81,7 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
 
   def executeSQl(sqls: Seq[String]): Unit = {
     Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
-    val jdcbUrl = container.jdbcUrl
-    println(jdcbUrl)
-    val connection = DriverManager.getConnection(jdcbUrl, container.username, container.password)
+    val connection = DriverManager.getConnection(container.jdbcUrl, container.username, container.password)
     val statement = connection.createStatement
     sqls.foreach(sql => {
       statement.execute(sql)
