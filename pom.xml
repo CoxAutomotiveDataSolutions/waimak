@@ -244,6 +244,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.scalactic</groupId>
+            <artifactId>scalactic_${scala.compatible.version}</artifactId>
+            <version>${scalatest.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
             <version>${scala.lang.version}</version>
