@@ -16,6 +16,8 @@ import scala.util.Failure
 class TestDeequActions extends SparkAndTmpDirSpec {
   override val appName: String = "TestDataQualityActions"
 
+  val newLine: String = System.lineSeparator()
+
   describe("deequ actions") {
     it("should allow multiple checks to be added for a single label") {
       val spark = sparkSession
@@ -50,8 +52,8 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .execute()
 
       alerter.alerts.toList.map(_.alertMessage) should contain theSameElementsAs Seq(
-        "Warning alert for label testOutput\n CompletenessConstraint(Completeness(col1,None)) : Value: 0.6 does not meet the constraint requirement! More than 20% of col1 values were null."
-        , "Critical alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col2))) : Value: 0.8 does not meet the constraint requirement! col2 was not unique"
+        s"Warning alert for label testOutput${newLine} CompletenessConstraint(Completeness(col1,None)) : Value: 0.6 does not meet the constraint requirement! More than 20% of col1 values were null."
+        , s"Critical alert for label testOutput${newLine} UniquenessConstraint(Uniqueness(List(col2),None)) : Value: 0.8 does not meet the constraint requirement! col2 was not unique"
       )
     }
 
@@ -75,7 +77,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
           , alerter1
         ).execute()
 
-      alerter1.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!")
+      alerter1.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List(s"Warning alert for label testOutput${newLine} AnomalyConstraint(Completeness(col1,None)) : Can't execute the assertion: requirement failed: There have to be previous results in the MetricsRepository!!")
 
       val alerter2 = new TestAlert
       spark.read.parquet(testingBaseDirName + "/metrics/testOutput").show(false)
@@ -112,13 +114,13 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         ).execute()
 
       alerter3.alerts.toList.map(_.alertMessage) should contain theSameElementsAs List(
-        "Warning alert for label testOutput\n AnomalyConstraint(Completeness(col1,None)) : Value: 0.5 does not meet the constraint requirement!"
+        s"Warning alert for label testOutput${newLine} AnomalyConstraint(Completeness(col1,None)) : Value: 0.5 does not meet the constraint requirement!"
       )
 
      spark.read.parquet(s"$testingBaseDirName/metrics").as[SerializableAnalysisResult].collect().toList should contain theSameElementsAs Seq(
-        SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-26 12:20:11.0"), "[\n  {\n    \"resultKey\": {\n      \"dataSetDate\": 1553602811000,\n      \"tags\": {}\n    },\n    \"analyzerContext\": {\n      \"metricMap\": [\n        {\n          \"analyzer\": {\n            \"analyzerName\": \"Completeness\",\n            \"column\": \"col1\"\n          },\n          \"metric\": {\n            \"metricName\": \"DoubleMetric\",\n            \"entity\": \"Column\",\n            \"instance\": \"col1\",\n            \"name\": \"Completeness\",\n            \"value\": 0.75\n          }\n        }\n      ]\n    }\n  }\n]")
-     , SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-27 12:20:11.0"), "[\n  {\n    \"resultKey\": {\n      \"dataSetDate\": 1553689211000,\n      \"tags\": {}\n    },\n    \"analyzerContext\": {\n      \"metricMap\": [\n        {\n          \"analyzer\": {\n            \"analyzerName\": \"Completeness\",\n            \"column\": \"col1\"\n          },\n          \"metric\": {\n            \"metricName\": \"DoubleMetric\",\n            \"entity\": \"Column\",\n            \"instance\": \"col1\",\n            \"name\": \"Completeness\",\n            \"value\": 1.0\n          }\n        }\n      ]\n    }\n  }\n]")
-     , SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-28 12:20:11.0"), "[\n  {\n    \"resultKey\": {\n      \"dataSetDate\": 1553775611000,\n      \"tags\": {}\n    },\n    \"analyzerContext\": {\n      \"metricMap\": [\n        {\n          \"analyzer\": {\n            \"analyzerName\": \"Completeness\",\n            \"column\": \"col1\"\n          },\n          \"metric\": {\n            \"metricName\": \"DoubleMetric\",\n            \"entity\": \"Column\",\n            \"instance\": \"col1\",\n            \"name\": \"Completeness\",\n            \"value\": 0.5\n          }\n        }\n      ]\n    }\n  }\n]")
+        SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-26 12:20:11.0"), s"[${newLine}  {${newLine}    \"resultKey\": {${newLine}      \"dataSetDate\": 1553602811000,${newLine}      \"tags\": {}${newLine}    },${newLine}    \"analyzerContext\": {${newLine}      \"metricMap\": [${newLine}        {${newLine}          \"analyzer\": {${newLine}            \"analyzerName\": \"Completeness\",${newLine}            \"column\": \"col1\"${newLine}          },${newLine}          \"metric\": {${newLine}            \"metricName\": \"DoubleMetric\",${newLine}            \"entity\": \"Column\",${newLine}            \"instance\": \"col1\",${newLine}            \"name\": \"Completeness\",${newLine}            \"value\": 0.75${newLine}          }${newLine}        }${newLine}      ]${newLine}    }${newLine}  }${newLine}]")
+     , SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-27 12:20:11.0"), s"[${newLine}  {${newLine}    \"resultKey\": {${newLine}      \"dataSetDate\": 1553689211000,${newLine}      \"tags\": {}${newLine}    },${newLine}    \"analyzerContext\": {${newLine}      \"metricMap\": [${newLine}        {${newLine}          \"analyzer\": {${newLine}            \"analyzerName\": \"Completeness\",${newLine}            \"column\": \"col1\"${newLine}          },${newLine}          \"metric\": {${newLine}            \"metricName\": \"DoubleMetric\",${newLine}            \"entity\": \"Column\",${newLine}            \"instance\": \"col1\",${newLine}            \"name\": \"Completeness\",${newLine}            \"value\": 1.0${newLine}          }${newLine}        }${newLine}      ]${newLine}    }${newLine}  }${newLine}]")
+     , SerializableAnalysisResult(List(), Timestamp.valueOf("2019-03-28 12:20:11.0"), s"[${newLine}  {${newLine}    \"resultKey\": {${newLine}      \"dataSetDate\": 1553775611000,${newLine}      \"tags\": {}${newLine}    },${newLine}    \"analyzerContext\": {${newLine}      \"metricMap\": [${newLine}        {${newLine}          \"analyzer\": {${newLine}            \"analyzerName\": \"Completeness\",${newLine}            \"column\": \"col1\"${newLine}          },${newLine}          \"metric\": {${newLine}            \"metricName\": \"DoubleMetric\",${newLine}            \"entity\": \"Column\",${newLine}            \"instance\": \"col1\",${newLine}            \"name\": \"Completeness\",${newLine}            \"value\": 0.5${newLine}          }${newLine}        }${newLine}      ]${newLine}    }${newLine}  }${newLine}]")
       )
 
     }

@@ -12,6 +12,8 @@ import org.apache.spark.sql.SparkSession
 class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
   override val appName: String = "TestDeequPrefabChecks"
 
+  val newLine: String = System.lineSeparator()
+
   describe("CompletenessCheck") {
 
     def getFlow(_sparkSession: SparkSession): SparkDataFlow = {
@@ -72,7 +74,9 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
         .execute()
 
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
-      TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List("Warning alert for label testOutput\n CompletenessConstraint(Completeness(col2,None)) : Value: 0.625 does not meet the constraint requirement! Less than 80.0% of col2 values were complete.")
+      val out = TestAlert.getAlerts(alerterUUID).map(_.alertMessage)
+      val expected = List(s"Warning alert for label testOutput${newLine} CompletenessConstraint(Completeness(col2,None)) : Value: 0.625 does not meet the constraint requirement! Less than 80.0% of col2 values were complete.")
+      out should contain theSameElementsAs expected
     }
 
     it("should trigger exception alert") {
@@ -81,12 +85,12 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
           .execute()
       }.cause
       cause shouldBe a[DataQualityAlertException]
-      cause.asInstanceOf[DataQualityAlertException].text should be("Critical: Critical alert for label testOutput\n CompletenessConstraint(Completeness(col2,None)) : Value: 0.5 does not meet the constraint requirement! Less than 60.0% of col2 values were complete.")
+      cause.asInstanceOf[DataQualityAlertException].text should be(s"Critical: Critical alert for label testOutput${newLine} CompletenessConstraint(Completeness(col2,None)) : Value: 0.5 does not meet the constraint requirement! Less than 60.0% of col2 values were complete.")
 
       val alerterUUID = UUID.fromString(sparkSession.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
-        "Warning alert for label testOutput\n CompletenessConstraint(Completeness(col2,None)) : Value: 0.5 does not meet the constraint requirement! Less than 80.0% of col2 values were complete.",
-        "Critical alert for label testOutput\n CompletenessConstraint(Completeness(col2,None)) : Value: 0.5 does not meet the constraint requirement! Less than 60.0% of col2 values were complete.")
+        s"Warning alert for label testOutput${newLine} CompletenessConstraint(Completeness(col2,None)) : Value: 0.5 does not meet the constraint requirement! Less than 80.0% of col2 values were complete.",
+        s"Critical alert for label testOutput${newLine} CompletenessConstraint(Completeness(col2,None)) : Value: 0.5 does not meet the constraint requirement! Less than 60.0% of col2 values were complete.")
     }
 
   }
@@ -145,7 +149,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
-        "Warning alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 100.0% unique."
+        s"Warning alert for label testOutput${newLine} UniquenessConstraint(Uniqueness(List(col1),None)) : Value: 0.8 does not meet the constraint requirement! col1 was not 100.0% unique."
       )
     }
 
@@ -175,13 +179,13 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       cause shouldBe a[DataQualityAlertException]
       cause.asInstanceOf[DataQualityAlertException].text should be(
-        "Critical: Critical alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 90.0% unique.")
+        s"Critical: Critical alert for label testOutput${newLine} UniquenessConstraint(Uniqueness(List(col1),None)) : Value: 0.8 does not meet the constraint requirement! col1 was not 90.0% unique.")
 
 
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
-        "Critical alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 90.0% unique."
-        , "Warning alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1))) : Value: 0.8 does not meet the constraint requirement! col1 was not 95.0% unique."
+        s"Critical alert for label testOutput${newLine} UniquenessConstraint(Uniqueness(List(col1),None)) : Value: 0.8 does not meet the constraint requirement! col1 was not 90.0% unique."
+        , s"Warning alert for label testOutput${newLine} UniquenessConstraint(Uniqueness(List(col1),None)) : Value: 0.8 does not meet the constraint requirement! col1 was not 95.0% unique."
       )
     }
 
@@ -193,7 +197,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
-        "Warning alert for label testOutput\n UniquenessConstraint(Uniqueness(List(col1, col2))) : Value: 0.8 does not meet the constraint requirement! col1,col2 was not 100.0% unique."
+        s"Warning alert for label testOutput${newLine} UniquenessConstraint(Uniqueness(List(col1, col2),None)) : Value: 0.8 does not meet the constraint requirement! col1,col2 was not 100.0% unique."
       )
     }
   }
@@ -257,9 +261,9 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs Seq(
-        "Warning alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col1 <= 08,None)) : Value: 0.8 does not meet the constraint requirement!"
-        , "Critical alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col2 is not null,None)) : Value: 0.5 does not meet the constraint requirement!"
-        , "Critical alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,length(col2)=4,None)) : Value: 0.3 does not meet the constraint requirement!"
+        s"Warning alert for label testOutput${newLine} ComplianceConstraint(Compliance(generic sql constraint,col1 <= 08,None)) : Value: 0.8 does not meet the constraint requirement!"
+        , s"Critical alert for label testOutput${newLine} ComplianceConstraint(Compliance(generic sql constraint,col2 is not null,None)) : Value: 0.5 does not meet the constraint requirement!"
+        , s"Critical alert for label testOutput${newLine} ComplianceConstraint(Compliance(generic sql constraint,length(col2)=4,None)) : Value: 0.3 does not meet the constraint requirement!"
       )
     }
 
@@ -270,7 +274,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs Seq(
-        "Warning alert for label testOutput\n ComplianceConstraint(Compliance(generic sql constraint,col1 in ('01', '02'),None)) : Value: 0.2 does not meet the constraint requirement!"
+        s"Warning alert for label testOutput${newLine} ComplianceConstraint(Compliance(generic sql constraint,col1 in ('01', '02'),None)) : Value: 0.2 does not meet the constraint requirement!"
       )
     }
 
@@ -333,7 +337,7 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
-        s"Warning alert for label testOutput\n SizeConstraint(Size(Some(ts >= '${sixHoursAgo}'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours."
+        s"Warning alert for label testOutput${newLine} SizeConstraint(Size(Some(ts >= '${sixHoursAgo}'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours."
       )
     }
 
@@ -369,11 +373,11 @@ class TestDeequPrefabChecks extends SparkAndTmpDirSpec {
 
       cause shouldBe a[DataQualityAlertException]
 
-      cause.asInstanceOf[DataQualityAlertException].text should be(s"Critical: Critical alert for label testOutput\n SizeConstraint(Size(Some(ts >= '$sixHoursAgo'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours.")
+      cause.asInstanceOf[DataQualityAlertException].text should be(s"Critical: Critical alert for label testOutput${newLine} SizeConstraint(Size(Some(ts >= '$sixHoursAgo'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours.")
 
       val alerterUUID = UUID.fromString(spark.conf.get("spark.waimak.dataquality.alerters.test.uuid"))
       TestAlert.getAlerts(alerterUUID).map(_.alertMessage) should contain theSameElementsAs List(
-        s"Critical alert for label testOutput\n SizeConstraint(Size(Some(ts >= '$sixHoursAgo'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours."
+        s"Critical alert for label testOutput${newLine} SizeConstraint(Size(Some(ts >= '$sixHoursAgo'))) : Value: 0 does not meet the constraint requirement! No new data in the last 6 hours."
       )
     }
   }
