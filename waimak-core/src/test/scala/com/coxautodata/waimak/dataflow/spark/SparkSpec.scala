@@ -19,7 +19,11 @@ trait SparkSpec extends AnyFunSpec with Matchers with BeforeAndAfterEach {
   val appName: String
 
   /**
-   * In spark 3  */
+   * In spark 3 there were a number of changes related to the calendar used when reading and writing
+   * from parquet (and other data sources). See https://spark.apache.org/docs/latest/sql-migration-guide.html#query-engine
+   * and https://spark.apache.org/docs/latest/sql-migration-guide.html#upgrading-from-spark-sql-30-to-31 for more details.
+   * By default we now use the new "CORRECTED" mode in our tests, but you can override this method to change to the
+   * "LEGACY" mode if you desire, or override [[configureParquetReaderWriterOptionsForSpark3]] for more control. */
   def parquetLegacyModeForSpark2To3(enabled: Boolean = false): String =
     if (enabled) "LEGACY" else "CORRECTED"
 
@@ -44,12 +48,12 @@ trait SparkSpec extends AnyFunSpec with Matchers with BeforeAndAfterEach {
       .config("spark.executor.memory", "2g")
       .config("spark.ui.enabled", "false")
 
-    sparkSession = builderOptions(preBuilder).getOrCreate()
+    val preSpark23Options = builderOptions(preBuilder).getOrCreate()
 
-    getSparkVersion(sparkSession) match {
-      case SparkVersion(2, _, _) => ()
-      case SparkVersion(3, _, _) => configureParquetReaderWriterOptionsForSpark3(sparkSession)
-      case _ => ()
+    sparkSession = getSparkVersion(preSpark23Options) match {
+      case SparkVersion(2, _, _) => preSpark23Options
+      case SparkVersion(3, _, _) => configureParquetReaderWriterOptionsForSpark3(preSpark23Options)
+      case _ => preSpark23Options
     }
   }
 
@@ -58,18 +62,20 @@ trait SparkSpec extends AnyFunSpec with Matchers with BeforeAndAfterEach {
   }
 
   def getSparkVersion(spark: SparkSession): SparkVersion =
-    spark.version.split(".").toList.map(_.toInt) match {
+    spark.version.split("\\.").toList.map(_.toInt) match {
       case maj :: min :: p :: Nil => SparkVersion(maj, min, Some(p))
       case maj :: min :: Nil => SparkVersion(maj, min, None)
       case _@v => throw new IllegalStateException(s"The spark version of ${v.mkString} cannot be parsed")
     }
 
-  def configureParquetReaderWriterOptionsForSpark3(sparkSession: SparkSession): Unit = {
+  def configureParquetReaderWriterOptionsForSpark3(sparkSession: SparkSession): SparkSession = {
     val setting = parquetLegacyModeForSpark2To3()
     sparkSession.conf.set("spark.sql.legacy.parquet.int96RebaseModeInWrite", setting)
     sparkSession.conf.set("spark.sql.legacy.parquet.int96RebaseModeInRead", setting)
     sparkSession.conf.set("spark.sql.legacy.parquet.datetimeRebaseModeInWrite", setting)
     sparkSession.conf.set("spark.sql.legacy.parquet.datetimeRebaseModeInRead", setting)
+
+    sparkSession
   }
 }
 
