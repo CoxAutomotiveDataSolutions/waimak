@@ -81,6 +81,8 @@ class DataFlowEntities(private val entities: Map[String, Option[Any]]) {
   }
 
   override def hashCode(): Int = hash
+
+  def show: String = entities.toString()
 }
 
 object DataFlowEntities {
