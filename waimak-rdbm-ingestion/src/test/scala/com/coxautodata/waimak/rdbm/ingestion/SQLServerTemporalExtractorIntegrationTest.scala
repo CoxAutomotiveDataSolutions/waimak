@@ -11,10 +11,11 @@ import com.dimafeng.testcontainers.{ForAllTestContainer, MSSQLServerContainer}
 import org.apache.spark.sql.Dataset
 import org.awaitility.Awaitility.await
 import org.scalatest.BeforeAndAfterEach
+
 import java.lang
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.Callable
-import scala.util.Success
+import scala.util.{Success, Try}
 
 /**
  * Created by Vicky Avison on 19/04/18.
@@ -28,6 +29,8 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
 
   val containerTimeout: Duration = Duration.of(30, ChronoUnit.SECONDS)
 
+  val containerTimeoutStart: Duration = Duration.of(5, ChronoUnit.SECONDS)
+
   val containerPollInterval: Duration = Duration.of(1, ChronoUnit.SECONDS)
 
   lazy val hostPort: Int = container.container.getMappedPort(container.exposedPorts.head)
@@ -39,11 +42,14 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
 
   private val containerHealthCheck = new Callable[java.lang.Boolean] {
-    override def call(): lang.Boolean = container.container.isRunning
+    override def call(): lang.Boolean = Try(executeSQl(Seq("select 1"))).isSuccess
   }
 
   def waitForHealthyDBContainer(): Unit = {
-    await().atMost(containerTimeout).pollInterval(containerPollInterval).until(containerHealthCheck)
+    await().pollDelay(containerTimeoutStart)
+      .atMost(containerTimeout)
+      .pollInterval(containerPollInterval)
+      .until(containerHealthCheck)
   }
 
   override def beforeEach(): Unit = {
