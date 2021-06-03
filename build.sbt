@@ -53,7 +53,7 @@ val common = Def.settings(
     "org.apache.spark" %% "spark-sql" % sparkVers % Provided,
     "org.apache.spark" %% "spark-hive" % sparkVers % Provided,
     "org.apache.commons" % "commons-lang3" % "3.9",
-    "org.scalatest" %% "scalatest" % "3.0.8" % Test
+    "org.scalatest" %% "scalatest" % "3.2.9" % Test
   ),
   Test / parallelExecution := false,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),

@@ -7,7 +7,6 @@ import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.AuditTableInfo
 import com.dimafeng.testcontainers.{ForAllTestContainer, MSSQLServerContainer}
-import org.scalatest.BeforeAndAfterAll
 
 import scala.util.{Failure, Success}
 
