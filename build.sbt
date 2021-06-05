@@ -54,7 +54,7 @@ val common = Def.settings(
     "org.scalatest" %% "scalatest" % "3.2.9" % Test
   ),
   Test / parallelExecution := false,
-  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports"),
+  Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports", "-oID"),
   Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
 )
 
