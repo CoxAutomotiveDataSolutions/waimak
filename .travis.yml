@@ -1,48 +1,48 @@
-sudo: required
-
-language: java
-
-jdk:
-  - openjdk8
-
-services:
-  - docker
-
-cache:
-  directories:
-    - ${HOME}/.m2
-
-matrix:
-  include:
-    - env: MAVEN_PROFILE="apache-2.4.7_2.11" SCALA_VERSION="2.11" EXTRA_MAVEN_OPTIONS='-pl !waimak-deequ'
-    - env: MAVEN_PROFILE="apache-3.1.1_2.12" SCALA_VERSION="2.12"
-    - env: MAVEN_PROFILE="apache-2.4.5_2.11" DEPLOY_PROFILE="true" COVERAGE_PROFILE="true" SCALA_VERSION="2.11" EXTRA_MAVEN_OPTIONS='-pl !waimak-deequ'
-    - env: MAVEN_PROFILE="apache-3.0.1_2.12" DEPLOY_PROFILE="true" COVERAGE_PROFILE="true" SCALA_VERSION="2.12"
-
-before_install:
-  - bash dev/change-scala-version.sh "$SCALA_VERSION"
-
-install:
-  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE -U $EXTRA_MAVEN_OPTIONS
-
-script:
-  - mvn help:active-profiles -P$MAVEN_PROFILE
-  - |
-    if [ "$SKIP_TESTS" != "true" ]; then
-      if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then
-        mvn clean verify -P$MAVEN_PROFILE -Preport scoverage:integration-report -U $EXTRA_MAVEN_OPTIONS;
-        bash <(curl -s https://codecov.io/bash);
-      else
-        mvn clean verify -P$MAVEN_PROFILE -U $EXTRA_MAVEN_OPTIONS;
-      fi
-    else
-      echo "SKIPPING TESTS";
-    fi
-  - |
-    if [ "$DEPLOY_PROFILE" == "true" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ] && ( [ -n "$TRAVIS_TAG" ] || [ "$TRIGGER_DEPLOYMENT" == "true" ] ); then 
-      echo $GPG_SECRET_KEYS | base64 --decode | $GPG_EXECUTABLE --import;
-      echo $GPG_OWNERTRUST | base64 --decode | $GPG_EXECUTABLE --import-ownertrust;
-      mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease -DskipTests -U $EXTRA_MAVEN_OPTIONS;
-    else
-      echo "SKIPPING DEPLOYMENT";
-    fi
+#sudo: required
+#
+#language: java
+#
+#jdk:
+#  - openjdk8
+#
+#services:
+#  - docker
+#
+#cache:
+#  directories:
+#    - ${HOME}/.m2
+#
+#matrix:
+#  include:
+#    - env: MAVEN_PROFILE="apache-2.4.7_2.11" SCALA_VERSION="2.11" EXTRA_MAVEN_OPTIONS='-pl !waimak-deequ'
+#    - env: MAVEN_PROFILE="apache-3.1.1_2.12" SCALA_VERSION="2.12"
+#    - env: MAVEN_PROFILE="apache-2.4.5_2.11" DEPLOY_PROFILE="true" COVERAGE_PROFILE="true" SCALA_VERSION="2.11" EXTRA_MAVEN_OPTIONS='-pl !waimak-deequ'
+#    - env: MAVEN_PROFILE="apache-3.0.1_2.12" DEPLOY_PROFILE="true" COVERAGE_PROFILE="true" SCALA_VERSION="2.12"
+#
+#before_install:
+#  - bash dev/change-scala-version.sh "$SCALA_VERSION"
+#
+#install:
+#  - mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V -P$MAVEN_PROFILE -U $EXTRA_MAVEN_OPTIONS
+#
+#script:
+#  - mvn help:active-profiles -P$MAVEN_PROFILE
+#  - |
+#    if [ "$SKIP_TESTS" != "true" ]; then
+#      if [ "$TRAVIS_BRANCH" == "develop" ] && [ "$COVERAGE_PROFILE" == "true" ]; then
+#        mvn clean verify -P$MAVEN_PROFILE -Preport scoverage:integration-report -U $EXTRA_MAVEN_OPTIONS;
+#        bash <(curl -s https://codecov.io/bash);
+#      else
+#        mvn clean verify -P$MAVEN_PROFILE -U $EXTRA_MAVEN_OPTIONS;
+#      fi
+#    else
+#      echo "SKIPPING TESTS";
+#    fi
+#  - |
+#    if [ "$DEPLOY_PROFILE" == "true" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ] && ( [ -n "$TRAVIS_TAG" ] || [ "$TRIGGER_DEPLOYMENT" == "true" ] ); then
+#      echo $GPG_SECRET_KEYS | base64 --decode | $GPG_EXECUTABLE --import;
+#      echo $GPG_OWNERTRUST | base64 --decode | $GPG_EXECUTABLE --import-ownertrust;
+#      mvn clean deploy --settings .maven.xml -P$MAVEN_PROFILE -Prelease -DskipTests -U $EXTRA_MAVEN_OPTIONS;
+#    else
+#      echo "SKIPPING DEPLOYMENT";
+#    fi
