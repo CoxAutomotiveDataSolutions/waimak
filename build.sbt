@@ -5,7 +5,7 @@ lazy val scala212 = "2.12.14"
 
 // Configs for spark
 val s30 = "3.0.2"
-val s31 = "3.1.1"
+val s31 = "3.1.2"
 
 lazy val defaultSparkVersion = s31
 lazy val defaultScalaVersion = scala212

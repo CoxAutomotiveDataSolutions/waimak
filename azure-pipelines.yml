@@ -22,7 +22,7 @@ jobs:
         SPARKVERSION: '3.0.2'
         SCALAVERSION: '2.12.14'
       Spark3112:
-        SPARKVERSION: '3.1.1'
+        SPARKVERSION: '3.1.2'
         SCALAVERSION: '2.12.14'
     maxParallel: 5
   steps:
