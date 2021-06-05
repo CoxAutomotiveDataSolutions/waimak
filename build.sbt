@@ -1,15 +1,13 @@
 import sbt._
 import Dependencies._
 
-lazy val scala212 = "2.12.13"
-lazy val scala211 = "2.11.12"
+lazy val scala212 = "2.12.14"
 
 // Configs for spark
-val s24 = "2.4.5"
 val s30 = "3.0.2"
 val s31 = "3.1.1"
 
-lazy val defaultSparkVersion = s30
+lazy val defaultSparkVersion = s31
 lazy val defaultScalaVersion = scala212
 
 //ThisBuild / crossScalaVersions := Seq(scala212, scala211)
