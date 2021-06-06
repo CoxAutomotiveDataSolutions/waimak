@@ -33,6 +33,8 @@ val common = Def.settings(
     )
   ),
   libraryDependencies ++= Dependencies.common,
+  addCompilerPlugin("org.scalameta" % "semanticdb-scalac" % semanticDbVersion cross CrossVersion.full),
+  scalacOptions += "-Yrangepos",
   Test / parallelExecution := false,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports", "-oID"),
   Global / concurrentRestrictions += Tags.limit(Tags.Test, 1),

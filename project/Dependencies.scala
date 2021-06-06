@@ -25,14 +25,17 @@ object Dependencies {
   val postgresDriverVersion = "42.2.20"
   val mssqlDriverVersion = "9.2.1.jre8"
   val awaitilityVersion = "4.1.0"
+  val semanticDbVersion = "4.4.21"
 
   // This has been updated to 10.14 in upstream spark, so watch out for that in 3.2 onwards
   val derbyVersion = "10.12.1.1"
 
   val common = Seq(
+    // scala-steward:off
     "org.apache.spark" %% "spark-core" % sparkVers % Provided,
     "org.apache.spark" %% "spark-sql" % sparkVers % Provided,
     "org.apache.spark" %% "spark-hive" % sparkVers % Provided,
+    // scala-steward:on
     "org.apache.commons" % "commons-lang3" % commonsLang3Version,
     "org.scalatest" %% "scalatest" % scalatestVersion % Test
   )
@@ -59,14 +62,16 @@ object Dependencies {
   )
 
   val hive = Seq(
+    // scala-steward:off
     "org.apache.derby" % "derbyclient" % derbyVersion % Test,
     "org.apache.derby" % "derbytools" % derbyVersion % Test,
     "org.apache.derby" % "derby" % derbyVersion % Test
+    // scala-steward:on
   )
 
   val rdbm = Seq(
     "org.postgresql" % "postgresql" % postgresDriverVersion % Provided,
-    "com.microsoft.sqlserver" % "mssql-jdbc" % mssqlDriverVersion % Provided,
+    "com.microsoft.sqlserver" % "mssql-jdbc" % mssqlDriverVersion % Provided, // scala-steward:off
     "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersScalaVersion % Test,
     "com.dimafeng" %% "testcontainers-scala-postgresql" % testcontainersScalaVersion % Test,
     "com.dimafeng" %% "testcontainers-scala-mssqlserver" % testcontainersScalaVersion % Test,
