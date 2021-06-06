@@ -34,7 +34,7 @@ jobs:
   - script: |
       echo Scala Version: $SCALA_VERSION
       echo Spark Version: $SPARK_VERSION
-      sbt '; compile ; test'
+      sbt ';project databricksConf ; compile ; test'
     env:
       SPARK_VERSION: $(SPARKVERSION)
       SCALA_VERSION: $(SCALAVERSION)
