@@ -35,60 +35,68 @@ val common = Def.settings(
   libraryDependencies ++= Dependencies.common,
   Test / parallelExecution := false,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports", "-oID"),
-  Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
+  Global / concurrentRestrictions += Tags.limit(Tags.Test, 1),
+  dependencyUpdatesFilter -= moduleFilter(organization = "org.apache.spark")
+    | moduleFilter(organization = "org.scala-lang")
+    | moduleFilter(organization = "org.apache.derby")
+    | moduleFilter(organization = "com.microsoft.sqlserver")
 )
 
 lazy val root = (project in file("."))
+  .settings(common,
+    publishArtifact := false,
+    Test / publishArtifact := false
+  )
   .aggregate(core, app, databricksConf, storage, dataquality, experimental, hive, impala, rdbm)
 
 lazy val core = (project in file("waimak-core"))
+  .settings(common)
   .settings(
     libraryDependencies ++= Dependencies.core
   )
-  .settings(common: _*)
 
 lazy val app = (project in file("waimak-app"))
-  .settings(common: _*)
+  .settings(common)
   .dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val databricksConf = (project in file("waimak-configuration-databricks"))
-  .settings(common: _*)
+  .settings(common)
   .settings(
     libraryDependencies ++= Dependencies.databricks
   ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val storage = (project in file("waimak-storage"))
-  .settings(common: _*)
+  .settings(common)
   .dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val dataquality = (project in file("waimak-dataquality"))
-  .settings(common: _*)
+  .settings(common)
   .settings(
     libraryDependencies ++= Dependencies.dataquality
   ).dependsOn(core % "compile->compile;test->test;provided->provided", storage)
 
 lazy val deequ = (project in file("waimak-deequ"))
-  .settings(common: _*)
+  .settings(common)
   .settings(
     libraryDependencies ++= Dependencies.deequ
   ).dependsOn(core, storage, dataquality)
 
 lazy val experimental = (project in file("waimak-experimental"))
-  .settings(common: _*)
+  .settings(common)
   .dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val hive = (project in file("waimak-hive"))
-  .settings(common: _*)
+  .settings(common)
   .settings(
     libraryDependencies ++= Dependencies.hive
   ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val impala = (project in file("waimak-impala"))
-  .settings(common: _*)
+  .settings(common)
   .dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val rdbm = (project in file("waimak-rdbm-ingestion"))
-  .settings(common: _*)
+  .settings(common)
   .settings(
     libraryDependencies ++= Dependencies.rdbm
   ).dependsOn(core % "compile->compile;test->test;provided->provided", storage)
