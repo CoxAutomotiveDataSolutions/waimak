@@ -25,7 +25,7 @@ import scala.util.{Success, Try}
 class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
   with ForAllTestContainer with BeforeAndAfterEach {
 
-  val retries = 3
+  val retries = 4
 
   override def withFixture(test: NoArgTest): Outcome = {
     if (isRetryable(test)) withFixture(test, retries) else super.withFixture(test)
@@ -348,6 +348,11 @@ class SQLServerTemporalExtractorIntegrationTest extends SparkAndTmpDirSpec
    * but sometimes we have to use some rather liberal filtering to make sure that the test is not flaky Such is life when
    * trying to integrate with complex systems! */
   it("should handle start/stop delta logic for the temporal tables", Retryable) {
+
+    // As we might re-run this, run the cleanup again at the start
+    cleanupTables()
+    setupTables()
+
     val spark = sparkSession
     import spark.implicits._
 
