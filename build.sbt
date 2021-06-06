@@ -1,20 +1,6 @@
 import sbt._
 import Dependencies._
 
-lazy val scala212 = "2.12.14"
-
-// Configs for spark
-val s30 = "3.0.2"
-val s31 = "3.1.2"
-
-lazy val defaultSparkVersion = s31
-lazy val defaultScalaVersion = scala212
-
-//ThisBuild / crossScalaVersions := Seq(scala212, scala211)
-
-lazy val sparkVers = sys.env.getOrElse("SPARK_VERSION", defaultSparkVersion)
-lazy val scalaVers = sys.env.getOrElse("SCALA_VERSION", defaultScalaVersion)
-
 ThisBuild / scalaVersion := scalaVers
 
 val common = Def.settings(
@@ -46,13 +32,7 @@ val common = Def.settings(
       url = url("https://james.fielder.dev/")
     )
   ),
-  libraryDependencies ++= Seq(
-    "org.apache.spark" %% "spark-core" % sparkVers % Provided,
-    "org.apache.spark" %% "spark-sql" % sparkVers % Provided,
-    "org.apache.spark" %% "spark-hive" % sparkVers % Provided,
-    "org.apache.commons" % "commons-lang3" % "3.9",
-    "org.scalatest" %% "scalatest" % "3.2.9" % Test
-  ),
+  libraryDependencies ++= Dependencies.common,
   Test / parallelExecution := false,
   Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-u", "target/test-reports", "-oID"),
   Global / concurrentRestrictions += Tags.limit(Tags.Test, 1)
@@ -63,9 +43,8 @@ lazy val root = (project in file("."))
 
 lazy val core = (project in file("waimak-core"))
   .settings(
-    libraryDependencies ++= Seq(
-      "com.beachape" %% "enumeratum" % "1.6.1"
-    ))
+    libraryDependencies ++= Dependencies.core
+  )
   .settings(common: _*)
 
 lazy val app = (project in file("waimak-app"))
@@ -75,9 +54,7 @@ lazy val app = (project in file("waimak-app"))
 lazy val databricksConf = (project in file("waimak-configuration-databricks"))
   .settings(common: _*)
   .settings(
-    libraryDependencies ++= Seq(
-      "com.databricks" %% "dbutils-api" % "0.0.5"
-    )
+    libraryDependencies ++= Dependencies.databricks
   ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val storage = (project in file("waimak-storage"))
@@ -87,67 +64,31 @@ lazy val storage = (project in file("waimak-storage"))
 lazy val dataquality = (project in file("waimak-dataquality"))
   .settings(common: _*)
   .settings(
-    libraryDependencies ++= Seq(
-      "org.apache.commons" % "commons-email" % "1.5",
-      "io.circe" %% "circe-core" % "0.11.1",
-      "io.circe" %% "circe-generic" % "0.11.1",
-      "org.jvnet.mock-javamail" % "mock-javamail" % "1.9"
-    )
+    libraryDependencies ++= Dependencies.dataquality
   ).dependsOn(core % "compile->compile;test->test;provided->provided", storage)
 
-// Disabled for now due to https://github.com/awslabs/deequ/issues/353 and
-// https://github.com/awslabs/deequ/issues/354
-
-lazy val deequDep = getDeequDependency(scalaVers, sparkVers)
 lazy val deequ = (project in file("waimak-deequ"))
   .settings(common: _*)
   .settings(
-    scalaVersion := scalaVers,
-    libraryDependencies ++= Seq(
-      deequDep
-    )
+    libraryDependencies ++= Dependencies.deequ
   ).dependsOn(core, storage, dataquality)
 
 lazy val experimental = (project in file("waimak-experimental"))
   .settings(common: _*)
-  .settings(
-    scalaVersion := scalaVers,
-    libraryDependencies ++= Seq()
-  ).dependsOn(core % "compile->compile;test->test;provided->provided")
-
-// This has been updated to 10.14 in upstream spark, so watch out for that in 3.2 onwards
-val derbyVersion = "10.12.1.1"
+  .dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val hive = (project in file("waimak-hive"))
   .settings(common: _*)
   .settings(
-    scalaVersion := scalaVers,
-    libraryDependencies ++= Seq(
-      "org.apache.derby" % "derbyclient" % derbyVersion % Test,
-      "org.apache.derby" % "derbytools" % derbyVersion % Test,
-      "org.apache.derby" % "derby" % derbyVersion % Test
-    )
+    libraryDependencies ++= Dependencies.hive
   ).dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val impala = (project in file("waimak-impala"))
   .settings(common: _*)
-  .settings(
-    scalaVersion := scalaVers,
-    libraryDependencies ++= Seq()
-  ).dependsOn(core % "compile->compile;test->test;provided->provided")
-
-val testcontainersScalaVersion = "0.39.3"
+  .dependsOn(core % "compile->compile;test->test;provided->provided")
 
 lazy val rdbm = (project in file("waimak-rdbm-ingestion"))
   .settings(common: _*)
   .settings(
-    scalaVersion := scalaVers,
-    libraryDependencies ++= Seq(
-      "org.postgresql" % "postgresql" % "42.2.2" % Provided,
-      "com.microsoft.sqlserver" % "mssql-jdbc" % "8.4.1.jre8" % Provided,
-      "com.dimafeng" %% "testcontainers-scala-scalatest" % testcontainersScalaVersion % Test,
-      "com.dimafeng" %% "testcontainers-scala-postgresql" % testcontainersScalaVersion % Test,
-      "com.dimafeng" %% "testcontainers-scala-mssqlserver" % testcontainersScalaVersion % Test,
-      "org.awaitility" % "awaitility" % "4.1.0" % Test
-    )
+    libraryDependencies ++= Dependencies.rdbm
   ).dependsOn(core % "compile->compile;test->test;provided->provided", storage)
