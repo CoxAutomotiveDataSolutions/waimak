@@ -76,7 +76,7 @@ class PostgresExtractorIntegrationTest extends SparkAndTmpDirSpec with ForAllTes
 
 
   def executeSQl(sqls: Seq[String]): Unit = {
-    Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver")
+    Class.forName(container.container.getDriverClassName)
     val connection = DriverManager.getConnection(container.jdbcUrl, container.username, container.password)
     val statement = connection.createStatement
     sqls.foreach(statement.execute)
