@@ -16,16 +16,16 @@ object Dependencies {
 
   val commonsLang3Version = "3.12.0"
   val scalatestVersion = "3.2.9"
-  val enumeratumVersion = "1.6.1"
+  val enumeratumVersion = "1.7.0"
   val dbutilsApiVersion = "0.0.5"
   val circeVersion = "0.14.1"
   val commonsEmailVersion = "1.5"
   val mockJavaMailVersion = "1.9"
   val testcontainersScalaVersion = "0.39.5"
-  val postgresDriverVersion = "42.2.20"
+  val postgresDriverVersion = "42.2.23"
   val mssqlDriverVersion = "9.2.1.jre8"
   val awaitilityVersion = "4.1.0"
-  val semanticDbVersion = "4.4.21"
+  val semanticDbVersion = "4.4.24"
 
   // This has been updated to 10.14 in upstream spark, so watch out for that in 3.2 onwards
   val derbyVersion = "10.12.1.1"
