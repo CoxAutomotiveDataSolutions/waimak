@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.9.1 - 2021-08-16
+- Push scala 2.12 jars built against spark 3.1.2
+
 ## 2.9.0 - 2021-05-13
 - Update deequ to use new Scala 2.12 and Spark 3 version
 - Publish deequ jar for Spark 3 builds
