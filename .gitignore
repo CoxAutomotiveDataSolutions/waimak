@@ -176,3 +176,4 @@ spark-warehouse
 .bloop/
 .metals/
 .vscode/
+.bsp/
