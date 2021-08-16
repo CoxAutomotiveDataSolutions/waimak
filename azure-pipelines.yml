@@ -19,11 +19,11 @@ jobs:
   strategy:
     matrix:
       Spark30112:
-        MAVEN_PROFILE: 'apache-3.0.1_2.12'
+        MAVEN_PROFILE: 'apache-3.0.3_2.12'
         DEPLOY_PROFILE: 'true'
         SCALA_VERSION: '2.12'
       Spark31112:
-        MAVEN_PROFILE: 'apache-3.1.1_2.12'
+        MAVEN_PROFILE: 'apache-3.1.2_2.12'
         DEPLOY_PROFILE: 'false'
         SCALA_VERSION: '2.12'
     maxParallel: 5
