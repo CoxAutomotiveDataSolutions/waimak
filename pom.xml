@@ -81,29 +81,11 @@
     </modules>
     <profiles>
         <profile>
-            <id>apache-2.4.5_2.11</id>
-            <properties>
-                <spark.version>2.4.5</spark.version>
-                <scala.compatible.version>2.11</scala.compatible.version>
-                <scala.lang.version>2.11.12</scala.lang.version>
-                <deequ.version>1.2.2-spark-2.4</deequ.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>apache-2.4.7_2.11</id>
-            <properties>
-                <spark.version>2.4.0</spark.version>
-                <scala.compatible.version>2.11</scala.compatible.version>
-                <scala.lang.version>2.11.12</scala.lang.version>
-                <deequ.version>1.2.2-spark-2.4</deequ.version>
-            </properties>
-        </profile>
-        <profile>
             <id>apache-3.0.3_2.12</id>
             <properties>
                 <spark.version>3.0.3</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
-                <scala.lang.version>2.12.10</scala.lang.version>
+                <scala.lang.version>2.12.15</scala.lang.version>
                 <deequ.version>1.2.2-spark-3.0</deequ.version>
             </properties>
         </profile>
@@ -115,11 +97,28 @@
             <properties>
                 <spark.version>3.1.2</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
-                <scala.lang.version>2.12.10</scala.lang.version>
+                <scala.lang.version>2.12.15</scala.lang.version>
                 <deequ.version>2.0.0-spark-3.1</deequ.version>
             </properties>
         </profile>
-
+        <profile>
+            <id>apache-3.2.0_2.12</id>
+            <properties>
+                <spark.version>3.2.0</spark.version>
+                <scala.compatible.version>2.12</scala.compatible.version>
+                <scala.lang.version>2.12.15</scala.lang.version>
+                <deequ.version>2.0.0-spark-3.1</deequ.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>apache-3.2.0_2.13</id>
+            <properties>
+                <spark.version>3.2.0</spark.version>
+                <scala.compatible.version>2.13</scala.compatible.version>
+                <scala.lang.version>2.13.8</scala.lang.version>
+                <deequ.version>2.0.0-spark-3.1</deequ.version>
+            </properties>
+        </profile>
         <!-- Release profile -->
         <profile>
             <id>release</id>
@@ -150,7 +149,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
+                        <version>3.0.1</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -193,43 +192,43 @@
         </profile>
 
         <!-- Coverage reporting -->
-        <profile>
-            <id>report</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.scoverage</groupId>
-                        <artifactId>scoverage-maven-plugin</artifactId>
-                        <version>${scoverage.plugin.version}</version>
-                        <configuration>
-                            <scalaVersion>${scala.lang.version}</scalaVersion>
-                            <aggregateOnly>true</aggregateOnly>
-                            <!-- other parameters -->
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
+<!--        <profile>-->
+<!--            <id>report</id>-->
+<!--            <build>-->
+<!--                <plugins>-->
+<!--                    <plugin>-->
+<!--                        <groupId>org.scoverage</groupId>-->
+<!--                        <artifactId>scoverage-maven-plugin</artifactId>-->
+<!--                        <version>${scoverage.plugin.version}</version>-->
+<!--                        <configuration>-->
+<!--                            <scalaVersion>${scala.lang.version}</scalaVersion>-->
+<!--                            <aggregateOnly>true</aggregateOnly>-->
+<!--                            &lt;!&ndash; other parameters &ndash;&gt;-->
+<!--                        </configuration>-->
+<!--                    </plugin>-->
+<!--                </plugins>-->
+<!--            </build>-->
+<!--        </profile>-->
 
     </profiles>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.sdk.version>1.8</java.sdk.version>
-        <scalatest.version>3.2.8</scalatest.version>
+        <scalatest.version>3.2.9</scalatest.version>
         <azure.storage.version>6.1.0</azure.storage.version>
         <jdbc.mssql.version>8.4.1.jre8</jdbc.mssql.version>
         <jdbc.postgres.version>42.2.2</jdbc.postgres.version>
         <docker.maven.plugin.version>0.25.2</docker.maven.plugin.version>
-        <scala.maven.plugin.version>3.2.2</scala.maven.plugin.version>
+        <scala.maven.plugin.version>4.5.6</scala.maven.plugin.version>
         <maven.compiler.plugin.version>3.6.1</maven.compiler.plugin.version>
         <scalatest.maven.plugin.version>2.0.2</scalatest.maven.plugin.version>
-        <maven.jar.plugin.version>3.0.2</maven.jar.plugin.version>
-        <maven.source.plugin.version>3.0.1</maven.source.plugin.version>
+        <maven.jar.plugin.version>3.2.0</maven.jar.plugin.version>
+        <maven.source.plugin.version>3.2.0</maven.source.plugin.version>
         <jgitflow.maven.plugin.version>1.0-m5.1</jgitflow.maven.plugin.version>
         <scoverage.plugin.version>1.4.0-RC1</scoverage.plugin.version>
         <databricks.dbutils.version>0.0.5</databricks.dbutils.version>
-        <circe.version>0.11.1</circe.version>
+        <circe.version>0.14.1</circe.version>
         <mock.javamail.version>1.9</mock.javamail.version>
         <apache.commons.version>1.5</apache.commons.version>
         <skipTests>false</skipTests>
@@ -293,7 +292,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.9</version>
+            <version>3.12.0</version>
         </dependency>
     </dependencies>
     <build>

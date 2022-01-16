@@ -20,12 +20,24 @@ jobs:
     matrix:
       Spark30112:
         MAVEN_PROFILE: 'apache-3.0.3_2.12'
-        DEPLOY_PROFILE: 'true'
-        SCALA_VERSION: '2.12'
-      Spark31112:
-        MAVEN_PROFILE: 'apache-3.1.2_2.12'
         DEPLOY_PROFILE: 'false'
         SCALA_VERSION: '2.12'
+        EXTRA_MVN_OPTS: '-pl !waimak-deequ'
+      Spark31112:
+        MAVEN_PROFILE: 'apache-3.1.2_2.12'
+        DEPLOY_PROFILE: 'true'
+        SCALA_VERSION: '2.12'
+        EXTRA_MVN_OPTS: ''
+      Spark32012:
+        MAVEN_PROFILE: 'apache-3.2.0_2.12'
+        DEPLOY_PROFILE: 'false'
+        SCALA_VERSION: '2.12'
+        EXTRA_MVN_OPTS: '-pl !waimak-deequ'
+      Spark32013:
+        MAVEN_PROFILE: 'apache-3.2.0_2.13'
+        DEPLOY_PROFILE: 'false'
+        SCALA_VERSION: '2.13'
+        EXTRA_MVN_OPTS: '-pl !waimak-deequ'
     maxParallel: 5
   steps:
   - task: Bash@3
@@ -47,4 +59,4 @@ jobs:
       jdkArchitectureOption: 'x64'
       publishJUnitResults: true
       testResultsFiles: '**/surefire-reports/TEST-*.xml'
-      goals: 'verify -P$(MAVEN_PROFILE) -U'
+      goals: 'verify -P$(MAVEN_PROFILE) -U $(EXTRA_MVN_OPTS)'
