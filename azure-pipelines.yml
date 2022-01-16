@@ -44,7 +44,7 @@ jobs:
         MAVEN_PROFILE: 'apache-3.2.0_2.13'
         DEPLOY_PROFILE: 'false'
         SCALA_VERSION: '2.13'
-        EXTRA_MVN_OPTS: '-pl !waimak-deequ,!waimka-configuration-databricks'
+        EXTRA_MVN_OPTS: '-pl !waimak-deequ,!waimak-configuration-databricks'
     maxParallel: 5
   steps:
   - task: Bash@3
