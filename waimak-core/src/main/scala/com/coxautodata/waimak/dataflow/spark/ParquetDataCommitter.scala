@@ -119,7 +119,7 @@ case class ParquetDataCommitter(outputBaseFolder: String,
         case (None, Some(_)) => throw new DataFlowException(s"ParquetDataCommitter [$commitName], cleanup will only work when snapshot folder is defined")
         case _ =>
       }
-      Unit
+      ()
     }
   }
 

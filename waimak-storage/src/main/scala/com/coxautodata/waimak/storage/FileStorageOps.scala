@@ -11,6 +11,7 @@ import org.apache.hadoop.fs.{FileStatus, FileSystem, Path}
 import org.apache.spark.sql._
 
 import scala.util.{Failure, Success, Try}
+import scala.reflect.ClassTag
 
 /**
   * Contains operations that interact with physical storage. Will also handle commit to the file system.
@@ -185,7 +186,7 @@ trait FileStorageOps {
     * @tparam A return type of final sequence
     * @return
     */
-  def globTablePaths[A](basePath: Path, tableNames: Seq[String], tablePartitions: Seq[String], parFun: PartialFunction[FileStatus, A]): Seq[A]
+  def globTablePaths[A : ClassTag](basePath: Path, tableNames: Seq[String], tablePartitions: Seq[String], parFun: PartialFunction[FileStatus, A]): Seq[A]
 
 }
 
@@ -305,7 +306,7 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
     }
   }
 
-  override def globTablePaths[A](basePath: Path, tableNames: Seq[String], tablePartitions: Seq[String], parFun: PartialFunction[FileStatus, A]): Seq[A] = {
+  override def globTablePaths[A : ClassTag](basePath: Path, tableNames: Seq[String], tablePartitions: Seq[String], parFun: PartialFunction[FileStatus, A]): Seq[A] = {
     val globPath = tablePartitions.foldLeft(new Path(basePath, tableNames.mkString("{", ",", "}")))((p, c) => new Path(p, c))
     val results = fs.globStatus(globPath)
     results.collect(parFun)

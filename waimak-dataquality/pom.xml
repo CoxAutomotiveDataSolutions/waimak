@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>waimak-parent_2.12</artifactId>
+        <artifactId>waimak-parent_2.13</artifactId>
         <groupId>com.coxautodata</groupId>
         <version>2.9.2-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>waimak-dataquality_2.12</artifactId>
+    <artifactId>waimak-dataquality_2.13</artifactId>
 
     <dependencies>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.12</artifactId>
+            <artifactId>waimak-core_2.13</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-storage_2.12</artifactId>
+            <artifactId>waimak-storage_2.13</artifactId>
             <version>${project.parent.version}</version>
         </dependency>
         <dependency>
@@ -27,22 +27,22 @@
         </dependency>
         <dependency>
             <groupId>io.circe</groupId>
-            <artifactId>circe-core_2.12</artifactId>
+            <artifactId>circe-core_2.13</artifactId>
             <version>${circe.version}</version>
         </dependency>
         <dependency>
             <groupId>io.circe</groupId>
-            <artifactId>circe-generic_2.12</artifactId>
+            <artifactId>circe-generic_2.13</artifactId>
             <version>${circe.version}</version>
         </dependency>
         <dependency>
             <groupId>com.softwaremill.sttp.client3</groupId>
-            <artifactId>core_2.12</artifactId>
+            <artifactId>core_2.13</artifactId>
             <version>${sttp.version}</version>
         </dependency>
         <dependency>
             <groupId>com.softwaremill.sttp.client3</groupId>
-            <artifactId>okhttp-backend_2.12</artifactId>
+            <artifactId>okhttp-backend_2.13</artifactId>
             <version>${sttp.version}</version>
         </dependency>
         <dependency>
@@ -53,7 +53,7 @@
         </dependency>
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.12</artifactId>
+            <artifactId>waimak-core_2.13</artifactId>
             <version>${project.parent.version}</version>
             <type>test-jar</type>
             <scope>test</scope>

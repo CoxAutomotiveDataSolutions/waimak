@@ -75,7 +75,7 @@ case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], 
   }
 
   def labelsUsedInMultipleCommits(): Option[Map[String, Seq[String]]] = {
-    val labelCommits: Map[String, Seq[String]] = commits.toSeq.flatMap(kv => kv._2.map(c => (c.label, c.commitName))).groupBy(_._1).filter(_._2.size > 1).mapValues(_.map(_._2))
+    val labelCommits: Map[String, Seq[String]] = commits.toSeq.flatMap(kv => kv._2.map(c => (c.label, c.commitName))).groupBy(_._1).filter(_._2.size > 1).mapValues(_.map(_._2)).toMap
     Option(labelCommits).filter(_.nonEmpty)
   }
 
@@ -110,7 +110,7 @@ case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], 
     * @param presentLabels labels that are produced in the data flow
     * @return Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
     */
-  def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty)
+  def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty).toMap
 
   def validate(dataFlow: S): Try[Unit] = {
     val outputLabels: Set[String] = dataFlow.inputs.keySet ++ dataFlow.actions.flatMap(_.outputLabels).toSet

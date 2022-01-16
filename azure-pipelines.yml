@@ -1,10 +1,17 @@
-# Maven
-# Build your Java project and run tests with Apache Maven.
-# Add steps that analyze code, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/java
-
 trigger:
-- main
+  batch: true
+  branches:
+    include:
+      - "*"
+  tags:
+    include:
+      - refs/tags/*
+
+pr:
+  autoCancel: true
+  branches:
+    include:
+      - '*'
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -37,7 +44,7 @@ jobs:
         MAVEN_PROFILE: 'apache-3.2.0_2.13'
         DEPLOY_PROFILE: 'false'
         SCALA_VERSION: '2.13'
-        EXTRA_MVN_OPTS: '-pl !waimak-deequ'
+        EXTRA_MVN_OPTS: '-pl !waimak-deequ,!waimka-configuration-databricks'
     maxParallel: 5
   steps:
   - task: Bash@3

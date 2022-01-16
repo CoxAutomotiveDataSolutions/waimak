@@ -10,7 +10,7 @@ import scala.reflect.{ClassTag, classTag}
   */
 class DataFlowEntities(private val entities: Map[String, Option[Any]]) {
 
-  def filterLabels(labels: List[String]): DataFlowEntities = DataFlowEntities(entities.filterKeys(labels.contains))
+  def filterLabels(labels: List[String]): DataFlowEntities = DataFlowEntities(entities.filterKeys(labels.contains).toMap)
 
   def keySet: Set[String] = entities.keySet
 

@@ -111,7 +111,7 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
     action.outputLabels.foreach(l => if (labelIsInputOrProduced(l)) {
       throw new DataFlowException(s"Output label [${l}] is already in the inputs or is produced by another action.")
     } else {
-      Unit
+      ()
     })
     val newActions = actions :+ action
     // Add current action into tagstate with current active tags/dep tags
