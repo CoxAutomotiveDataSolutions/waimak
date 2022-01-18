@@ -248,7 +248,7 @@ class TestSequentialDataFlowExecutorNonSpark extends AnyFunSpec with Matchers {
 
 class TestReporter extends FlowReporter {
 
-  val reports: mutable.MutableList[String] = mutable.MutableList.empty[String]
+  val reports: mutable.ArrayDeque[String] = mutable.ArrayDeque.empty[String]
 
   override def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit = reports += s"Start: ${action.description}"
 
