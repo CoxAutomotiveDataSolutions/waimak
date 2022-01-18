@@ -19,13 +19,13 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>waimak-parent_2.13</artifactId>
+        <artifactId>waimak-parent_2.12</artifactId>
         <groupId>com.coxautodata</groupId>
         <version>2.9.2-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>waimak-core_2.13</artifactId>
+    <artifactId>waimak-core_2.12</artifactId>
 
     <dependencies>
         <dependency>
@@ -36,12 +36,12 @@
         </dependency>
         <dependency>
             <groupId>com.beachape</groupId>
-            <artifactId>enumeratum_2.13</artifactId>
+            <artifactId>enumeratum_2.12</artifactId>
             <version>1.7.0</version>
         </dependency>
         <dependency>
             <groupId>org.scala-lang.modules</groupId>
-            <artifactId>scala-collection-compat_2.13</artifactId>
+            <artifactId>scala-collection-compat_2.12</artifactId>
             <version>2.6.0</version>
             <scope>test</scope>
         </dependency>

@@ -20,7 +20,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.coxautodata</groupId>
-    <artifactId>waimak-parent_2.13</artifactId>
+    <artifactId>waimak-parent_2.12</artifactId>
     <packaging>pom</packaging>
     <version>2.9.2-SNAPSHOT</version>
 
