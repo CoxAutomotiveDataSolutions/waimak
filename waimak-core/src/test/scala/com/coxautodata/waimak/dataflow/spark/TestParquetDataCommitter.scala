@@ -92,7 +92,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
     describe("failures") {
 
       it("no temp folder") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = ParquetDataCommitter(baseDest)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession)
         val res = committer.validate(flow, "f1", Seq.empty)
@@ -101,7 +101,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       }
 
       it("cleanup without snapshot folder") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = ParquetDataCommitter(baseDest).withDateBasedSnapshotCleanup("snap", "YYYY", 1)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         val res = committer.validate(flow, "f1", Seq.empty)
@@ -110,7 +110,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       }
 
       it("snapshot folder already exists for 2 labels out of 3") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = ParquetDataCommitter(baseDest)
           .withSnapshotFolder("snap=2001")
           .withDateBasedSnapshotCleanup("snap", "YYYY", 1)
@@ -135,21 +135,21 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       import CommitMetadataExtension._
 
       it("bare minimum") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = ParquetDataCommitter(baseDest)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", None, repartition = false, cache = true))) should be(Success(()))
       }
 
       it("with snapshot and no cleanup") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = ParquetDataCommitter(baseDest).withSnapshotFolder("ts=777777")
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
         committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", None, repartition = false, cache = true))) should be(Success(()))
       }
 
       it("multiple labels, no clash of the snapshot folders of committed labels") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = ParquetDataCommitter(baseDest)
           .withSnapshotFolder("snap=2003")
           .withDateBasedSnapshotCleanup("snap", "YYYY", 1)
@@ -173,7 +173,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
@@ -201,7 +201,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         import spark.implicits._
         spark.conf.set(SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION, false)
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
@@ -226,7 +226,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         import spark.implicits._
         spark.conf.set(SparkDataFlow.REMOVE_TEMP_AFTER_EXECUTION, false)
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
@@ -248,9 +248,9 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseDest1 = testingBaseDir + "/dest1"
-        val baseDest2 = testingBaseDir + "/dest2"
-        val baseDest3 = testingBaseDir + "/dest3"
+        val baseDest1 = testingBaseDir.toString + "/dest1"
+        val baseDest2 = testingBaseDir.toString + "/dest2"
+        val baseDest3 = testingBaseDir.toString + "/dest3"
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest1/tmp")
           .openCSV(basePath)("csv_1")
@@ -282,7 +282,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
@@ -304,7 +304,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
@@ -326,7 +326,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
           .openCSV(basePath)("csv_1")
@@ -349,8 +349,8 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         spark.conf.set(CACHE_REUSED_COMMITTED_LABELS, false)
         import spark.implicits._
 
-        val baseDest1 = testingBaseDir + "/dest1"
-        val baseDest2 = testingBaseDir + "/dest2"
+        val baseDest1 = testingBaseDir.toString + "/dest1"
+        val baseDest2 = testingBaseDir.toString + "/dest2"
 
         val flow = Waimak.sparkFlow(spark, s"$baseDest1/tmp")
           .openCSV(basePath)("csv_1")
@@ -378,7 +378,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
     describe("one table") {
 
       it("empty, table folder does not exist") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
@@ -390,7 +390,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       }
 
       it("empty, table folder exists") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
@@ -407,7 +407,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       }
 
       it("one snapshot folder") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
@@ -425,7 +425,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       }
 
       it("all snapshot folders") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
@@ -448,7 +448,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
     describe("multiple tables") {
 
       it("all empty, no folders exist") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer
@@ -459,7 +459,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
       }
 
       it("1 empty, 1 has 2 snapshots, 1 has 5 snapshots") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         val committer = dateBasedSnapshotCleanupStrategy("snapshotFolder", dateFormat, 3)(fileStatusToName)
         val fsCleanupAction = new FSCleanUp(baseDest
           , committer

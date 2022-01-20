@@ -21,7 +21,7 @@ class TestSequentialDataFlowExecutorNonSpark extends AnyFunSpec with Matchers {
 
   val emptyFlow = MockDataFlow.empty
 
-  val executor = SequentialDataFlowExecutor(NoReportingFlowReporter.apply)
+  val executor = SequentialDataFlowExecutor(NoReportingFlowReporter.apply())
 
   describe("executeWave") {
 

@@ -6,7 +6,8 @@ import java.util.concurrent.{BlockingQueue, Executors, LinkedBlockingQueue, Time
 import com.coxautodata.waimak.log.Logging
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
+import scala.collection.compat._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -58,7 +59,7 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
   override def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction]): Seq[DataFlowAction] = {
     if (from.isEmpty) from
     else {
-      val running = pools.filterKeys(poolNames.contains).values.flatMap(_.running).toSet
+      val running = pools.filterKeys(poolNames.contains).toMap.values.flatMap(_.running).toSet
       from.filter(a => !running.contains(a.schedulingGuid))
     }
   }

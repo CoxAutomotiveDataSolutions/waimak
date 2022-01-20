@@ -46,7 +46,7 @@ class TestWriteAsNamedFilesAction extends SparkAndTmpDirSpec {
 
       Waimak.sparkFlow(spark, tmpDir.toString)
         .openCSV(basePath)("csv_1")
-        .inPlaceTransform("csv_1")(List.fill(10)(_).reduce(_ union _).withColumn("col3", monotonically_increasing_id))
+        .inPlaceTransform("csv_1")(List.fill(10)(_).reduce(_ union _).withColumn("col3", monotonically_increasing_id()))
         .writeAsNamedFiles("csv_1", outputBasePath.toString, 10, "file", "parquet")
         .execute()
 

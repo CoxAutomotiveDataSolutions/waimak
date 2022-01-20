@@ -99,7 +99,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
             .option("user", connectionDetails.user)
             .option("password", connectionDetails.password)
             .option("dbtable", s"($query) as maxTs")
-            .load
+            .load()
         )
           .as[String]
           .collect()

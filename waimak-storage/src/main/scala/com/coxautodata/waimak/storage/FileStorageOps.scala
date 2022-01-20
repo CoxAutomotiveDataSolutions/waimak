@@ -137,7 +137,7 @@ trait FileStorageOps {
     * @param cleanUpPaths    list of sub-folders to remove once the writing and committing of the combined data is successful
     * @param appendTimestamp Timestamp of the compaction/append. Used to date the Trash folders.
     */
-  def atomicWriteAndCleanup(tableName: String, compactedData: Dataset[_], newDataPath: Path, cleanUpPaths: Seq[Path], appendTimestamp: Timestamp)
+  def atomicWriteAndCleanup(tableName: String, compactedData: Dataset[_], newDataPath: Path, cleanUpPaths: Seq[Path], appendTimestamp: Timestamp): Unit
 
   /**
     * Purge the trash folder for a given table. All trashed region folders that were placed into the trash
@@ -262,7 +262,7 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
 
   override def listTables(basePath: Path): Seq[String] = {
     if (fs.exists(basePath)) {
-      fs.listStatus(basePath).map(_.getPath.getName).filter(!_.startsWith("."))
+      fs.listStatus(basePath).map(_.getPath.getName).filter(!_.startsWith(".")).toIndexedSeq
     } else Seq.empty
   }
 
@@ -282,7 +282,7 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
 
   override def readAuditTableInfo(basePath: Path, tableName: String): Try[AuditTableInfo] = {
     Try {
-      import scala.collection.JavaConverters._
+      import scala.jdk.CollectionConverters._
 
       val input = new Path(new Path(basePath, tableName), ".table_info")
       val config: Properties = new Properties()
@@ -302,14 +302,14 @@ class FileStorageOpsWithStaging(fs: FileSystem, override val sparkSession: Spark
           Try(p.toBoolean).toOption
         })
         .getOrElse(true)
-      AuditTableInfo(tableName, primary, meta, retainHistory)
+      AuditTableInfo(tableName, primary.toIndexedSeq, meta, retainHistory)
     }
   }
 
   override def globTablePaths[A : ClassTag](basePath: Path, tableNames: Seq[String], tablePartitions: Seq[String], parFun: PartialFunction[FileStatus, A]): Seq[A] = {
     val globPath = tablePartitions.foldLeft(new Path(basePath, tableNames.mkString("{", ",", "}")))((p, c) => new Path(p, c))
     val results = fs.globStatus(globPath)
-    results.collect(parFun)
+    results.toIndexedSeq.collect(parFun)
   }
 
   override def deletePath(path: Path, recursive: Boolean): Unit = {

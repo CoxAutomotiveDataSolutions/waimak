@@ -1,5 +1,6 @@
 package com.coxautodata.waimak.dataflow
 
+import scala.collection.compat._
 import scala.reflect.{ClassTag, classTag}
 
 /**

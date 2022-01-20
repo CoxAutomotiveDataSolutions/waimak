@@ -4,6 +4,7 @@ import java.util.UUID
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
+import scala.collection.compat._
 
 case class CommitMetadataExtension[S <: DataFlow[S]](commitMeta: CommitMeta[S]) extends DataFlowMetadataExtension[S] {
 
@@ -110,7 +111,7 @@ case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], 
     * @param presentLabels labels that are produced in the data flow
     * @return Map[COMMIT_NAME, Set[Labels that are not defined in the DataFlow, but in the commits] ]
     */
-  def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty).toMap
+  def phantomLabels(presentLabels: Set[String]): Map[String, Set[String]] = commits.filterKeys(pushes.contains).view.toMap.mapValues(_.map(_.label).toSet.diff(presentLabels)).filter(_._2.nonEmpty).toMap
 
   def validate(dataFlow: S): Try[Unit] = {
     val outputLabels: Set[String] = dataFlow.inputs.keySet ++ dataFlow.actions.flatMap(_.outputLabels).toSet

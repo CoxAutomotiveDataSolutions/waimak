@@ -13,6 +13,8 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
+import scala.collection.compat._
+import scala.collection.compat.immutable.LazyList
 
 object CaseClassConfigParser extends Logging {
 
@@ -107,7 +109,7 @@ object CaseClassConfigParser extends Logging {
   private def getValue(conf: Map[String, String], properties: Seq[PropertyProvider], prefix: String, param: String, timeoutMs: Long, retries: Int): String = {
     val fullParam = prefix + param
     conf
-      .getOrElse(fullParam, properties.toStream.map(p => p.getWithRetry(fullParam, timeoutMs, retries)).collectFirst { case Some(p) => p }.getOrElse {
+      .getOrElse(fullParam, properties.to(LazyList).map(p => p.getWithRetry(fullParam, timeoutMs, retries)).collectFirst { case Some(p) => p }.getOrElse {
         throw new NoSuchElementException
       })
   }

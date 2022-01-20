@@ -5,7 +5,8 @@ import java.util.ServiceLoader
 import com.coxautodata.waimak.dataflow.DataFlow._
 import com.coxautodata.waimak.log.Logging
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
+import scala.collection.compat._
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Success, Try}
@@ -485,7 +486,7 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
         // Get all tags that this action depends on
         val depTags = actionsWithDependencies.get(h.action.guid).map(_.dependentOnTags).getOrElse(Set.empty)
         val newActionsFromTags = depTags.flatMap {
-          t => actionsByTag.getOrElse(t, throw new DataFlowException(s"Could not find any actions tagged with label [$t] when resolving dependent actions for action [${h.action.guid}]"))
+          t => actionsByTag.toMap.getOrElse(t, throw new DataFlowException(s"Could not find any actions tagged with label [$t] when resolving dependent actions for action [${h.action.guid}]"))
         }
 
         // Check the new actions to add have never been seen before
