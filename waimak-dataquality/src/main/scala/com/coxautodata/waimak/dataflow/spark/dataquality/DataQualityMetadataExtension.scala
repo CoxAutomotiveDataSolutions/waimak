@@ -71,7 +71,7 @@ trait DataQualityCheck[Self <: DataQualityCheck[Self]] {
     *
     * @return true if this is a valid check, false otherwise
     */
-  def validateCheck: Try[Unit] = Success()
+  def validateCheck: Try[Unit] = Success(())
 
   /**
     * Combine this check with another check to take advantage of potential optimisations

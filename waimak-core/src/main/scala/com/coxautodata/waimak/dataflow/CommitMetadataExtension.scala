@@ -101,7 +101,7 @@ case class CommitMeta[S <: DataFlow[S]](commits: Map[String, Seq[CommitEntry]], 
       }
     }
 
-    loopTest(pushes.keySet.intersect(commits.keySet), Success())
+    loopTest(pushes.keySet.intersect(commits.keySet), Success(()))
   }
 
   /**

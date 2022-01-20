@@ -138,14 +138,14 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest)
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", None, repartition = false, cache = true))) should be(Success())
+        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", None, repartition = false, cache = true))) should be(Success(()))
       }
 
       it("with snapshot and no cleanup") {
         val baseDest = testingBaseDir + "/dest"
         val committer = ParquetDataCommitter(baseDest).withSnapshotFolder("ts=777777")
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
-        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", None, repartition = false, cache = true))) should be(Success())
+        committer.validate(flow, "fff", Seq(CommitEntry("label_1", "fff", None, repartition = false, cache = true))) should be(Success(()))
       }
 
       it("multiple labels, no clash of the snapshot folders of committed labels") {
@@ -166,7 +166,7 @@ class TestParquetDataCommitter extends SparkAndTmpDirSpec {
           , CommitEntry("label_3", "f1", None, repartition = false, cache = true)
           , CommitEntry("label_no_init", "f1", None, repartition = false, cache = true))
         )
-        res should be(Success())
+        res should be(Success(()))
       }
 
       it("commit a parquet and make sure one label is cached if it is used as input elsewhere") {
