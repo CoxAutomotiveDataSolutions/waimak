@@ -96,15 +96,15 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       connector1.ranDDLs should be {
         List(List(
           "drop table if exists test.items",
-          s"create external table if not exists test.items (id int, item int) partitioned by (amount string) stored as parquet location 'file:$testingBaseDir.toStringName/dest/items'",
+          s"create external table if not exists test.items (id int, item int) partitioned by (amount string) stored as parquet location 'file:$testingBaseDirName/dest/items'",
           "alter table test.items recover partitions"
         ))
       }
 
       connector2.ranDDLs should be {
         List(List(
-          s"create external table if not exists test.person (id int, name string, country string) stored as parquet location 'file:$testingBaseDir.toString/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
-          s"alter table test.person set location 'file:$testingBaseDir.toStringName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
+          s"create external table if not exists test.person (id int, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person/generatedTimestamp=2018-03-13-16-19-00'",
+          s"alter table test.person set location 'file:$testingBaseDirName/dest/person/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
 
@@ -123,7 +123,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       connectorRecreate.ranDDLs should be {
         List(List(
           "drop table if exists test.person_recreate",
-          s"create external table if not exists test.person_recreate (id int, name string, country string) stored as parquet location 'file:$testingBaseDir.toString/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
+          s"create external table if not exists test.person_recreate (id int, name string, country string) stored as parquet location 'file:$testingBaseDir/dest/person_recreate/generatedTimestamp=2018-03-13-16-19-00'"
         ))
       }
     }
