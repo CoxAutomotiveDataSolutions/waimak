@@ -32,7 +32,7 @@ jobs:
         EXTRA_MVN_OPTS: '-pl !waimak-deequ'
       Spark31112:
         MAVEN_PROFILE: 'apache-3.1.2_2.12'
-        DEPLOY_PROFILE: 'true'
+        DEPLOY_PROFILE: true
         SCALA_VERSION: '2.12'
         EXTRA_MVN_OPTS: ''
       Spark32012:
@@ -42,7 +42,7 @@ jobs:
         EXTRA_MVN_OPTS: '-pl !waimak-deequ'
       Spark32013:
         MAVEN_PROFILE: 'apache-3.2.0_2.13'
-        DEPLOY_PROFILE: 'false'
+        DEPLOY_PROFILE: true
         SCALA_VERSION: '2.13'
         EXTRA_MVN_OPTS: '-pl !waimak-deequ,!waimak-configuration-databricks'
     maxParallel: 5
@@ -58,6 +58,7 @@ jobs:
       path: $(MAVEN_CACHE_FOLDER)
     displayName: Cache Maven local repo
   - task: Maven@3
+    name: tests
     inputs:
       mavenPomFile: 'pom.xml'
       mavenOptions: '-Xmx3072m -Dmaven.repo.local=$(MAVEN_CACHE_FOLDER)'
@@ -67,3 +68,25 @@ jobs:
       publishJUnitResults: true
       testResultsFiles: '**/surefire-reports/TEST-*.xml'
       goals: 'verify -P$(MAVEN_PROFILE) -U $(EXTRA_MVN_OPTS)'
+  - task: DownloadSecureFile@1
+    name: gpgKeyFiles
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'), eq(variables['DEPLOY_PROFILE'], true))
+    displayName: Fetch gpg keys
+    inputs:
+      secureFile: 'gpg-with-owner-trust.zip'
+  - task: Bash@3
+    displayName: Push new jars to maven central
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'), eq(variables['DEPLOY_PROFILE'], true))
+    env:
+      SONATYPE_PASSWORD: $(SONATYPE-PASSWORD)
+      SONATYPE_USERNAME: $(SONATYPE-USERNAME)
+      GPG_PASSPHRASE: $(PGP-PASSPHRASE)
+    inputs:
+      targetType: 'inline'
+      script: |
+        export GPG_TTY=$(tty)
+        unzip $(gpgKeyFiles.secureFilePath) -d $(Agent.TempDirectory)
+        gpg --batch --import $(Agent.TempDirectory)/gpg-with-owner-trust/pub.key
+        gpg --batch --import $(Agent.TempDirectory)/gpg-with-owner-trust/priv.key
+        gpg --batch --import-ownertrust $(Agent.TempDirectory)/gpg-with-owner-trust/owner-trust.txt
+        mvn clean deploy --settings .maven.xml -P$(MAVEN_PROFILE) -Prelease -DskipTests -U $(EXTRA_MAVEN_OPTIONS)
