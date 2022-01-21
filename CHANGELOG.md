@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.2 - 2022-01-21
+- Drop scala 2.11 and spark 2 from the build
+- Build against spark 3.0, 3.1 and 3.2
+- Add in experimental 2.13 build
+- Use Azure Devops for all build and deploy steps
+
 ## 2.9.1 - 2021-08-16
 - Push scala 2.12 jars built against spark 3.1.2
 
