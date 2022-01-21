@@ -21,7 +21,7 @@ class TestSequentialDataFlowExecutorNonSpark extends AnyFunSpec with Matchers {
 
   val emptyFlow = MockDataFlow.empty
 
-  val executor = SequentialDataFlowExecutor(NoReportingFlowReporter.apply)
+  val executor = SequentialDataFlowExecutor(NoReportingFlowReporter.apply())
 
   describe("executeWave") {
 
@@ -248,7 +248,7 @@ class TestSequentialDataFlowExecutorNonSpark extends AnyFunSpec with Matchers {
 
 class TestReporter extends FlowReporter {
 
-  val reports: mutable.MutableList[String] = mutable.MutableList.empty[String]
+  val reports: mutable.ArrayBuffer[String] = mutable.ArrayBuffer.empty[String]
 
   override def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit = reports += s"Start: ${action.description}"
 

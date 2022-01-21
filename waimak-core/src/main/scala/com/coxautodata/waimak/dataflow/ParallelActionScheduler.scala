@@ -6,7 +6,8 @@ import java.util.concurrent.{BlockingQueue, Executors, LinkedBlockingQueue, Time
 import com.coxautodata.waimak.log.Logging
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
+import scala.collection.compat._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutorService, Future}
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -58,7 +59,7 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
   override def dropRunning(poolNames: Set[String], from: Seq[DataFlowAction]): Seq[DataFlowAction] = {
     if (from.isEmpty) from
     else {
-      val running = pools.filterKeys(poolNames.contains).values.flatMap(_.running).toSet
+      val running = pools.filterKeys(poolNames.contains).toMap.values.flatMap(_.running).toSet
       from.filter(a => !running.contains(a.schedulingGuid))
     }
   }
@@ -78,11 +79,11 @@ class ParallelActionScheduler(val pools: Map[String, ExecutionPoolDesc]
               //optimistic attempt to get results for more actions without blocking
               val bucket = new util.LinkedList[futureResult]()
               actionFinishedNotificationQueue.drainTo(bucket, 1000)
-              bucket.asScala :+ oneAction
+              (bucket.asScala :+ oneAction).toSeq
             }
           )
         case Some(rSet) =>
-          val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet)
+          val poolActionGuids: Map[String, Set[String]] = rSet.map(r => (r._1, r._2.schedulingGuid)).groupBy(_._1).mapValues(v => v.map(_._2).toSet).toMap
           poolActionGuids.foreach(kv => logDebug("waitToFinish finished: " + kv._1 + " " + kv._2.mkString("[", ",", "]")))
           val newPools = poolActionGuids.foldLeft(pools) { (newPools, kv) =>
             val newPoolDesc = newPools(kv._1).removeActionGUIDS(kv._2)

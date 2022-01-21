@@ -30,7 +30,7 @@ case class DeequCheck(checks: VerificationRunBuilder => VerificationRunBuilder =
         DeequCheckException("Anomaly checks were specified but no metrics repository was set, or metrics repository was set after anomaly checks were defined. " +
           "Use setDeequMetricsRepository or setDeequStorageLayerMetricsRepository to set a repository and ensure you set the " +
           "repository before calling any checks that need it."))
-      case _ => Success()
+      case _ => Success(())
     }
   }
 

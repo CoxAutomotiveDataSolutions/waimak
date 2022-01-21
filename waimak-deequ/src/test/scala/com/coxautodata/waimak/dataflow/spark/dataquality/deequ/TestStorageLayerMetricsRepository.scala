@@ -1,7 +1,7 @@
 package com.coxautodata.waimak.dataflow.spark.dataquality.deequ
 
 import com.amazon.deequ.analyzers.Size
-import com.amazon.deequ.anomalydetection.RateOfChangeStrategy
+import com.amazon.deequ.anomalydetection.AbsoluteChangeStrategy
 import com.amazon.deequ.checks.CheckStatus
 import com.amazon.deequ.repository.ResultKey
 import com.amazon.deequ.{StorageLayerMetricsRepository, VerificationSuite}
@@ -29,7 +29,7 @@ class TestStorageLayerMetricsRepository extends SparkAndTmpDirSpec {
       .useRepository(metricsRepository)
       .saveOrAppendResult(yesterdaysKey)
       .addAnomalyCheck(
-        RateOfChangeStrategy(maxRateIncrease = Some(2.0)),
+        AbsoluteChangeStrategy(maxRateIncrease = Some(2.0)),
         Size())
       .run()
 
@@ -48,7 +48,7 @@ class TestStorageLayerMetricsRepository extends SparkAndTmpDirSpec {
       .useRepository(metricsRepository)
       .saveOrAppendResult(todaysKey)
       .addAnomalyCheck(
-        RateOfChangeStrategy(maxRateIncrease = Some(2.0)),
+        AbsoluteChangeStrategy(maxRateIncrease = Some(2.0)),
         Size())
       .run()
 

@@ -83,12 +83,12 @@
                                     <MSSQL_SA_PASSWORD>SQLServer123!</MSSQL_SA_PASSWORD>
                                   </env>
                                 <wait>
-                                  <time>20000</time>
+                                  <time>8000</time>
                                 </wait>
                             </run>
                         </image>
                         <image>
-                            <name>postgres:9.6.5</name>
+                            <name>postgres:14</name>
                             <alias>it-postgres</alias>
                             <run>
                                 <namingStrategy>alias</namingStrategy>
@@ -100,7 +100,7 @@
                                     <POSTGRES_PASSWORD>Postgres123!</POSTGRES_PASSWORD>
                               </env>
                               <wait>
-                                <time>20000</time>
+                                <time>8000</time>
                               </wait>
                             </run>
                         </image>

@@ -1,13 +1,12 @@
 package com.coxautodata.waimak.metastore
 
 import java.util.Properties
-
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.security.alias.CredentialProviderFactory
 import org.apache.spark.sql.SparkSession
 
-import scala.collection.JavaConversions._
+import scala.jdk.CollectionConverters._
 
 class TestMetastoreUtils extends SparkAndTmpDirSpec {
   override val appName: String = "Metastore Tests"
@@ -26,10 +25,10 @@ class TestMetastoreUtils extends SparkAndTmpDirSpec {
 
       val jdbc = TestJDBCConnector(sparkSession, properties, jdbcMapping)
 
-      jdbc.getAllProperties.toMap should contain theSameElementsAs Map("jdbc.user" -> "ringo", "jdbc.password" -> "starr", "jdbc.timeout" -> "1")
+      jdbc.getAllProperties.asScala.toMap should contain theSameElementsAs Map("jdbc.user" -> "ringo", "jdbc.password" -> "starr", "jdbc.timeout" -> "1")
 
       // Test immutability
-      jdbc.properties.toMap should contain theSameElementsAs Map("jdbc.timeout" -> "1")
+      jdbc.properties.asScala.toMap should contain theSameElementsAs Map("jdbc.timeout" -> "1")
 
     }
 
@@ -40,8 +39,8 @@ class TestMetastoreUtils extends SparkAndTmpDirSpec {
 
       val jdbc = TestJDBCConnector(sparkSession, properties)
 
-      jdbc.getAllProperties.toMap should contain theSameElementsAs Map("jdbc.timeout" -> "1")
-      jdbc.properties.toMap should contain theSameElementsAs Map("jdbc.timeout" -> "1")
+      jdbc.getAllProperties.asScala.toMap should contain theSameElementsAs Map("jdbc.timeout" -> "1")
+      jdbc.properties.asScala.toMap should contain theSameElementsAs Map("jdbc.timeout" -> "1")
 
     }
 
@@ -53,7 +52,7 @@ class TestMetastoreUtils extends SparkAndTmpDirSpec {
       val jdbc = TestJDBCConnector(sparkSession, properties, jdbcMapping)
 
       val res = intercept[MetastoreUtilsException] {
-        jdbc.getAllProperties.toMap
+        jdbc.getAllProperties.asScala.toMap
       }
       res.text should be("Could not read secure parameter [user] as no jceks file is set using [hadoop.security.credential.provider.path]")
     }
@@ -70,7 +69,7 @@ class TestMetastoreUtils extends SparkAndTmpDirSpec {
       val jdbc = TestJDBCConnector(sparkSession, properties, jdbcMapping)
 
       val res = intercept[MetastoreUtilsException] {
-        jdbc.getAllProperties.toMap
+        jdbc.getAllProperties.asScala.toMap
       }
       res.text should be(s"Could not find secure parameter [password] in any locations at [$jceksFile]")
     }
@@ -86,7 +85,7 @@ class TestMetastoreUtils extends SparkAndTmpDirSpec {
       val jdbc = TestJDBCConnector(sparkSession, properties, jdbcMapping)
 
       val res = intercept[MetastoreUtilsException] {
-        jdbc.getAllProperties.toMap
+        jdbc.getAllProperties.asScala.toMap
       }
       res.text should be(s"Could not find secure parameter [user] in any locations at [$jceksFile]")
     }

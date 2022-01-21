@@ -111,7 +111,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     it("read two parquet folders") {
       val spark = sparkSession
       import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val flow = Waimak.sparkFlow(spark)
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "parquet_1")
@@ -132,7 +132,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     it("read two parquet folders with snapshot directory") {
       val spark = sparkSession
       import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
         .openCSV(basePath)("csv_1", "csv_2")
         .alias("csv_1", "parquet_1")
@@ -157,7 +157,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
       spark.conf.set(CACHE_ONLY_REUSED_LABELS, false)
 
       import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val flow = Waimak.sparkFlow(spark, s"$baseDest/tmp")
         .openCSV(basePath)("csv_1")
         .alias("csv_1", "parquet_1")
@@ -357,7 +357,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     it("writeCSV") {
       val spark = sparkSession
       import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
 
       val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
@@ -376,7 +376,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     it("writeCSV multiple with overwrite") {
       val spark = sparkSession
       import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val dummyPath = new File(s"$baseDest/dummy")
       val itemsPath = new File(s"$baseDest/items")
 
@@ -402,7 +402,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     it("writeParquet") {
       val spark = sparkSession
       import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
 
       val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
@@ -421,7 +421,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
     it("writeParquet with multiple labels") {
       val spark = sparkSession
       import spark.implicits._
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
 
       val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
@@ -473,7 +473,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("missing tag") {
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .tagDependency("write_person", "write_items") {
@@ -494,7 +494,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
       it("no tag dependencies, should be missing file") {
         // This will produce a file missing exception if no tag dependencies introduced
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openFileParquet(s"$baseDest/person", "person_written")
@@ -515,7 +515,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
         // This will fix the missing file error by providing a dependency using tags
         val spark = sparkSession
         import spark.implicits._
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .tagDependency("written") {
@@ -540,7 +540,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
       it("cyclic dependency tags") {
 
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .tagDependency("written") {
@@ -565,7 +565,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("tag dependency conflicting with input dependency") {
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .tagDependency("written") {
@@ -591,7 +591,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("tag dependent action depends on an action that does not run and therefore does not run and errorOnUnexecutedActions is true") {
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .addInput("test_1", None)
@@ -618,7 +618,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("tag dependent action depends on an action that does not run and therefore does not run and errorOnUnexecutedActions is false") {
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .addInput("test_1", None)
@@ -636,7 +636,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("interceptor on tagged action, should replace action in tag state") {
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .tag("tag_1") {
@@ -668,7 +668,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("tagged interceptor on tagged action") {
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         spark.conf.set(CACHE_ONLY_REUSED_LABELS, false)
 
@@ -705,7 +705,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
 
       it("tagged interceptor on non tagged action") {
         val spark = sparkSession
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
         spark.conf.set(CACHE_ONLY_REUSED_LABELS, false)
 
         val flowNoCache = Waimak.sparkFlow(sparkSession, tmpDir.toString)
@@ -913,7 +913,7 @@ class TestSparkDataFlow extends SparkAndTmpDirSpec {
       val parallelExecutor = Waimak.sparkExecutor(10, DFExecutorPriorityStrategies.raceToOutputs)
       val spark = sparkSession
 
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val flow = Waimak.sparkFlow(spark)
         .openCSV(basePath)("csv_1", "csv_2")
         .sql("csv_1")("person_summary", "select id, count(item) as item_cnt, sum(amount) as total from csv_1 group by id")

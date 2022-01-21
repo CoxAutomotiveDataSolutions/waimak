@@ -14,7 +14,7 @@ object RDBMIngestionUtils {
   def lowerCaseAll(df: Dataset[_]): Dataset[_] = {
     import df.sparkSession.implicits._
     val cols = df.schema.fieldNames.map(f => lower($"$f").as(f))
-    df.select(cols: _*)
+    df.select(cols.toIndexedSeq: _*)
   }
 
   /**

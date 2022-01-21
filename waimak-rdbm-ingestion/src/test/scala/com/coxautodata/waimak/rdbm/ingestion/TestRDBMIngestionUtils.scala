@@ -44,7 +44,7 @@ class TestRDBMIngestionUtils extends SparkSpec {
       "after all events have happened") {
       val spark = sparkSession
       import spark.implicits._
-      RDBMIngestionUtils.snapshotTemporalTableDataset(preSnapshotRecords.toDS, timeAfterAllEvents, temporalTableMetadata)
+      RDBMIngestionUtils.snapshotTemporalTableDataset(preSnapshotRecords.toDS(), timeAfterAllEvents, temporalTableMetadata)
         .sort("key").as[TTemporalRecord].collect() should be(Seq(
         TTemporalRecord(1, "e", updateTimestamp, endOfTime)
         , TTemporalRecord(2, "f", newInsertTimestamp, endOfTime)
@@ -55,7 +55,7 @@ class TestRDBMIngestionUtils extends SparkSpec {
       val spark = sparkSession
       import spark.implicits._
       val timeBeforeDeleteButAfterOtherEvents = Timestamp.valueOf("2018-05-08 12:09:00")
-      RDBMIngestionUtils.snapshotTemporalTableDataset(preSnapshotRecords.toDS, timeBeforeDeleteButAfterOtherEvents, temporalTableMetadata)
+      RDBMIngestionUtils.snapshotTemporalTableDataset(preSnapshotRecords.toDS(), timeBeforeDeleteButAfterOtherEvents, temporalTableMetadata)
         .sort("key").as[TTemporalRecord].collect() should be(Seq(
         TTemporalRecord(1, "e", updateTimestamp, endOfTime)
         , TTemporalRecord(2, "b", insertTimestamp, deleteTimestamp)
@@ -67,7 +67,7 @@ class TestRDBMIngestionUtils extends SparkSpec {
     it("should return the original version of an updated record if the snapshot timestamp is before the update timestamp") {
       val spark = sparkSession
       import spark.implicits._
-      RDBMIngestionUtils.snapshotTemporalTableDataset(preSnapshotRecords.toDS, insertTimestamp, temporalTableMetadata)
+      RDBMIngestionUtils.snapshotTemporalTableDataset(preSnapshotRecords.toDS(), insertTimestamp, temporalTableMetadata)
         .sort("key").as[TTemporalRecord].collect() should be(Seq(
         TTemporalRecord(1, "a", insertTimestamp, updateTimestamp)
         , TTemporalRecord(2, "b", insertTimestamp, deleteTimestamp)
@@ -86,7 +86,7 @@ class TestRDBMIngestionUtils extends SparkSpec {
       )
       val spark = sparkSession
       import spark.implicits._
-      RDBMIngestionUtils.snapshotTemporalTableDataset(preSnapshotWithEventCollisions.toDS, timeAfterAllEvents, temporalTableMetadata)
+      RDBMIngestionUtils.snapshotTemporalTableDataset(preSnapshotWithEventCollisions.toDS(), timeAfterAllEvents, temporalTableMetadata)
         .as[TTemporalRecord].collect() should be(Seq(
         TTemporalRecord(1, "c", updateTimestamp, endOfTime)
       ))

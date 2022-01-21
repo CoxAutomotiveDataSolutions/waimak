@@ -36,6 +36,16 @@
             <version>${circe.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.softwaremill.sttp.client3</groupId>
+            <artifactId>core_2.12</artifactId>
+            <version>${sttp.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.softwaremill.sttp.client3</groupId>
+            <artifactId>okhttp-backend_2.12</artifactId>
+            <version>${sttp.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.jvnet.mock-javamail</groupId>
             <artifactId>mock-javamail</artifactId>
             <version>${mock.javamail.version}</version>

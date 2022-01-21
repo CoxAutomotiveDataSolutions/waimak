@@ -167,7 +167,7 @@ private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefi
     // Table Commits
     commitLabels.filter(_._2.connection.isDefined)
       .groupBy(_._2.connection.get)
-      .mapValues(_.map {
+      .view.toMap.mapValues(_.map {
         case (label, commitDefinition) =>
           commitDefinition.connection.get.updateTableParquetLocationDDLs(label, srcDestMap(label)._2.toUri.getPath, commitDefinition.partitions)
       }).foreach {

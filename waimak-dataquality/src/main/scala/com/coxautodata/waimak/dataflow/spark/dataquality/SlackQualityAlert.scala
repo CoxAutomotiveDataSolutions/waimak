@@ -8,8 +8,8 @@ import io.circe
 import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.syntax._
-import org.apache.commons.httpclient.HttpClient
-import org.apache.commons.httpclient.methods.{PostMethod, StringRequestEntity}
+import sttp.client3._
+import sttp.client3.okhttp.OkHttpSyncBackend
 import org.apache.http.client.HttpResponseException
 
 import scala.util.Try
@@ -36,14 +36,19 @@ case class SlackQualityAlert(token: String, alertOn: List[AlertImportance] = Lis
   }
 
   override def handleAlert(alert: DataQualityAlert): Try[Unit] = Try {
+    val backend = OkHttpSyncBackend()
+
     val json = toJson(alert)
-    val post = new PostMethod(s"https://hooks.slack.com/services/$token")
-    post.setRequestHeader("Content-type", "application/json")
-    post.setRequestEntity(new StringRequestEntity(json, "application/json", "UTF-8"))
-    val response = new HttpClient().executeMethod(post)
-    val responseStatus = response
-    if (responseStatus != 200) {
-      throw new HttpResponseException(responseStatus, s"Invalid response status, got $responseStatus")
+
+    val request = basicRequest
+      .contentType("application/json")
+      .body(json, "UTF-8")
+      .post(uri"https://hooks.slack.com/services/$token")
+
+    val resp = request.send(backend)
+
+    if (!resp.code.isSuccess) {
+      throw new HttpResponseException(resp.code.code, s"Invalid response status, got ${resp.code}")
     }
   }
 }
