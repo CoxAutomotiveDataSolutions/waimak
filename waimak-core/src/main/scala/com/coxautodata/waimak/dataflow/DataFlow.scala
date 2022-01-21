@@ -396,6 +396,9 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
       .flatMap(_.isValidFlowDAG)
   }
 
+  def checkValidFlowDAG: Try[Self] =
+    Try(this).flatMap(_.isValidFlowDAG)
+
   /**
     * A function called just after the flow is executed.
     * By default, the implementation on [[DataFlow]] is no-op,
@@ -540,7 +543,13 @@ case class DataFlowActionTags(tags: Set[String], dependentOnTags: Set[String])
   * @param activeDependentOnTags Tag dependencies currently active on the flow (i.e. within the `tagDependency()` context)
   * @param taggedActions         Mapping of actions to their applied tag state
   */
-case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[String], taggedActions: Map[String, DataFlowActionTags])
+case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[String], taggedActions: Map[String, DataFlowActionTags]) {
+  def ++(that: DataFlowTagState): DataFlowTagState = DataFlowTagState(
+    activeTags = this.activeTags.union(that.activeTags),
+    activeDependentOnTags = this.activeDependentOnTags.union(that.activeDependentOnTags),
+    taggedActions = this.taggedActions ++ that.taggedActions
+  )
+}
 
 /** When a Data Flow is defined, certain hints related to its execution can be specified, these hints will help scheduler
   * with deciding when and where to run the action. Further uses can be added to it.
