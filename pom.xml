@@ -85,7 +85,7 @@
             <properties>
                 <spark.version>3.0.3</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
-                <scala.lang.version>2.12.15</scala.lang.version>
+                <scala.lang.version>2.13.8</scala.lang.version>
                 <deequ.version>1.2.2-spark-3.0</deequ.version>
             </properties>
         </profile>
