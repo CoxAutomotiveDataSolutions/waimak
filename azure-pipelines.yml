@@ -33,7 +33,7 @@ jobs:
         DEPLOY_PROFILE: 'false'
         SCALA_VERSION: '2.12'
         EXTRA_MVN_OPTS: '-pl !waimak-deequ'
-      Spark31112:
+      Spark31212:
         MAVEN_PROFILE: 'apache-3.1.2_2.12'
         DEPLOY_PROFILE: true
         SCALA_VERSION: '2.12'
