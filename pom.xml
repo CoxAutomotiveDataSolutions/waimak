@@ -218,7 +218,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.sdk.version>1.8</java.sdk.version>
-        <scalatest.version>3.2.10</scalatest.version>
+        <scalatest.version>3.3.0-SNAP3</scalatest.version>
         <azure.storage.version>6.1.0</azure.storage.version>
         <jdbc.mssql.version>8.4.1.jre8</jdbc.mssql.version>
         <jdbc.postgres.version>42.2.2</jdbc.postgres.version>
