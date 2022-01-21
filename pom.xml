@@ -227,7 +227,7 @@
         <maven.compiler.plugin.version>3.6.1</maven.compiler.plugin.version>
         <scalatest.maven.plugin.version>2.0.2</scalatest.maven.plugin.version>
         <maven.jar.plugin.version>3.2.0</maven.jar.plugin.version>
-        <maven.source.plugin.version>3.2.0</maven.source.plugin.version>
+        <maven.source.plugin.version>3.2.1</maven.source.plugin.version>
         <jgitflow.maven.plugin.version>1.0-m5.1</jgitflow.maven.plugin.version>
         <scoverage.plugin.version>1.4.0-RC1</scoverage.plugin.version>
         <databricks.dbutils.version>0.0.5</databricks.dbutils.version>
