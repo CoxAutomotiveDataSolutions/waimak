@@ -97,4 +97,4 @@ jobs:
         gpg --batch --import $(Agent.TempDirectory)/gpg-with-owner-trust/pub.key
         gpg --batch --import $(Agent.TempDirectory)/gpg-with-owner-trust/priv.key
         gpg --batch --import-ownertrust $(Agent.TempDirectory)/gpg-with-owner-trust/owner-trust.txt
-        mvn clean deploy --settings .maven.xml -P$(MAVEN_PROFILE) -Prelease -DskipTests -U $(EXTRA_MAVEN_OPTIONS)
+        mvn clean deploy --settings .maven.xml -P$(MAVEN_PROFILE) -Prelease -DskipTests -U $(EXTRA_MVN_OPTS)
