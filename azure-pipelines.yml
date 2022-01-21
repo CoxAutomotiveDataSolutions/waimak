@@ -16,9 +16,12 @@ pr:
 pool:
   vmImage: 'ubuntu-latest'
 
-  variables:
-    MAVEN_CACHE_FOLDER: $(Pipeline.Workspace)/.m2/repository
-    MAVEN_OPTS: '-Dmaven.repo.local=$(MAVEN_CACHE_FOLDER) -Xmx3072m'
+variables:
+- name: MAVEN_CACHE_FOLDER
+  value: $(Pipeline.Workspace)/.m2/repository
+- name: MAVEN_OPTS
+  value: '-Dmaven.repo.local=$(MAVEN_CACHE_FOLDER) -Xmx3072m'
+- group: Sonatype
 
 jobs:
 - job: build
