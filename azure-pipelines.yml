@@ -78,13 +78,13 @@ jobs:
       goals: 'verify -P$(MAVEN_PROFILE) -U $(EXTRA_MVN_OPTS)'
   - task: DownloadSecureFile@1
     name: gpgKeyFiles
-    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'), eq(variables['DEPLOY_PROFILE'], true), not(eq(variables['Build.Reason'], 'PullRequest')))
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/'), eq(variables['DEPLOY_PROFILE'], true), not(eq(variables['Build.Reason'], 'PullRequest')))
     displayName: Fetch gpg keys
     inputs:
       secureFile: 'gpg-with-owner-trust.zip'
   - task: Bash@3
     displayName: Push new jars to maven central
-    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/v'), eq(variables['DEPLOY_PROFILE'], true), not(eq(variables['Build.Reason'], 'PullRequest')))
+    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/'), eq(variables['DEPLOY_PROFILE'], true), not(eq(variables['Build.Reason'], 'PullRequest')))
     env:
       SONATYPE_PASSWORD: $(SONATYPE-PASSWORD)
       SONATYPE_USERNAME: $(SONATYPE-USERNAME)
