@@ -5,7 +5,7 @@ import java.time.{ZoneOffset, ZonedDateTime}
 
 import com.amazon.deequ.SerializableAnalysisResult
 import com.amazon.deequ.analyzers.Completeness
-import com.amazon.deequ.anomalydetection.RateOfChangeStrategy
+import com.amazon.deequ.anomalydetection.AbsoluteChangeStrategy
 import com.amazon.deequ.checks.{Check, CheckLevel}
 import com.coxautodata.waimak.dataflow.Waimak
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
@@ -73,7 +73,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .alias("testInput", "testOutput")
         .setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 26, 12, 20, 11, 0, ZoneOffset.UTC))
         .addDeequValidationWithMetrics("testOutput",
-          _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
+          _.addAnomalyCheck(AbsoluteChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
           , alerter1
         ).execute()
 
@@ -91,7 +91,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .alias("testInput", "testOutput")
         .setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 27, 12, 20, 11, 0, ZoneOffset.UTC))
         .addDeequValidationWithMetrics("testOutput",
-          _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
+          _.addAnomalyCheck(AbsoluteChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
           , alerter2
         ).execute()
       spark.read.parquet(testingBaseDirName + "/metrics/testOutput").show(false)
@@ -109,7 +109,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .alias("testInput", "testOutput")
         .setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 28, 12, 20, 11, 0, ZoneOffset.UTC))
         .addDeequValidationWithMetrics("testOutput",
-          _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.4)), Completeness("col1"))
+          _.addAnomalyCheck(AbsoluteChangeStrategy(maxRateDecrease = Some(0.4)), Completeness("col1"))
           , alerter3
         ).execute()
 
@@ -143,7 +143,7 @@ class TestDeequActions extends SparkAndTmpDirSpec {
         .alias("testInput", "testOutput")
         //.setDeequStorageLayerMetricsRepository(testingBaseDirName + "/metrics", ZonedDateTime.of(2019, 3, 26, 12, 20, 11, 0, ZoneOffset.UTC))
         .addDeequValidationWithMetrics("testOutput",
-        _.addAnomalyCheck(RateOfChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
+        _.addAnomalyCheck(AbsoluteChangeStrategy(maxRateDecrease = Some(0.2)), Completeness("col1"))
         , alerter
       )
       val ex = intercept[DeequCheckException] {

@@ -6,7 +6,8 @@ import com.coxautodata.waimak.dataflow.spark.WriteAsNamedFilesAction._
 import com.coxautodata.waimak.dataflow.{ActionResult, DataFlowEntities, DataFlowException}
 import org.apache.hadoop.fs.Path
 import org.apache.spark.sql.{DataFrameWriter, Dataset}
-
+import scala.collection.compat._
+import scala.collection.compat.immutable.LazyList
 import scala.util.Try
 
 /**
@@ -35,8 +36,8 @@ case class WriteAsNamedFilesAction(label: String, tempBasePath: Path, destBasePa
     if (numberOfFiles != foundFiles.length) throw new DataFlowException(s"Number of files found [${foundFiles.length}] did not match requested number of files [$numberOfFiles]")
     foundFiles
       .zip {
-        if (numberOfFiles == 1) Stream.continually("")
-        else Stream.from(1).map(i => s".${s"%0${numberOfFiles.toString.length}d".format(i)}")
+        if (numberOfFiles == 1) LazyList.continually("")
+        else LazyList.from(1).map(i => s".${s"%0${numberOfFiles.toString.length}d".format(i)}")
       }
       .foreach {
         case (sourceFile, number) =>

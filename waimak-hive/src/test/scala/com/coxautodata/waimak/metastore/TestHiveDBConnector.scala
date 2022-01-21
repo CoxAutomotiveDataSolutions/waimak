@@ -80,7 +80,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
       val connector1 = HiveDummyConnector(SparkFlowContext(spark))
       val connector2 = HiveDummyConnector(SparkFlowContext(spark))
 
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
 
       val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1", "csv_2")
@@ -133,7 +133,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
     it("should create a db for a table if it does not exists with createDatabaseIfNotExists true") {
       val testDb = "test"
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val tableDest = baseDest + "/items"
       val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1")
@@ -158,7 +158,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
     it("should not create a db for a table if it already exists with createDatabaseIfNotExists true") {
       val testDb = "test"
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val tableDest = baseDest + "/items"
       val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1")
@@ -184,7 +184,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
     it("should throw an exception if the database does not exists with createDatabaseIfNotExists false") {
       val testDb = "test"
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val tableDest = baseDest + "/items"
       val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1")
@@ -210,7 +210,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
 
     it("should use an existing database for a table if it already exists with createDatabaseIfNotExists false") {
       val testDb = "test"
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val tableDest = baseDest + "/items"
       val flow = SparkDataFlow.empty(sparkSession, tmpDir)
         .openCSV(basePath)("csv_1")
@@ -244,7 +244,7 @@ class TestHiveDBConnector extends SparkAndTmpDirSpec {
     it("should handle complex types") {
 
       val testDb = "test"
-      val baseDest = testingBaseDir + "/dest"
+      val baseDest = testingBaseDir.toString + "/dest"
       val spark = sparkSession
       import spark.implicits._
 

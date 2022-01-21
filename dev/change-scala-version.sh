@@ -19,7 +19,7 @@
 
 set -e
 
-VALID_VERSIONS=( 2.11 2.12 )
+VALID_VERSIONS=( 2.12 2.13 )
 
 usage() {
   echo "Usage: $(basename $0) [-h|--help] <version>
@@ -44,10 +44,10 @@ check_scala_version() {
 
 check_scala_version "$TO_VERSION"
 
-if [ $TO_VERSION = "2.11" ]; then
-  FROM_VERSION="2.12"
+if [ $TO_VERSION = "2.12" ]; then
+  FROM_VERSION="2.13"
 else
-  FROM_VERSION="2.11"
+  FROM_VERSION="2.12"
 fi
 
 sed_i() {

@@ -10,9 +10,9 @@ trait FlowReporter {
 
 class NoReportingFlowReporter extends FlowReporter {
 
-  override def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit = Unit
+  override def reportActionStarted(action: DataFlowAction, flowContext: FlowContext): Unit = ()
 
-  override def reportActionFinished(action: DataFlowAction, flowContext: FlowContext): Unit = Unit
+  override def reportActionFinished(action: DataFlowAction, flowContext: FlowContext): Unit = ()
 
 }
 

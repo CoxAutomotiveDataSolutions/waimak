@@ -79,7 +79,7 @@ class TestSparkInterceptors extends SparkAndTmpDirSpec {
 
       val withIntercept = flow
         .inPlaceTransform("purchases") {
-          _.select("id").distinct.orderBy("id")
+          _.select("id").distinct().orderBy("id")
         }
         .cacheAsParquet("purchases")
 

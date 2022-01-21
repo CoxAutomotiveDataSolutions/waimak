@@ -119,7 +119,7 @@ case class ParquetDataCommitter(outputBaseFolder: String,
         case (None, Some(_)) => throw new DataFlowException(s"ParquetDataCommitter [$commitName], cleanup will only work when snapshot folder is defined")
         case _ =>
       }
-      Unit
+      ()
     }
   }
 
@@ -187,7 +187,7 @@ case class FSCleanUp(baseFolder: String
       .map(l => (l, new Path(basePath, l)))
       .filter(lp => flowContext.fileSystem.exists(lp._2))
       .map(lp => (lp._1, flowContext.fileSystem.listStatus(lp._2).filter(_.isDirectory)))
-      .map(labelSnapshots => (labelSnapshots._1, toRemove(labelSnapshots._1, labelSnapshots._2)))
+      .map(labelSnapshots => (labelSnapshots._1, toRemove(labelSnapshots._1, labelSnapshots._2.toIndexedSeq)))
 
     Try {
       foldersToRemove.foreach { toRemove =>

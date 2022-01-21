@@ -1,14 +1,13 @@
 package com.coxautodata.waimak.dataflow.spark
 
 import java.io.FileNotFoundException
-
 import com.coxautodata.waimak.dataflow._
 import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.metastore.HadoopDBConnector
 import org.apache.hadoop.fs.{FileAlreadyExistsException, Path, PathOperationException}
 import org.apache.spark.sql.{Dataset, SparkSession}
 
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 /**
   * Introduces spark session into the data flows
@@ -36,6 +35,10 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
     * @return
     */
   def sqlTables: Set[String] = info.sqlTables
+
+  def commitLabels: Map[String, LabelCommitDefinition] = info.commitLabels
+
+  def extensionMetadata: Set[DataFlowMetadataExtension[SparkDataFlow]] = info.extensionMetadata
 
   override def schedulingMeta: SchedulingMeta = info.schedulingMeta
 
@@ -95,6 +98,9 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
       }
   }
 
+  // This includes a check that we have a valid DAG, which is useful for after doing a combine
+  def checkFlowState(): Try[SparkDataFlow] = super.isValidFlowDAG
+
   override def finaliseExecution(): Try[SparkDataFlow] = {
     import SparkDataFlow._
     super.finaliseExecution()
@@ -122,6 +128,25 @@ class SparkDataFlow(info: SparkDataFlowInfo) extends DataFlow[SparkDataFlow] wit
   override def withExecutor(executor: DataFlowExecutor): SparkDataFlow = new SparkDataFlow(info.copy(executor = executor))
 
   override def setMetadataExtensions(extensions: Set[DataFlowMetadataExtension[SparkDataFlow]]): SparkDataFlow = new SparkDataFlow(info.copy(extensionMetadata = extensions))
+
+  // Try to merge flows for parallel execution, e.g. just smash all their internal structures together
+  def ++(that: SparkDataFlow): SparkDataFlow = {
+    new SparkDataFlow(
+      info.copy(
+        inputs = this.inputs ++ that.inputs,
+        actions = this.actions ++ that.actions,
+        sqlTables = this.sqlTables.union(that.sqlTables),
+        tempFolder = this.tempFolder.orElse(that.tempFolder),
+        commitLabels = info.commitLabels ++ that.commitLabels,
+        tagState = this.tagState ++ that.tagState,
+        extensionMetadata = info.extensionMetadata.union(that.extensionMetadata)
+      )
+    ).checkFlowState() match {
+      case Success(sdf) => sdf
+      case Failure(exception) => throw exception
+    }
+  }
+
 }
 
 case class LabelCommitDefinition(basePath: String, timestampFolder: Option[String] = None, partitions: Seq[String] = Seq.empty, connection: Option[HadoopDBConnector] = None)
@@ -167,7 +192,7 @@ private[spark] case class CommitAction(commitLabels: Map[String, LabelCommitDefi
     // Table Commits
     commitLabels.filter(_._2.connection.isDefined)
       .groupBy(_._2.connection.get)
-      .mapValues(_.map {
+      .view.toMap.mapValues(_.map {
         case (label, commitDefinition) =>
           commitDefinition.connection.get.updateTableParquetLocationDDLs(label, srcDestMap(label)._2.toUri.getPath, commitDefinition.partitions)
       }).foreach {
@@ -214,4 +239,16 @@ object SparkDataFlow {
 
   def apply(spark: SparkSession, stagingFolder: Option[Path], inputs: DataFlowEntities, actions: Seq[DataFlowAction], sqlTables: Set[String], commitLabels: Map[String, LabelCommitDefinition], tagState: DataFlowTagState): SparkDataFlow = new SparkDataFlow(SparkDataFlowInfo(spark, inputs, actions, sqlTables, stagingFolder, new SchedulingMeta(), commitLabels, tagState))
 
+  def combine(a: SparkDataFlow, b: SparkDataFlow): SparkDataFlow = a ++ b
+
+  def combine(a: SparkDataFlow, flows: SparkDataFlow*): SparkDataFlow =
+    a.foldLeftOver(flows)((a, b) => a ++ b)
+
+  def combine(a: SparkDataFlow, b: SparkDataFlow, flows: SparkDataFlow*): SparkDataFlow =
+    (a ++ b).foldLeftOver(flows)((a, b) => a ++ b)
+
+  def combine(flows: SparkDataFlow*): SparkDataFlow = combineAll(flows)
+
+  def combineAll(flows: Seq[SparkDataFlow]): SparkDataFlow =
+    flows.reduce(_ ++ _)
 }

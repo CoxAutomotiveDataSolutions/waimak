@@ -5,7 +5,8 @@ import java.util.ServiceLoader
 import com.coxautodata.waimak.dataflow.DataFlow._
 import com.coxautodata.waimak.log.Logging
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
+import scala.collection.compat._
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe.TypeTag
 import scala.util.{Success, Try}
@@ -111,7 +112,7 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
     action.outputLabels.foreach(l => if (labelIsInputOrProduced(l)) {
       throw new DataFlowException(s"Output label [${l}] is already in the inputs or is produced by another action.")
     } else {
-      Unit
+      ()
     })
     val newActions = actions :+ action
     // Add current action into tagstate with current active tags/dep tags
@@ -395,6 +396,9 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
       .flatMap(_.isValidFlowDAG)
   }
 
+  def checkValidFlowDAG: Try[Self] =
+    Try(this).flatMap(_.isValidFlowDAG)
+
   /**
     * A function called just after the flow is executed.
     * By default, the implementation on [[DataFlow]] is no-op,
@@ -485,7 +489,7 @@ abstract class DataFlow[Self <: DataFlow[Self] : TypeTag] extends Logging {
         // Get all tags that this action depends on
         val depTags = actionsWithDependencies.get(h.action.guid).map(_.dependentOnTags).getOrElse(Set.empty)
         val newActionsFromTags = depTags.flatMap {
-          t => actionsByTag.getOrElse(t, throw new DataFlowException(s"Could not find any actions tagged with label [$t] when resolving dependent actions for action [${h.action.guid}]"))
+          t => actionsByTag.toMap.getOrElse(t, throw new DataFlowException(s"Could not find any actions tagged with label [$t] when resolving dependent actions for action [${h.action.guid}]"))
         }
 
         // Check the new actions to add have never been seen before
@@ -539,7 +543,13 @@ case class DataFlowActionTags(tags: Set[String], dependentOnTags: Set[String])
   * @param activeDependentOnTags Tag dependencies currently active on the flow (i.e. within the `tagDependency()` context)
   * @param taggedActions         Mapping of actions to their applied tag state
   */
-case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[String], taggedActions: Map[String, DataFlowActionTags])
+case class DataFlowTagState(activeTags: Set[String], activeDependentOnTags: Set[String], taggedActions: Map[String, DataFlowActionTags]) {
+  def ++(that: DataFlowTagState): DataFlowTagState = DataFlowTagState(
+    activeTags = this.activeTags.union(that.activeTags),
+    activeDependentOnTags = this.activeDependentOnTags.union(that.activeDependentOnTags),
+    taggedActions = this.taggedActions ++ that.taggedActions
+  )
+}
 
 /** When a Data Flow is defined, certain hints related to its execution can be specified, these hints will help scheduler
   * with deciding when and where to run the action. Further uses can be added to it.

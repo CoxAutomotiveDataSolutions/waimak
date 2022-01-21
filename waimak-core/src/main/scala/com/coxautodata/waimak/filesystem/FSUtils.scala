@@ -94,7 +94,7 @@ object FSUtils extends Logging {
     val path = new Path(folder)
     if (!fs.exists(path)) Seq.empty
     else {
-      fs.listStatus(path).map(_.getPath.getName).filter(_.contains("=")).map(_.split("=")).map(p => (p(0), p(1)))
+      fs.listStatus(path).map(_.getPath.getName).filter(_.contains("=")).map(_.split("=")).map(p => (p(0), p(1))).toIndexedSeq
     }
   }
 

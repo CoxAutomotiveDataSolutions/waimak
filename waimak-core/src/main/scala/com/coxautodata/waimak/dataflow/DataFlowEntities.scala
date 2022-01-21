@@ -1,5 +1,6 @@
 package com.coxautodata.waimak.dataflow
 
+import scala.collection.compat._
 import scala.reflect.{ClassTag, classTag}
 
 /**
@@ -10,7 +11,7 @@ import scala.reflect.{ClassTag, classTag}
   */
 class DataFlowEntities(private val entities: Map[String, Option[Any]]) {
 
-  def filterLabels(labels: List[String]): DataFlowEntities = DataFlowEntities(entities.filterKeys(labels.contains))
+  def filterLabels(labels: List[String]): DataFlowEntities = DataFlowEntities(entities.filterKeys(labels.contains).toMap)
 
   def keySet: Set[String] = entities.keySet
 
@@ -80,6 +81,8 @@ class DataFlowEntities(private val entities: Map[String, Option[Any]]) {
   }
 
   override def hashCode(): Int = hash
+
+  def show: String = entities.toString()
 }
 
 object DataFlowEntities {

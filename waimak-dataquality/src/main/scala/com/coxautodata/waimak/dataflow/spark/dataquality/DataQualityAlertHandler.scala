@@ -30,7 +30,7 @@ trait DataQualityAlertHandler {
     * Handle the given data quality alert
     *
     * @param alert the data quality alert
-    * @return Success() if the alert was successfully handled, Failure otherwise. If the handler intends for an exception
+    * @return Success(()) if the alert was successfully handled, Failure otherwise. If the handler intends for an exception
     *         to be thrown, a Failure should be returned containing the exception. This will be thrown once all non-exception
     *         alerts have been handled.
     */

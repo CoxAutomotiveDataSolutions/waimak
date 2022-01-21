@@ -6,7 +6,7 @@ import com.coxautodata.waimak.dataflow.{DataFlowConfigurationExtension, DataFlow
 import com.coxautodata.waimak.dataflow.spark.{SparkDataFlow, SparkFlowContext}
 import com.coxautodata.waimak.dataflow.spark.dataquality.DataQualityConfigurationExtension._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 trait DataQualityConfigurationExtension extends DataFlowConfigurationExtension[SparkDataFlow] {
 

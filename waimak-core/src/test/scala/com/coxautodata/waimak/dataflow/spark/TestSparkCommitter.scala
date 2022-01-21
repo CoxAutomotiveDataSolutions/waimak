@@ -24,7 +24,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
           .openCSV(basePath)("csv_1")
@@ -44,7 +44,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
     describe("failures") {
 
       it("no commit for a push") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1")
@@ -63,7 +63,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
       }
 
       it("no push for a commit") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1", "csv_2")
@@ -84,8 +84,8 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseDestCommit1 = testingBaseDir + "/comm_1"
-        val baseDestCommit2 = testingBaseDir + "/with_duplicate"
+        val baseDestCommit1 = testingBaseDir.toString + "/comm_1"
+        val baseDestCommit2 = testingBaseDir.toString + "/with_duplicate"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1", "csv_2")
@@ -108,8 +108,8 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseCommitDest = testingBaseDir + "/commit"
-        val baseWriteDest = testingBaseDir + "/write"
+        val baseCommitDest = testingBaseDir.toString + "/commit"
+        val baseWriteDest = testingBaseDir.toString + "/write"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1", "csv_2")
@@ -128,8 +128,8 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseCommitDest = testingBaseDir + "/commit"
-        val baseWriteDest = testingBaseDir + "/write"
+        val baseCommitDest = testingBaseDir.toString + "/commit"
+        val baseWriteDest = testingBaseDir.toString + "/write"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1", "csv_2")
@@ -149,8 +149,8 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseCommitDest = testingBaseDir + "/commit"
-        val baseWriteDest = testingBaseDir + "/write"
+        val baseCommitDest = testingBaseDir.toString + "/commit"
+        val baseWriteDest = testingBaseDir.toString + "/write"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1")
@@ -167,7 +167,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
       }
 
       it("commit label is not produced by any action action") {
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1")
@@ -190,7 +190,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
         val spark = sparkSession
         import spark.implicits._
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1", "csv_2")
@@ -212,7 +212,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
         import org.apache.spark.sql.functions._
         import spark.implicits._
 
-        val baseDest = testingBaseDir + "/dest"
+        val baseDest = testingBaseDir.toString + "/dest"
 
         val flow: SparkDataFlow = Waimak.sparkFlow(sparkSession, tmpDir.toString)
           .openCSV(basePath)("csv_1", "csv_2")
@@ -220,7 +220,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
           .alias("csv_2", "buyers")
           .transform("purchases", "buyers")("report") {
             (p, b) =>
-              val personSummary = p.groupBy('id).agg('id, count('item).as("item_cnt"), sum('amount).as("total"))
+              val personSummary = p.groupBy(Symbol("id")).agg(Symbol("id"), count(Symbol("item")).as("item_cnt"), sum(Symbol("amount")).as("total"))
               b.join(personSummary, Seq("id"), "left").withColumn("calc_1", lit(2))
           }
           .commit("comm_1")("purchases", "report")
@@ -240,7 +240,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
           val spark = sparkSession
           import spark.implicits._
 
-          val baseDest = testingBaseDir + "/dest"
+          val baseDest = testingBaseDir.toString + "/dest"
 
           val flow: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
             .openCSV(basePath)("csv_1")
@@ -259,7 +259,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
           val spark = sparkSession
           import spark.implicits._
 
-          val baseDest = testingBaseDir + "/dest"
+          val baseDest = testingBaseDir.toString + "/dest"
 
           val flowPrePush: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
             .openCSV(basePath)("csv_1")
@@ -282,7 +282,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
           val spark = sparkSession
           import spark.implicits._
 
-          val baseDest = testingBaseDir + "/dest"
+          val baseDest = testingBaseDir.toString + "/dest"
 
           val flowPrePush: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
             .openCSV(basePath)("csv_1")
@@ -314,7 +314,7 @@ class TestSparkCommitter extends SparkAndTmpDirSpec {
           val spark = sparkSession
           import spark.implicits._
 
-          val baseDest = testingBaseDir + "/dest"
+          val baseDest = testingBaseDir.toString + "/dest"
 
           val flowPrePush: SparkDataFlow = Waimak.sparkFlow(spark, tmpDir.toString)
             .openCSV(basePath)("csv_1", "csv_2")

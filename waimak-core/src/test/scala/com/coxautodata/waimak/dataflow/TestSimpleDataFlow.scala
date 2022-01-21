@@ -1240,6 +1240,6 @@ class TestDataCommitter extends DataCommitter[MockDataFlow] {
     flow.addAction(new TestEmptyAction(labels.map(_.label + "_output").toList, List.empty))
   }
 
-  override protected[dataflow] def validate(flow: MockDataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = Success(Unit)
+  override protected[dataflow] def validate(flow: MockDataFlow, commitName: String, entries: Seq[CommitEntry]): Try[Unit] = Success(())
 
 }

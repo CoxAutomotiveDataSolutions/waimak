@@ -98,7 +98,7 @@ case class HiveSparkSQLConnector(context: SparkFlowContext,
   override def submitAtomicResultlessQueries(ddls: Seq[String]): Unit = {
     val allDdls = if (createDatabaseIfNotExists) s"create database if not exists $database" +: ddls else ddls
     allDdls.foreach(context.spark.sql)
-    Unit
+    ()
   }
 
   override private[metastore] def runQueries(ddls: Seq[String]): Seq[Option[ResultSet]] = {

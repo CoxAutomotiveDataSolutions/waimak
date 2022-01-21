@@ -93,7 +93,8 @@ object Storage extends Logging {
 
     val existingTablesWithUpdatedMetadata = if (updateTableMetadata) {
       existingTables.mapValues(
-        _.flatMap(table => table.updateTableInfo(metadataRetrieval.get.apply(table.tableName))))
+        _.flatMap(table => table.updateTableInfo(metadataRetrieval.get.apply(table.tableName)))
+        ).toMap
     } else existingTables
 
     val createdTables = missingTables.map { tableName =>
@@ -182,10 +183,10 @@ object Storage extends Logging {
           , compactionPartitioner = compactionPartitioner
           , smallRegionRowThreshold = smallRegionRowThreshold
           , recompactAll = recompactAll) match {
-          case Success(_) => Unit
+          case Success(_) => ()
           case Failure(e) => throw StorageException(s"Failed to compact table [${table.tableName}], with compaction timestamp [$appendTimestamp]", e)
         }
-      case Success(_) => Unit
+      case Success(_) => ()
       case Failure(e) => throw StorageException(s"Error appending data to table [${table.tableName}], using last updated column [$lastUpdatedCol]", e)
     }
 

@@ -52,7 +52,10 @@ trait SparkSpec extends AnyFunSpec with Matchers with BeforeAndAfterEach {
 
     sparkSession = getSparkVersion(preSpark23Options) match {
       case SparkVersion(2, _, _) => preSpark23Options
-      case SparkVersion(3, _, _) => configureParquetReaderWriterOptionsForSpark3(preSpark23Options)
+      case SparkVersion(3, 1, _) | SparkVersion(3, 0, _) =>
+        configureParquetReaderWriterOptionsForSpark30And31(preSpark23Options)
+      case SparkVersion(3, _ @ min, _) if min >= 2 =>
+        configureParquetReaderWriterOptionsForSpark32(preSpark23Options)
       case _ => preSpark23Options
     }
   }
@@ -68,12 +71,22 @@ trait SparkSpec extends AnyFunSpec with Matchers with BeforeAndAfterEach {
       case _@v => throw new IllegalStateException(s"The spark version of ${v.mkString} cannot be parsed")
     }
 
-  def configureParquetReaderWriterOptionsForSpark3(sparkSession: SparkSession): SparkSession = {
+  def configureParquetReaderWriterOptionsForSpark30And31(sparkSession: SparkSession): SparkSession = {
     val setting = parquetLegacyModeForSpark2To3()
     sparkSession.conf.set("spark.sql.legacy.parquet.int96RebaseModeInWrite", setting)
     sparkSession.conf.set("spark.sql.legacy.parquet.int96RebaseModeInRead", setting)
     sparkSession.conf.set("spark.sql.legacy.parquet.datetimeRebaseModeInWrite", setting)
     sparkSession.conf.set("spark.sql.legacy.parquet.datetimeRebaseModeInRead", setting)
+
+    sparkSession
+  }
+
+  def configureParquetReaderWriterOptionsForSpark32(sparkSession: SparkSession): SparkSession = {
+    val setting = parquetLegacyModeForSpark2To3()
+    sparkSession.conf.set("spark.sql.parquet.int96RebaseModeInWrite", setting)
+    sparkSession.conf.set("spark.sql.parquet.int96RebaseModeInRead", setting)
+    sparkSession.conf.set("spark.sql.parquet.datetimeRebaseModeInWrite", setting)
+    sparkSession.conf.set("spark.sql.parquet.datetimeRebaseModeInRead", setting)
 
     sparkSession
   }

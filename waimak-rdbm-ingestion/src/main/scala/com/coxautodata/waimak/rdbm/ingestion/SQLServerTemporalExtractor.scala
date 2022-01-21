@@ -99,7 +99,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
             .option("user", connectionDetails.user)
             .option("password", connectionDetails.password)
             .option("dbtable", s"($query) as maxTs")
-            .load
+            .load()
         )
           .as[String]
           .collect()
@@ -120,7 +120,7 @@ class SQLServerTemporalExtractor(override val sparkSession: SparkSession
 
     Try(allTableMetadata(s"$dbSchemaName.$tableName"))
       .flatMap(m => {
-        val metaMap = RDBMIngestionUtils.caseClassToMap(m).mapValues(_.toString)
+        val metaMap = RDBMIngestionUtils.caseClassToMap(m).mapValues(_.toString).toMap
         val pkCols = m.primaryKeys.split(";").toSeq
         primaryKeys match {
           case Some(userPks) if userPks.sorted != pkCols.sorted =>
