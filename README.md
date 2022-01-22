@@ -1,8 +1,9 @@
 # Waimak
 
-[![Build Status](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak.svg?branch=develop)](https://travis-ci.org/CoxAutomotiveDataSolutions/waimak) 
-[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.11.svg)](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak*) [![Coverage Status](https://img.shields.io/codecov/c/github/CoxAutomotiveDataSolutions/waimak/develop.svg)](https://codecov.io/gh/CoxAutomotiveDataSolutions/waimak/branch/develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
+[![Build Status](https://dev.azure.com/coxautodata/Open%20Source/_apis/build/status/CoxAutomotiveDataSolutions.waimak?branchName=develop)](https://dev.azure.com/coxautodata/Open%20Source/_build/latest?definitionId=7&branchName=develop)
+![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.12)
+<!-- [![Coverage Status](https://img.shields.io/codecov/c/github/CoxAutomotiveDataSolutions/waimak/develop.svg)](https://codecov.io/gh/CoxAutomotiveDataSolutions/waimak/branch/develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+ -->
 <img align="right" src="./images/waimak.svg">
 
 ## What is Waimak?
@@ -34,12 +35,12 @@ You can import Waimak into your Maven project using the following dependency det
 ```xml
         <dependency>
             <groupId>com.coxautodata</groupId>
-            <artifactId>waimak-core_2.11</artifactId>
+            <artifactId>waimak-core_2.12</artifactId>
             <version>${waimak.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.spark</groupId>
-            <artifactId>spark-core_2.11</artifactId>
+            <artifactId>spark-core_2.12</artifactId>
             <version>${spark.version}</version>
             <scope>provided</scope>
         </dependency>
@@ -94,10 +95,10 @@ Waimak is tested against the following versions of Spark:
 
 Package Maintainer | Spark Version | Scala Version
 ------------------ | ------------- | -------------
-Apache Spark | [2.4.5](https://spark.apache.org/releases/spark-release-2-4-5.html) | 2.11
-Apache Spark | [3.0.1](https://spark.apache.org/releases/spark-release-3-0-1.html) | 2.12
-
-Other versions of Spark >= 2.2 are also likely to work and can be added to the list of tested versions if there is sufficient need.
+Apache Spark | [3.0.3](https://spark.apache.org/releases/spark-release-3-0-3.html) | 2.12
+Apache Spark | [3.1.2](https://spark.apache.org/releases/spark-release-3-1-2.html) | 2.12
+Apache Spark | [3.2.0](https://spark.apache.org/releases/spark-release-3-2-0.html) | 2.12
+Apache Spark | [3.2.0](https://spark.apache.org/releases/spark-release-3-2-0.html) | 2.13
 
 ## Where can I learn more?
 
