@@ -1,7 +1,7 @@
 # Waimak
 
 [![Build Status](https://dev.azure.com/coxautodata/Open%20Source/_apis/build/status/CoxAutomotiveDataSolutions.waimak?branchName=develop)](https://dev.azure.com/coxautodata/Open%20Source/_build/latest?definitionId=7&branchName=develop)
-![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.12)
+[![Maven Central](https://img.shields.io/maven-central/v/com.coxautodata/waimak-core_2.12.svg)](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak*)
 <!-- [![Coverage Status](https://img.shields.io/codecov/c/github/CoxAutomotiveDataSolutions/waimak/develop.svg)](https://codecov.io/gh/CoxAutomotiveDataSolutions/waimak/branch/develop) [![Join the chat at https://gitter.im/waimak-framework/users](https://badges.gitter.im/waimak-framework/users.svg)](https://gitter.im/waimak-framework/users?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
  -->
 <img align="right" src="./images/waimak.svg">
