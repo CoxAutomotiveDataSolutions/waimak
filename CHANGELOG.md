@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.9.3 - 2022-01-24
+- Fix issue with dependency resolution inside databricks for waimak jars
+- Update various dependencies
+
 ## 2.9.2 - 2022-01-21
 - Drop scala 2.11 and spark 2 from the build
 - Build against spark 3.0, 3.1 and 3.2
