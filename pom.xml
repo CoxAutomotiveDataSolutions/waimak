@@ -22,7 +22,7 @@
     <groupId>com.coxautodata</groupId>
     <artifactId>waimak-parent_2.12</artifactId>
     <packaging>pom</packaging>
-    <version>2.9.2</version>
+    <version>2.9.3</version>
 
     <name>Waimak</name>
     <description>Waimak is an open-source framework that makes it easier to create complex data flows in Apache Spark.
@@ -221,13 +221,13 @@
         <scalatest.version>3.2.10</scalatest.version>
         <azure.storage.version>6.1.0</azure.storage.version>
         <jdbc.mssql.version>8.4.1.jre8</jdbc.mssql.version>
-        <jdbc.postgres.version>42.2.2</jdbc.postgres.version>
+        <jdbc.postgres.version>42.3.1</jdbc.postgres.version>
         <docker.maven.plugin.version>0.25.2</docker.maven.plugin.version>
         <scala.maven.plugin.version>4.5.6</scala.maven.plugin.version>
-        <maven.compiler.plugin.version>3.6.1</maven.compiler.plugin.version>
+        <maven.compiler.plugin.version>3.9.0</maven.compiler.plugin.version>
         <scalatest.maven.plugin.version>2.0.2</scalatest.maven.plugin.version>
-        <maven.jar.plugin.version>3.2.0</maven.jar.plugin.version>
-        <maven.source.plugin.version>3.2.0</maven.source.plugin.version>
+        <maven.jar.plugin.version>3.2.2</maven.jar.plugin.version>
+        <maven.source.plugin.version>3.2.1</maven.source.plugin.version>
         <jgitflow.maven.plugin.version>1.0-m5.1</jgitflow.maven.plugin.version>
         <scoverage.plugin.version>1.4.0-RC1</scoverage.plugin.version>
         <databricks.dbutils.version>0.0.5</databricks.dbutils.version>
@@ -260,7 +260,7 @@
         </dependency>
         <dependency>
             <groupId>org.scala-lang.modules</groupId>
-            <artifactId>scala-collection-compat_${scala.compatible.version}</artifactId>
+            <artifactId>scala-collection-compat_2.12</artifactId>
             <version>2.6.0</version>
         </dependency>
         <dependency>
@@ -373,7 +373,7 @@
                     <dependency>
                         <groupId>com.jcraft</groupId>
                         <artifactId>jsch</artifactId>
-                        <version>0.1.54</version>
+                        <version>0.1.55</version>
                     </dependency>
                 </dependencies>
                 <configuration>
