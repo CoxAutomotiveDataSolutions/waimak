@@ -260,7 +260,7 @@
         </dependency>
         <dependency>
             <groupId>org.scala-lang.modules</groupId>
-            <artifactId>scala-collection-compat_${scala.compatible.version}</artifactId>
+            <artifactId>scala-collection-compat_2.12</artifactId>
             <version>2.6.0</version>
         </dependency>
         <dependency>
