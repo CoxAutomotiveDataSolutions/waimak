@@ -56,13 +56,37 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
          |  insert into testtable_pk (testtableID1, testtableID2, testtableValue) VALUES (6, 4, 'V6');
        """.stripMargin
 
-    executeSQl(Seq(testTableCreate, testTablePkCreate))
+    val testTableEmptyCreate =
+      s"""
+         |CREATE TABLE testtableempty
+         |(
+         |    id1 int not null,
+         |    id2 int not null,
+         |    moddt datetime2,
+         |    sometext varchar(50)
+         |)
+         |""".stripMargin
+
+    val testTableEmptyDatetimeCreate =
+      s"""
+         |CREATE TABLE testtableemptydatetime
+         |(
+         |    id1 int not null,
+         |    id2 int not null,
+         |    moddt datetime,
+         |    sometext varchar(50)
+         |)
+         |""".stripMargin
+
+    executeSQl(Seq(testTableCreate, testTablePkCreate, testTableEmptyCreate, testTableEmptyDatetimeCreate))
   }
 
   def cleanupTables(): Unit = {
     executeSQl(Seq(
       "drop table if exists testtable;"
       , "drop table if exists testtable_pk"
+      , "drop table if exists testtableempty"
+      , "drop table if exists testtableemptydatetime"
     ))
   }
 
@@ -139,14 +163,24 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
       val flow = Waimak.sparkFlow(sparkSession)
       val executor = Waimak.sparkExecutor()
 
-      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map("testtable" -> RDBMExtractionTableConfig("testtable"))
+      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map(
+        "testtable" -> RDBMExtractionTableConfig("testtable"),
+        "testtableempty" -> RDBMExtractionTableConfig("testtableempty", lastUpdatedColumn = Some("moddt"), pkCols = Some(Seq("id1"))),
+        "testtableemptydatetime" -> RDBMExtractionTableConfig("testtableemptydatetime", lastUpdatedColumn = Some("moddt"), pkCols = Some(Seq("id1")))
+      )
 
       val writeFlow = flow.extractToStorageFromRDBM(sqlExtractor
         , "dbo"
         , s"$testingBaseDir/output"
         , tableConfig
         , insertDateTime
-      )("testtable")
+      )(tableConfig.keySet.toSeq: _*)
+
+      executor.execute(writeFlow)
+
+      Thread.sleep(400)
+
+      executor.execute(writeFlow)
     }
   }
 }
