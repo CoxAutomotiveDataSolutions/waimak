@@ -58,7 +58,7 @@ object RDBMIngestionActions {
         .getOrCreateAuditTable(storageBasePath, Some(metadataFunction), Some(randomPrefix), true)(tables: _*)
         .foldLeftOver(tables) { (flow, tableName) =>
           flow
-            .extractFromRDBM(rdbmExtractor, lastUpdatedOffset, tableName, randomPrefix, tableConfigs(tableName).maxRowsPerPartition, forceFullLoad)
+            .extractFromRDBM(rdbmExtractor, lastUpdatedOffset, tableName, randomPrefix, tableConfigs(tableName), forceFullLoad)
             .writeToStorage(tableName, rdbmExtractor.rdbmRecordLastUpdatedColumn, extractDateTime, doCompaction, randomPrefix)
         }
 
@@ -81,7 +81,7 @@ object RDBMIngestionActions {
                         , lastUpdatedOffset: Long
                         , label: String
                         , auditTableLabelPrefix: String
-                        , maxRowsPerPartition: Option[Int] = None
+                        , tableConfig: RDBMExtractionTableConfig
                         , forceFullLoad: Boolean = false): SparkDataFlow = {
 
       val auditTableLabel = s"${auditTableLabelPrefix}_$label"
@@ -92,11 +92,12 @@ object RDBMIngestionActions {
           val lastUpdated = auditTable.getLatestTimestamp()
             .map(_.toLocalDateTime.minusSeconds(lastUpdatedOffset))
             .map(Timestamp.valueOf)
+            .map(t => rdbmExtractor.constrainLastUpdatedTimestampRange(t, label, auditTable.meta))
 
           logInfo(s"Extracting table $label with last updated $lastUpdated and metadata ${auditTable.meta}")
 
 
-          Seq(Some(rdbmExtractor.getTableDataset(auditTable.meta, lastUpdated, maxRowsPerPartition, forceFullLoad)))
+          Seq(Some(rdbmExtractor.getTableDataset(auditTable.meta, lastUpdated, tableConfig.maxRowsPerPartition, forceFullLoad)))
       }
 
       sparkDataFlow.addAction(new SimpleAction(List(auditTableLabel), List(label), run, "extractFromRDBM"))

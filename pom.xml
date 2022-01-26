@@ -22,7 +22,7 @@
     <groupId>com.coxautodata</groupId>
     <artifactId>waimak-parent_2.12</artifactId>
     <packaging>pom</packaging>
-    <version>2.9.3</version>
+    <version>2.9.4</version>
 
     <name>Waimak</name>
     <description>Waimak is an open-source framework that makes it easier to create complex data flows in Apache Spark.
@@ -222,7 +222,7 @@
         <azure.storage.version>6.1.0</azure.storage.version>
         <jdbc.mssql.version>8.4.1.jre8</jdbc.mssql.version>
         <jdbc.postgres.version>42.3.1</jdbc.postgres.version>
-        <docker.maven.plugin.version>0.25.2</docker.maven.plugin.version>
+        <docker.maven.plugin.version>0.38.1</docker.maven.plugin.version>
         <scala.maven.plugin.version>4.5.6</scala.maven.plugin.version>
         <maven.compiler.plugin.version>3.9.0</maven.compiler.plugin.version>
         <scalatest.maven.plugin.version>2.0.2</scalatest.maven.plugin.version>
@@ -234,7 +234,7 @@
         <circe.version>0.14.1</circe.version>
         <mock.javamail.version>1.9</mock.javamail.version>
         <apache.commons.version>1.5</apache.commons.version>
-        <sttp.version>3.3.18</sttp.version>
+        <sttp.version>3.4.1</sttp.version>
         <skipTests>false</skipTests>
         <skipUTs>${skipTests}</skipUTs>
         <skipITs>${skipTests}</skipITs>

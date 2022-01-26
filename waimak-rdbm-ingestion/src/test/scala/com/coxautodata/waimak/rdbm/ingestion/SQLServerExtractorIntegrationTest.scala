@@ -2,22 +2,31 @@ package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.{DriverManager, Timestamp}
 import java.time.{ZoneOffset, ZonedDateTime}
-
-import com.coxautodata.waimak.dataflow.Waimak
+import com.coxautodata.waimak.dataflow.{DataFlowException, Waimak}
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
+import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
-import com.coxautodata.waimak.storage.AuditTableInfo
+import com.coxautodata.waimak.storage.{AuditTableInfo, StorageException}
+import org.apache.spark.sql.Dataset
 import org.scalatest.BeforeAndAfterAll
 
 import scala.util.{Failure, Success}
 
-class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll {
+class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll with Logging {
 
   override val appName: String = "SQLServerConnectorIntegrationTest"
 
   val sqlServerConnectionDetails: SQLServerConnectionDetails = SQLServerConnectionDetails("localhost", 1401, "master", "SA", "SQLServer123!")
   val insertTimestamp: Timestamp = Timestamp.valueOf("2018-04-30 13:34:05.000000")
   val insertDateTime: ZonedDateTime = insertTimestamp.toLocalDateTime.atZone(ZoneOffset.UTC)
+
+  val nowDatetime = "(select cast(getdate() as datetime))"
+
+  val testEmptyTableInserts =
+    s"""
+       | insert into testtableemptydatetime (id1, id2, moddt, sometext) values (1, 1, $nowDatetime, 'v1');
+       | insert into testtableemptydatetime (id1, id2, moddt, sometext) values (2, 3, $nowDatetime, 'v2');
+       |""".stripMargin
 
   override def beforeAll(): Unit = {
     setupTables()
@@ -56,13 +65,37 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
          |  insert into testtable_pk (testtableID1, testtableID2, testtableValue) VALUES (6, 4, 'V6');
        """.stripMargin
 
-    executeSQl(Seq(testTableCreate, testTablePkCreate))
+    val testTableEmptyCreate =
+      s"""
+         |CREATE TABLE testtableempty
+         |(
+         |    id1 int not null,
+         |    id2 int not null,
+         |    moddt datetime2,
+         |    sometext varchar(50)
+         |)
+         |""".stripMargin
+
+    val testTableEmptyDatetimeCreate =
+      s"""
+         |CREATE TABLE testtableemptydatetime
+         |(
+         |    id1 int not null,
+         |    id2 int not null,
+         |    moddt datetime,
+         |    sometext varchar(50)
+         |)
+         |""".stripMargin
+
+    executeSQl(Seq(testTableCreate, testTablePkCreate, testTableEmptyCreate, testTableEmptyDatetimeCreate))
   }
 
   def cleanupTables(): Unit = {
     executeSQl(Seq(
       "drop table if exists testtable;"
       , "drop table if exists testtable_pk"
+      , "drop table if exists testtableempty"
+      , "drop table if exists testtableemptydatetime"
     ))
   }
 
@@ -135,23 +168,114 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
     it("should extract from the db to the storage layer") {
       val spark = sparkSession
-      val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+      val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails, checkLastUpdatedTimestampRange = true)
       val flow = Waimak.sparkFlow(sparkSession)
       val executor = Waimak.sparkExecutor()
 
-      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map("testtable" -> RDBMExtractionTableConfig("testtable"))
+      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map(
+        "testtable" -> RDBMExtractionTableConfig("testtable"),
+        "testtableempty" -> RDBMExtractionTableConfig("testtableempty", lastUpdatedColumn = Some("moddt"), pkCols = Some(Seq("id1"))),
+        "testtableemptydatetime" -> RDBMExtractionTableConfig("testtableemptydatetime", lastUpdatedColumn = Some("moddt"), pkCols = Some(Seq("id1")))
+      )
 
       val writeFlow = flow.extractToStorageFromRDBM(sqlExtractor
         , "dbo"
         , s"$testingBaseDir/output"
         , tableConfig
         , insertDateTime
-      )("testtable")
+      )(tableConfig.keySet.toSeq: _*)
+
+      executor.execute(writeFlow)
+
+      Thread.sleep(400)
+
+      executor.execute(writeFlow)
+    }
+
+    it("should fail to extract when the checkLastUpdatedTimestampRange flag is not set on an empty table") {
+      val spark = sparkSession
+      val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails, checkLastUpdatedTimestampRange = false)
+      val flow = Waimak.sparkFlow(sparkSession)
+      val executor = Waimak.sparkExecutor()
+
+      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map(
+        "testtableemptydatetime" -> RDBMExtractionTableConfig("testtableemptydatetime", lastUpdatedColumn = Some("moddt"), pkCols = Some(Seq("id1")))
+      )
+
+      val writeFlow = flow.extractToStorageFromRDBM(sqlExtractor
+        , "dbo"
+        , s"$testingBaseDir/output"
+        , tableConfig
+        , insertDateTime
+      )(tableConfig.keySet.toSeq: _*)
+
+      executor.execute(writeFlow)
+
+      Thread.sleep(400)
+
+      val ex = intercept[DataFlowException](
+        executor.execute(writeFlow)
+      )
+
+      ex.cause.asInstanceOf[StorageException].text should include("Error appending data to table [testtableemptydatetime]")
+    }
+
+    it("should extract correctly after inserting rows into a table with a datetime col") {
+      val spark = sparkSession
+      val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails, checkLastUpdatedTimestampRange = true)
+      val flow = Waimak.sparkFlow(sparkSession)
+      val executor = Waimak.sparkExecutor()
+
+      import spark.implicits._
+
+      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map(
+        "testtableemptydatetime" -> RDBMExtractionTableConfig("testtableemptydatetime", lastUpdatedColumn = Some("moddt"), pkCols = Some(Seq("id1")))
+      )
+
+      val writeFlow = flow.extractToStorageFromRDBM(sqlExtractor
+        , "dbo"
+        , s"$testingBaseDir/output"
+        , tableConfig
+        , insertDateTime
+      )(tableConfig.keySet.toSeq: _*)
+
+      executor.execute(writeFlow)
+
+      Thread.sleep(400)
+
+      executor.execute(writeFlow)
+
+      // insert some rows so we can extract
+      executeSQl(Seq(testEmptyTableInserts))
+
+      Thread.sleep(400)
+
+      logInfo("Extracting newly inserted rows")
+
+      val output = executor.execute(writeFlow)
+
+      output._2.inputs.get[Dataset[_]]("testtableemptydatetime")
+        .select("id1", "id2", "sometext")
+        .as[TestTableDatatime].collect() should contain theSameElementsAs Seq(
+        TestTableDatatime(1, 1, "v1"),
+        TestTableDatatime(2, 3, "v2")
+      )
+
+      logInfo("Running final extraction with no new rows")
+
+      executor.execute(writeFlow)
+
+      // Clear the tables for any other testing
+
+      cleanupTables()
+      setupTables()
     }
   }
 }
 
 case class TestTable(testtableid1: Int, testtableid2: Int, testtablevalue: String)
+
+case class TestTableDatatime(id1: Int, id2: Int, sometext: String)
 
 
 
