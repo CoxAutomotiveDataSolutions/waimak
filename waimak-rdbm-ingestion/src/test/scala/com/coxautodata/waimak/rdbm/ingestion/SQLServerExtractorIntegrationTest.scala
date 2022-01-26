@@ -258,6 +258,8 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
         TestTableDatatime(2, 3, "v2")
       )
 
+      executor.execute(writeFlow)
+
       // Clear the tables for any other testing
 
       cleanupTables()
