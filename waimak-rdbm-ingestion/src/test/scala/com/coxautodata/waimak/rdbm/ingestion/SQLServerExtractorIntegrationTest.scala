@@ -4,6 +4,7 @@ import java.sql.{DriverManager, Timestamp}
 import java.time.{ZoneOffset, ZonedDateTime}
 import com.coxautodata.waimak.dataflow.{DataFlowException, Waimak}
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
+import com.coxautodata.waimak.log.Logging
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
 import com.coxautodata.waimak.storage.{AuditTableInfo, StorageException}
 import org.apache.spark.sql.Dataset
@@ -11,7 +12,7 @@ import org.scalatest.BeforeAndAfterAll
 
 import scala.util.{Failure, Success}
 
-class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll {
+class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAndAfterAll with Logging {
 
   override val appName: String = "SQLServerConnectorIntegrationTest"
 
@@ -249,6 +250,8 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
       Thread.sleep(400)
 
+      logInfo("Extracting newly inserted rows")
+
       val output = executor.execute(writeFlow)
 
       output._2.inputs.get[Dataset[_]]("testtableemptydatetime")
@@ -257,6 +260,8 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
         TestTableDatatime(1, 1, "v1"),
         TestTableDatatime(2, 3, "v2")
       )
+
+      logInfo("Running final extraction with no new rows")
 
       executor.execute(writeFlow)
 
