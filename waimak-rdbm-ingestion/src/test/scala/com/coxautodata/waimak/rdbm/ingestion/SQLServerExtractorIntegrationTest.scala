@@ -2,11 +2,10 @@ package com.coxautodata.waimak.rdbm.ingestion
 
 import java.sql.{DriverManager, Timestamp}
 import java.time.{ZoneOffset, ZonedDateTime}
-
-import com.coxautodata.waimak.dataflow.Waimak
+import com.coxautodata.waimak.dataflow.{DataFlowException, Waimak}
 import com.coxautodata.waimak.dataflow.spark.SparkAndTmpDirSpec
 import com.coxautodata.waimak.rdbm.ingestion.RDBMIngestionActions._
-import com.coxautodata.waimak.storage.AuditTableInfo
+import com.coxautodata.waimak.storage.{AuditTableInfo, StorageException}
 import org.scalatest.BeforeAndAfterAll
 
 import scala.util.{Failure, Success}
@@ -159,7 +158,7 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
 
     it("should extract from the db to the storage layer") {
       val spark = sparkSession
-      val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails)
+      val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails, checkLastUpdatedTimestampRange = true)
       val flow = Waimak.sparkFlow(sparkSession)
       val executor = Waimak.sparkExecutor()
 
@@ -181,6 +180,34 @@ class SQLServerExtractorIntegrationTest extends SparkAndTmpDirSpec with BeforeAn
       Thread.sleep(400)
 
       executor.execute(writeFlow)
+    }
+
+    it("should fail to extract when the checkLastUpdatedTimestampRange flag is not set on an empty table") {
+      val spark = sparkSession
+      val sqlExtractor = new SQLServerExtractor(sparkSession, sqlServerConnectionDetails, checkLastUpdatedTimestampRange = false)
+      val flow = Waimak.sparkFlow(sparkSession)
+      val executor = Waimak.sparkExecutor()
+
+      val tableConfig: Map[String, RDBMExtractionTableConfig] = Map(
+        "testtableemptydatetime" -> RDBMExtractionTableConfig("testtableemptydatetime", lastUpdatedColumn = Some("moddt"), pkCols = Some(Seq("id1")))
+      )
+
+      val writeFlow = flow.extractToStorageFromRDBM(sqlExtractor
+        , "dbo"
+        , s"$testingBaseDir/output"
+        , tableConfig
+        , insertDateTime
+      )(tableConfig.keySet.toSeq: _*)
+
+      executor.execute(writeFlow)
+
+      Thread.sleep(400)
+
+      val ex = intercept[DataFlowException](
+        executor.execute(writeFlow)
+      )
+
+      ex.cause.asInstanceOf[StorageException].text should include("Error appending data to table [testtableemptydatetime]")
     }
   }
 }
