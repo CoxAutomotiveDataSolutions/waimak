@@ -60,6 +60,8 @@ trait RDBMExtractor extends Logging {
     */
   def transformTableNameForRead: String => String = identity
 
+  def constrainLastUpdatedTimestampRange(timestamp: Timestamp, label: String, meta: Map[String, String]): Timestamp = timestamp
+
   /**
     * Tries to get whatever metadata information it can from the database
     * Uses the optional provided values for pks and lastUpdated if it cannot get them from the database.

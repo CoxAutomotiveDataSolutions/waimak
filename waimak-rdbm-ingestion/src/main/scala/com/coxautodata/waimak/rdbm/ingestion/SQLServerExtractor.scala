@@ -23,7 +23,9 @@ import scala.util.{Failure, Success, Try}
 class SQLServerExtractor(override val sparkSession: SparkSession
                          , sqlServerConnectionDetails: SQLServerConnectionDetails
                          , extraConnectionProperties: Properties = new Properties()
-                         , override val transformTableNameForRead: String => String = identity) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
+                         , override val transformTableNameForRead: String => String = identity
+                         , override val checkLastUpdatedTimestampRange: Boolean = false)
+  extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties, checkLastUpdatedTimestampRange) with Logging {
 
 
   val pkQuery: String =

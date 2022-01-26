@@ -21,7 +21,9 @@ import scala.util.{Failure, Success, Try}
  */
 class SQLServerTemporalExtractor(override val sparkSession: SparkSession
                                  , sqlServerConnectionDetails: SQLServerConnectionDetails
-                                 , extraConnectionProperties: Properties = new Properties()) extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties) with Logging {
+                                 , extraConnectionProperties: Properties = new Properties()
+                                 , override val checkLastUpdatedTimestampRange: Boolean = false)
+  extends SQLServerBaseExtractor(sqlServerConnectionDetails, extraConnectionProperties, checkLastUpdatedTimestampRange) with Logging {
 
   lazy val allTableMetadata: Map[String, SQLServerTemporalTableMetadata] = {
     import sparkSession.implicits._
