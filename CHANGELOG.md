@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.9.4 - 2022-01-26
+- Fix issue where extracting from an mssql table which is empty with a datetime col fails
+- Update various dependencies (sttp, some maven plugins)
+
 ## 2.9.3 - 2022-01-24
 - Fix issue with dependency resolution inside databricks for waimak jars
 - Update various dependencies
