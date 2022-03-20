@@ -95,10 +95,11 @@ Waimak is tested against the following versions of Spark:
 
 Package Maintainer | Spark Version | Scala Version
 ------------------ | ------------- | -------------
-Apache Spark | [3.0.3](https://spark.apache.org/releases/spark-release-3-0-3.html) | 2.12
 Apache Spark | [3.1.2](https://spark.apache.org/releases/spark-release-3-1-2.html) | 2.12
+Apache Spark | [3.1.3](https://spark.apache.org/releases/spark-release-3-1-3.html) | 2.12
 Apache Spark | [3.2.0](https://spark.apache.org/releases/spark-release-3-2-0.html) | 2.12
-Apache Spark | [3.2.0](https://spark.apache.org/releases/spark-release-3-2-0.html) | 2.13
+Apache Spark | [3.2.1](https://spark.apache.org/releases/spark-release-3-2-1.html) | 2.12
+Apache Spark | [3.2.1](https://spark.apache.org/releases/spark-release-3-2-1.html) | 2.13
 
 ## Where can I learn more?
 
