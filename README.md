@@ -74,7 +74,7 @@ Waimak currently consists of the following modules:
 Artifact ID | Purpose | Maven Release
 ----------- | ------- | -------------
 `waimak-core` | Core Waimak functionality and generic actions | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-core*) 
-`waimak-configuration-databricks` | Databricks-specific configuration provider using secret scopes (Scala 2.11 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration-databricks*)
+`waimak-configuration-databricks` | Databricks-specific configuration provider using secret scopes (Scala 2.12 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration-databricks*)
 `waimak-impala` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-impala*)
 `waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-hive*)
 `waimak-rdbm-ingestion` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-ingestion*)
@@ -82,7 +82,7 @@ Artifact ID | Purpose | Maven Release
 `waimak-app` | Functionality providing Waimak application templates and orchestration | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-app*)
 `waimak-experimental` | Experimental features currently under development | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-experimental*)
 `waimak-dataquality` | Functionality for monitoring and alerting on data quality | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-dataquality*)
-`waimak-deequ` | Amazon Deequ implementation of data quality monitoring (Scala 2.11 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-deequ*)
+`waimak-deequ` | Amazon Deequ implementation of data quality monitoring (Scala 2.12 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-deequ*)
 
 ## What versions of Spark are supported?
 
@@ -110,7 +110,7 @@ We welcome all users to contribute to the development of Waimak by raising pull-
 
 ### How do I test my contributions?
 
-Waimak is tested against different versions of Spark 2.x to ensure uniform compatibility. The versions of Spark tested by Waimak are given in the `<profiles>` section of the POM. You can activate a given profile in the POM by using the `-P` flag: `mvn clean package -P apache-2.3.0_2.11`
+Waimak is tested against different versions of Spark 2.x to ensure uniform compatibility. The versions of Spark tested by Waimak are given in the `<profiles>` section of the POM. You can activate a given profile in the POM by using the `-P` flag: `mvn clean package -P apache-3.2.1_2.12`
 
 The integration tests of the RDBM ingestion module require Docker therefore you must have the Docker service running and the current user must be able to access the Docker service.
 
