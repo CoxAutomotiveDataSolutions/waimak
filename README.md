@@ -14,11 +14,6 @@ Waimak aims to abstract the more complex parts of Spark application development 
 
 Our metaphor to describe this framework is the braided river – it splits and rejoins to itself repeatedly on its journey. By describing a Spark application as a sequence of flow transformations, Waimak can execute independent branches of the flow in parallel making more efficient use of compute resources and greatly reducing the execution time of complex flows.
 
-## Versions
-
-From Waimak version 2.9 onwards we will be focusing our attention on Spark 3+ and Scala 2.12. While some of the jars will still be published for 2.11 we are focusing on having the build be 2.12 first.
-This is due to an increasing number of the dependencies (databricks config and deequ for example) now being produced for Scala 2.12. If you still require Scala 2.11 support for new versions please open an issue and we can work with you on this.
-
 ## Why would I use Waimak?
 We developed Waimak to:
 * allow teams to own their own business logic without owning an entire production Spark application
@@ -79,7 +74,7 @@ Waimak currently consists of the following modules:
 Artifact ID | Purpose | Maven Release
 ----------- | ------- | -------------
 `waimak-core` | Core Waimak functionality and generic actions | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-core*) 
-`waimak-configuration-databricks` | Databricks-specific configuration provider using secret scopes (Scala 2.11 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration-databricks*)
+`waimak-configuration-databricks` | Databricks-specific configuration provider using secret scopes (Scala 2.12 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-configuration-databricks*)
 `waimak-impala` | Impala implementation of the `HadoopDBConnector` used for commiting labels to an Impala DB | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-impala*)
 `waimak-hive` | Hive implementation of the `HadoopDBConnector` used for commiting labels to a Hive Metastore | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-hive*)
 `waimak-rdbm-ingestion` | Functionality to ingest inputs from a range of RDBM sources | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-rdbm-ingestion*)
@@ -87,7 +82,7 @@ Artifact ID | Purpose | Maven Release
 `waimak-app` | Functionality providing Waimak application templates and orchestration | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-app*)
 `waimak-experimental` | Experimental features currently under development | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-experimental*)
 `waimak-dataquality` | Functionality for monitoring and alerting on data quality | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-dataquality*)
-`waimak-deequ` | Amazon Deequ implementation of data quality monitoring (Scala 2.11 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-deequ*)
+`waimak-deequ` | Amazon Deequ implementation of data quality monitoring (Scala 2.12 only) | [Maven Central](https://search.maven.org/search?q=g:com.coxautodata%20AND%20a:waimak-deequ*)
 
 ## What versions of Spark are supported?
 
@@ -95,10 +90,11 @@ Waimak is tested against the following versions of Spark:
 
 Package Maintainer | Spark Version | Scala Version
 ------------------ | ------------- | -------------
-Apache Spark | [3.0.3](https://spark.apache.org/releases/spark-release-3-0-3.html) | 2.12
 Apache Spark | [3.1.2](https://spark.apache.org/releases/spark-release-3-1-2.html) | 2.12
+Apache Spark | [3.1.3](https://spark.apache.org/releases/spark-release-3-1-3.html) | 2.12
 Apache Spark | [3.2.0](https://spark.apache.org/releases/spark-release-3-2-0.html) | 2.12
-Apache Spark | [3.2.0](https://spark.apache.org/releases/spark-release-3-2-0.html) | 2.13
+Apache Spark | [3.2.1](https://spark.apache.org/releases/spark-release-3-2-1.html) | 2.12
+Apache Spark | [3.2.1](https://spark.apache.org/releases/spark-release-3-2-1.html) | 2.13
 
 ## Where can I learn more?
 
@@ -114,7 +110,7 @@ We welcome all users to contribute to the development of Waimak by raising pull-
 
 ### How do I test my contributions?
 
-Waimak is tested against different versions of Spark 2.x to ensure uniform compatibility. The versions of Spark tested by Waimak are given in the `<profiles>` section of the POM. You can activate a given profile in the POM by using the `-P` flag: `mvn clean package -P apache-2.3.0_2.11`
+Waimak is tested against different versions of Spark 2.x to ensure uniform compatibility. The versions of Spark tested by Waimak are given in the `<profiles>` section of the POM. You can activate a given profile in the POM by using the `-P` flag: `mvn clean package -P apache-3.2.1_2.12`
 
 The integration tests of the RDBM ingestion module require Docker therefore you must have the Docker service running and the current user must be able to access the Docker service.
 

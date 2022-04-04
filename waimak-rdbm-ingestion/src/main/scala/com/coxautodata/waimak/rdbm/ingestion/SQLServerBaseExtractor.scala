@@ -74,6 +74,10 @@ case class SQLServerConnectionDetails(server: String
                                       , port: Int
                                       , databaseName: String
                                       , user: String
-                                      , password: String) extends RDBMConnectionDetails {
-  override val jdbcString: String = s"jdbc:sqlserver://$server:$port;databaseName=$databaseName;"
+                                      , password: String
+                                      , trustServerCert: Boolean = false) extends RDBMConnectionDetails {
+  override val jdbcString: String = {
+      if (trustServerCert) s"jdbc:sqlserver://$server:$port;databaseName=$databaseName;encrypt=true;trustServerCertificate=true;"
+      else s"jdbc:sqlserver://$server:$port;databaseName=$databaseName;"
+    }
 }
