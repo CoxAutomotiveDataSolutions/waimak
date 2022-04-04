@@ -59,6 +59,12 @@
             <organization>Cox Automotive Data Solutions</organization>
             <organizationUrl>http://coxautodata.com/</organizationUrl>
         </developer>
+        <developer>
+            <name>James Fielder</name>
+            <email>github@zerogravitas.xyz</email>
+            <organization>Cox Automotive Data Services</organization>
+            <organizationUrl>https://www.coxautoinc.eu/</organizationUrl>
+        </developer>
     </developers>
 
     <scm>
