@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.5 - 2022-04-04
+
+- Push jars against spark 3.2 by default
+- Various dependency updates
+
 ## 2.9.4 - 2022-01-26
 - Fix issue where extracting from an mssql table which is empty with a datetime col fails
 - Update various dependencies (sttp, some maven plugins)
