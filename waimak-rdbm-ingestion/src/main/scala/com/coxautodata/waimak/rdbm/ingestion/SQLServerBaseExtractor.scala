@@ -31,6 +31,8 @@ abstract class SQLServerBaseExtractor(override val connectionDetails: SQLServerC
 
     import columnType.sparkSession.implicits._
 
+    columnType.show()
+
     columnType.select("data_type").as[String].first()
   }
 
