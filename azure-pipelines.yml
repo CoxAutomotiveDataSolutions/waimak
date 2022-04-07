@@ -73,6 +73,7 @@ jobs:
     maxParallel: 7
   steps:
   - task: JavaToolInstaller@0
+    displayName: "Use Java $(JAVA_VERSION)"
     inputs:
       versionSpec: "$(JAVA_VERSION)"
       jdkArchitectureOption: 'x64'
