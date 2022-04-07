@@ -33,31 +33,48 @@ jobs:
         DEPLOY_PROFILE: 'false'
         SCALA_VERSION: '2.12'
         EXTRA_MVN_OPTS: ''
+        JAVA_VERSION: '8'
       Spark31312:
         MAVEN_PROFILE: 'apache-3.1.3_2.12'
         DEPLOY_PROFILE: 'false'
         SCALA_VERSION: '2.12'
         EXTRA_MVN_OPTS: ''
+        JAVA_VERSION: '8'
       Spark32012:
         MAVEN_PROFILE: 'apache-3.2.0_2.12'
         DEPLOY_PROFILE: 'false'
         SCALA_VERSION: '2.12'
         EXTRA_MVN_OPTS: ''
+        JAVA_VERSION: '8'
       Spark32112:
         MAVEN_PROFILE: 'apache-3.2.1_2.12'
         DEPLOY_PROFILE: true
         SCALA_VERSION: '2.12'
         EXTRA_MVN_OPTS: ''
+        JAVA_VERSION: '8'
       Spark32113:
         MAVEN_PROFILE: 'apache-3.2.1_2.13'
         DEPLOY_PROFILE: true
         SCALA_VERSION: '2.13'
         EXTRA_MVN_OPTS: '-pl !waimak-deequ,!waimak-configuration-databricks'
-    maxParallel: 5
+        JAVA_VERSION: '8'
+      Spark32112Java11:
+        MAVEN_PROFILE: 'apache-3.2.1_2.12'
+        DEPLOY_PROFILE: false
+        SCALA_VERSION: '2.12'
+        EXTRA_MVN_OPTS: ''
+        JAVA_VERSION: '11'
+      Spark32113Java11:
+        MAVEN_PROFILE: 'apache-3.2.1_2.13'
+        DEPLOY_PROFILE: false
+        SCALA_VERSION: '2.13'
+        EXTRA_MVN_OPTS: '-pl !waimak-deequ,!waimak-configuration-databricks'
+        JAVA_VERSION: '11'
+    maxParallel: 7
   steps:
   - task: JavaToolInstaller@0
     inputs:
-      versionSpec: '8'
+      versionSpec: "$(JAVA_VERSION)"
       jdkArchitectureOption: 'x64'
       jdkSourceOption: 'PreInstalled'
   - task: Bash@3
