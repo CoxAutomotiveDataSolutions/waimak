@@ -248,7 +248,7 @@
         <circe.version>0.14.1</circe.version>
         <mock.javamail.version>1.9</mock.javamail.version>
         <apache.commons.version>1.5</apache.commons.version>
-        <sttp.version>3.5.2</sttp.version>
+        <sttp.version>3.6.1</sttp.version>
         <skipTests>false</skipTests>
         <skipUTs>${skipTests}</skipUTs>
         <skipITs>${skipTests}</skipITs>
