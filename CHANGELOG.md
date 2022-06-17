@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.6 - 2022-06-17
+
+- Test and build against spark 3.3
+- Various dependency updates
+
 ## 2.9.5 - 2022-04-04
 
 - Push jars against spark 3.2 by default
