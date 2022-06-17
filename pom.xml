@@ -87,20 +87,11 @@
     </modules>
     <profiles>
         <profile>
-            <id>apache-3.1.2_2.12</id>
-            <properties>
-                <spark.version>3.1.2</spark.version>
-                <scala.compatible.version>2.12</scala.compatible.version>
-                <scala.lang.version>2.12.15</scala.lang.version>
-                <deequ.version>2.0.0-spark-3.1</deequ.version>
-            </properties>
-        </profile>
-        <profile>
             <id>apache-3.1.3_2.12</id>
             <properties>
                 <spark.version>3.1.3</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
-                <scala.lang.version>2.12.15</scala.lang.version>
+                <scala.lang.version>2.12.16</scala.lang.version>
                 <deequ.version>2.0.0-spark-3.1</deequ.version>
             </properties>
         </profile>
@@ -109,7 +100,7 @@
             <properties>
                 <spark.version>3.2.0</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
-                <scala.lang.version>2.12.15</scala.lang.version>
+                <scala.lang.version>2.12.16</scala.lang.version>
                 <deequ.version>2.0.1-spark-3.2</deequ.version>
             </properties>
         </profile>
@@ -121,17 +112,26 @@
             <properties>
                 <spark.version>3.2.1</spark.version>
                 <scala.compatible.version>2.12</scala.compatible.version>
-                <scala.lang.version>2.12.15</scala.lang.version>
+                <scala.lang.version>2.12.16</scala.lang.version>
                 <deequ.version>2.0.1-spark-3.2</deequ.version>
             </properties>
         </profile>
         <profile>
-            <id>apache-3.2.1_2.13</id>
+            <id>apache-3.3.0_2.12</id>
+            <properties>
+                <spark.version>3.3.0</spark.version>
+                <scala.compatible.version>2.12</scala.compatible.version>
+                <scala.lang.version>2.12.16</scala.lang.version>
+                <deequ.version>2.0.0-spark-3.1</deequ.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>apache-3.3.0_2.13</id>
             <activation>
                 <activeByDefault>false</activeByDefault>
             </activation>
             <properties>
-                <spark.version>3.2.1</spark.version>
+                <spark.version>3.3.0</spark.version>
                 <scala.compatible.version>2.13</scala.compatible.version>
                 <scala.lang.version>2.13.8</scala.lang.version>
                 <deequ.version>2.0.1-spark-3.2</deequ.version>

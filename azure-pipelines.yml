@@ -28,11 +28,6 @@ jobs:
   displayName: Maven build
   strategy:
     matrix:
-      Spark31212:
-        MAVEN_PROFILE: 'apache-3.1.2_2.12'
-        DEPLOY_PROFILE: 'false'
-        SCALA_VERSION: '2.12'
-        EXTRA_MVN_OPTS: ''
       Spark31312:
         MAVEN_PROFILE: 'apache-3.1.3_2.12'
         DEPLOY_PROFILE: 'false'
@@ -48,8 +43,13 @@ jobs:
         DEPLOY_PROFILE: true
         SCALA_VERSION: '2.12'
         EXTRA_MVN_OPTS: ''
-      Spark32113:
-        MAVEN_PROFILE: 'apache-3.2.1_2.13'
+      Spark33012:
+        MAVEN_PROFILE: 'apache-3.3.0_2.12'
+        DEPLOY_PROFILE: false
+        SCALA_VERSION: '2.12'
+        EXTRA_MVN_OPTS: ''
+      Spark33013:
+        MAVEN_PROFILE: 'apache-3.3.0_2.13'
         DEPLOY_PROFILE: true
         SCALA_VERSION: '2.13'
         EXTRA_MVN_OPTS: '-pl !waimak-deequ,!waimak-configuration-databricks'
