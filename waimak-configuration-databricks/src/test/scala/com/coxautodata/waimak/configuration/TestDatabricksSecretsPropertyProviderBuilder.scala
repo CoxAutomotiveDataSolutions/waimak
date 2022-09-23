@@ -4,7 +4,7 @@ import java.util.Properties
 import com.coxautodata.waimak.configuration.CaseClassConfigParser.CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES
 import com.coxautodata.waimak.configuration.DatabricksSecretsPropertyProviderBuilder._
 import com.coxautodata.waimak.dataflow.spark.{SparkFlowContext, SparkSpec}
-import com.databricks.dbutils_v1.{DataUtils, DatabricksCredentialUtils, JobsUtils, LibraryUtils}
+import com.databricks.dbutils_v1.{DatabricksCredentialUtils, LibraryUtils}
 import org.apache.spark.sql.RuntimeConfig
 
 import java.util
@@ -126,6 +126,8 @@ class TestDBUtilsV1Secrets(properties: Map[String, Properties]) extends com.data
   override val meta: com.databricks.dbutils_v1.MetaUtils = null
   override val fs: com.databricks.dbutils_v1.DbfsUtils = null
   override val notebook: com.databricks.dbutils_v1.NotebookUtils = null
+  override val data: com.databricks.dbutils_v1.DataUtils = null
+  override val jobs: com.databricks.dbutils_v1.JobsUtils = null
   override val secrets: com.databricks.dbutils_v1.SecretUtils = new com.databricks.dbutils_v1.SecretUtils {
     override def get(scope: String, key: String): String = {
       properties
@@ -170,8 +172,6 @@ class TestDBUtilsV1Secrets(properties: Map[String, Properties]) extends com.data
 
     override def help(moduleOrMethod: String): Unit = ???
   }
-  override val data: DataUtils = ???
-  override val jobs: JobsUtils = ???
 }
 
 case class DatabricksTest(key: String)
