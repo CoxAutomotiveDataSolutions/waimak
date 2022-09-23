@@ -4,7 +4,7 @@ import java.util.Properties
 import com.coxautodata.waimak.configuration.CaseClassConfigParser.CONFIG_PROPERTY_PROVIDER_BUILDER_MODULES
 import com.coxautodata.waimak.configuration.DatabricksSecretsPropertyProviderBuilder._
 import com.coxautodata.waimak.dataflow.spark.{SparkFlowContext, SparkSpec}
-import com.databricks.dbutils_v1.{DatabricksCredentialUtils, LibraryUtils}
+import com.databricks.dbutils_v1.{DataUtils, DatabricksCredentialUtils, JobsUtils, LibraryUtils}
 import org.apache.spark.sql.RuntimeConfig
 
 import java.util
@@ -151,15 +151,8 @@ class TestDBUtilsV1Secrets(properties: Map[String, Properties]) extends com.data
   override def help(moduleOrMethod: String): Unit = ???
 
   override val library: LibraryUtils = new LibraryUtils {
-    override def install(path: String): Boolean = ???
 
     override def restartPython(): Unit = ???
-
-    override def installPyPI(pypiPackage: String, version: String, repo: String, extras: String): Boolean = ???
-
-    override def updateCondaEnv(envYmlContent: String): Boolean = ???
-
-    override def list(): util.List[String] = ???
 
     override def help(): Unit = ???
 
@@ -177,6 +170,8 @@ class TestDBUtilsV1Secrets(properties: Map[String, Properties]) extends com.data
 
     override def help(moduleOrMethod: String): Unit = ???
   }
+  override val data: DataUtils = ???
+  override val jobs: JobsUtils = ???
 }
 
 case class DatabricksTest(key: String)
