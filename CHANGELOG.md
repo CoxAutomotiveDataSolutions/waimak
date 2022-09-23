@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.9.6 - 2022-09-13
+
+- Various dependency updates, see github log
+
 ## 2.9.6 - 2022-06-17
 
 - Test and build against spark 3.3
