@@ -245,7 +245,7 @@
         <jgitflow.maven.plugin.version>1.0-m5.1</jgitflow.maven.plugin.version>
         <scoverage.plugin.version>1.4.0-RC1</scoverage.plugin.version>
         <databricks.dbutils.version>0.0.5</databricks.dbutils.version>
-        <circe.version>0.14.2</circe.version>
+        <circe.version>0.14.3</circe.version>
         <mock.javamail.version>1.9</mock.javamail.version>
         <apache.commons.version>1.5</apache.commons.version>
         <sttp.version>3.7.6</sttp.version>
